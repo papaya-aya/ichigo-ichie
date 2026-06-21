@@ -21,6 +21,9 @@ import production
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SHIFTO_SECRET", "dev-secret-change-me")
 
+# Initialize DB on startup (works for both local and serverless/Vercel).
+database.init_db()
+
 WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
