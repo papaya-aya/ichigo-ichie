@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Availability approvals</h1>
+<p class="subtitle">Only approved availability is used when assigning people to shifts.</p>
+
+<div class="month-nav">
+  {% for s in ['pending', 'approved', 'rejected'] %}
+    <a class="btn btn-sm {{ 'btn-ghost' if status != s }}" href="{{ url_for('approvals', status=s) }}">
+      {{ s|capitalize }} ({{ counts.get(s, 0) }})
+    </a>
+  {% endfor %}
+</div>
+
+{% set originals = rows | selectattr('is_update', 'equalto', 0) | list %}
+{% set updates   = rows | selectattr('is_update', 'equalto', 1) | list %}
+
+<form method="post" action="{{ url_for('approvals', status=status) }}">
+  {% if not rows %}
+    <div class="card"><p class="muted">Nothing {{ status }}.</p></div>
+  {% else %}
+
+  {# ── Original submissions ── #}
+  {% if originals %}
+  <div class="card" style="margin-bottom:1rem">
+    <h2 style="margin-top:0">📋 Original submissions
+      <span class="muted" style="font-weight:400;font-size:.85rem">({{ originals|length }})</span>
+    </h2>
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="toggleGroup(this,'cb-orig')"></th>
+          <th>Date</th><th>Shift</th><th>Employee</th><th>Available</th><th>Note</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in originals %}
+        <tr>
+          <td><input class="cb cb-orig" type="checkbox" name="av_id" value="{{ r.id }}"></td>
+          <td><span class="badge badge-day">{{ weekday_names[r.weekday] }}</span> {{ r.date }}</td>
+          <td>{{ r.label }} <span class="muted">({{ r.shift_start }}–{{ r.shift_end }})</span></td>
+          <td>{{ r.emp_name }}</td>
+          <td>
+            {{ r.start_time }}–{{ r.end_time }}
+            {% if r.start_time != r.shift_start or r.end_time != r.shift_end %}
+              <span class="pill">partial</span>
+            {% endif %}
+          </td>
+          <td class="muted">{{ r.note or '' }}</td>
+          <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {# ── Update requests ── #}
+  {% if updates %}
+  <div class="card" style="border-left:3px solid #f59e0b; margin-bottom:1rem">
+    <h2 style="margin-top:0">✏️ Change requests
+      <span class="muted" style="font-weight:400;font-size:.85rem">({{ updates|length }}) — employee updated their availability</span>
+    </h2>
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="toggleGroup(this,'cb-upd')"></th>
+          <th>Date</th><th>Shift</th><th>Employee</th><th>Requested change</th><th>Note</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in updates %}
+        <tr style="background:#fffbeb">
+          <td><input class="cb cb-upd" type="checkbox" name="av_id" value="{{ r.id }}"></td>
+          <td><span class="badge badge-day">{{ weekday_names[r.weekday] }}</span> {{ r.date }}</td>
+          <td>{{ r.label }} <span class="muted">({{ r.shift_start }}–{{ r.shift_end }})</span></td>
+          <td><b>{{ r.emp_name }}</b></td>
+          <td>
+            {{ r.start_time }}–{{ r.end_time }}
+            {% if r.start_time != r.shift_start or r.end_time != r.shift_end %}
+              <span class="pill">partial</span>
+            {% endif %}
+          </td>
+          <td class="muted">{{ r.note or '' }}</td>
+          <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="row-actions" style="flex-wrap:wrap;gap:.5rem">
+    {% if originals and status == 'pending' %}
+    <button type="submit" name="action" value="approve_originals" style="background:var(--pink);color:#fff;border:none">
+      ✓ Approve all originals ({{ originals|length }})
+    </button>
+    {% endif %}
+    <button type="submit" name="action" value="approve" class="btn-green">Approve selected</button>
+    <button type="submit" name="action" value="reject"  class="btn-red">Reject selected</button>
+  </div>
+  {% endif %}
+</form>
+
+{# ── Employee strawberry requests ────────────────────────────────────────── #}
+{% if pending_strawberries %}
+<div class="card" style="margin-top:1.5rem">
+  <h2 style="margin-top:0">🍓 Strawberry purchase requests</h2>
+  <table>
+    <thead>
+      <tr><th>Employee</th><th>Date</th><th>Requested</th><th></th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in pending_strawberries %}
+      <tr>
+        <td><b>{{ r.emp_name }}</b></td>
+        <td>{{ r.date }}</td>
+        <td class="muted" style="font-size:0.82rem">{{ r.created_at[:10] }}</td>
+        <td>
+          <form method="post" action="{{ url_for('decide_request') }}" class="inline-form">
+            <input type="hidden" name="kind" value="strawberry">
+            <input type="hidden" name="id" value="{{ r.id }}">
+            <input type="hidden" name="action" value="approve">
+            <button type="submit" class="btn-ghost btn-sm btn-green">Approve</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('decide_request') }}" class="inline-form">
+            <input type="hidden" name="kind" value="strawberry">
+            <input type="hidden" name="id" value="{{ r.id }}">
+            <input type="hidden" name="action" value="reject">
+            <button type="submit" class="btn-ghost btn-sm btn-red">Reject</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── Employee pop-up / event requests ────────────────────────────────────── #}
+{% if pending_popups %}
+<div class="card" style="margin-top:1.5rem">
+  <h2 style="margin-top:0">📅 Pop-up / event hour requests</h2>
+  <table>
+    <thead>
+      <tr><th>Employee</th><th>Date</th><th>Description</th><th>Time</th><th>Hours</th><th>Transport</th><th></th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in pending_popups %}
+      <tr>
+        <td><b>{{ r.emp_name }}</b></td>
+        <td>{{ r.date }}</td>
+        <td>{{ r.description or '—' }}</td>
+        <td class="muted">{{ r.start_time }}–{{ r.end_time }}</td>
+        <td>{{ r.hours }} hr</td>
+        <td>{% if r.transport %}<span class="ok">+${{ "%.2f"|format(r.transport) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>
+          <form method="post" action="{{ url_for('decide_request') }}" class="inline-form">
+            <input type="hidden" name="kind" value="popup">
+            <input type="hidden" name="id" value="{{ r.id }}">
+            <input type="hidden" name="action" value="approve">
+            <button type="submit" class="btn-ghost btn-sm btn-green">Approve</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('decide_request') }}" class="inline-form">
+            <input type="hidden" name="kind" value="popup">
+            <input type="hidden" name="id" value="{{ r.id }}">
+            <input type="hidden" name="action" value="reject">
+            <button type="submit" class="btn-ghost btn-sm btn-red">Reject</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if pending_shift_reports %}
+<div class="card" style="margin-top:1.5rem">
+  <h2 style="margin-top:0">📋 Pending shift reports</h2>
+  <p class="muted" style="margin-top:-.5rem">Approving a report confirms the actual hours worked.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Shift</th>
+        <th>Submitted by</th>
+        <th>🍓 Strawberry</th>
+        <th>🫘 Anko</th>
+        <th>Memo</th>
+        <th colspan="2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in pending_shift_reports %}
+      <tr>
+        <td>
+          <span class="badge badge-day">{{ weekday_names[r.weekday] }}</span>
+          {{ r.date }}<br>
+          <span class="muted" style="font-size:.85em">{{ r.label }}</span>
+        </td>
+        <td>{{ r.submitter }}</td>
+        <td>{{ r.strawberry_stock if r.strawberry_stock is not none else '—' }}</td>
+        <td>{{ r.anko_stock if r.anko_stock is not none else '—' }}</td>
+        <td style="max-width:18rem; white-space:pre-wrap; font-size:.88em">{{ r.memo or '—' }}</td>
+        <td>
+          <form method="post" action="{{ url_for('decide_shift_report', report_id=r.id) }}" class="inline-form">
+            <input type="hidden" name="action" value="approve">
+            <button type="submit" class="btn-ghost btn-sm btn-green">Approve</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('decide_shift_report', report_id=r.id) }}" class="inline-form">
+            <input type="hidden" name="action" value="reject">
+            <button type="submit" class="btn-ghost btn-sm btn-red">Reject</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script>
+function toggleGroup(master, cls) {
+  document.querySelectorAll('.' + cls).forEach(cb => cb.checked = master.checked);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Ichigo Ichie Shifts{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('home') }}">🍓 Ichigo Ichie</a>
+    {% if is_owner or employee_name %}
+    <button class="nav-burger" id="nav-burger" aria-label="Menu" onclick="toggleNav()">☰</button>
+    {% endif %}
+    <nav id="main-nav">
+      {% if is_owner %}
+        <a href="{{ url_for('approvals') }}">Approvals</a>
+        <a href="{{ url_for('recurring_orders') }}">Recurring</a>
+        <a href="{{ url_for('deliveries_month') }}">Deliveries</a>
+        <a href="{{ url_for('calendar_view') }}">Calendar</a>
+        <a href="{{ url_for('salary_report') }}">Salary</a>
+        <a href="{{ url_for('owner_guide') }}">Guide</a>
+        <a href="{{ url_for('owner_dashboard') }}">Input</a>
+        <span class="who">Owner</span>
+        <a class="btn-link" href="{{ url_for('logout') }}">Log out</a>
+      {% elif employee_name %}
+        <a href="{{ url_for('availability') }}">My availability</a>
+        <a href="{{ url_for('my_shifts') }}">My shifts & pay</a>
+        <a href="{{ url_for('my_deliveries') }}">My deliveries</a>
+        <a href="{{ url_for('calendar_view') }}">Schedule</a>
+        <span class="who">{{ employee_name }}</span>
+        <a class="btn-link" href="{{ url_for('logout') }}">Log out</a>
+      {% endif %}
+    </nav>
+  </header>
+  <script>
+    function toggleNav() {
+      document.getElementById('main-nav').classList.toggle('nav-open');
+    }
+  </script>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashes">
+          {% for category, msg in messages %}
+            <div class="flash flash-{{ category }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

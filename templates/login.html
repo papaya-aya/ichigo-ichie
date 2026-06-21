@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-wrap">
+  <h1>🍓 Ichigo Ichie Shifts</h1>
+  <p class="subtitle">Sign in to submit availability or manage the schedule.</p>
+
+  <div class="card">
+    <div class="tabs">
+      <button type="button" id="tab-emp" class="active" onclick="showTab('emp')">Employee</button>
+      <button type="button" id="tab-owner" onclick="showTab('owner')">Owner</button>
+    </div>
+
+    <form method="post" id="form-emp">
+      <input type="hidden" name="role" value="employee">
+      <div class="field">
+        <label>Your name</label>
+        <select name="employee_id" required>
+          <option value="" disabled selected>Choose your name…</option>
+          {% for e in employees %}
+            <option value="{{ e.id }}">{{ e.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" id="pin-field">
+        <label>PIN <span class="muted" style="font-weight:400;font-size:.85em">(first time? just press Sign in)</span></label>
+        <input type="password" name="pin" inputmode="numeric" autocomplete="off">
+      </div>
+      <button type="submit">Sign in</button>
+      {% if not employees %}
+        <p class="help">No employees yet — the owner adds them from the dashboard.</p>
+      {% endif %}
+    </form>
+
+    <form method="post" id="form-owner" style="display:none">
+      <input type="hidden" name="role" value="owner">
+      <div class="field">
+        <label>Owner password</label>
+        <input type="password" name="password" autocomplete="off" required>
+      </div>
+      <button type="submit">Sign in as owner</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  function showTab(which) {
+    document.getElementById('form-emp').style.display = which === 'emp' ? 'block' : 'none';
+    document.getElementById('form-owner').style.display = which === 'owner' ? 'block' : 'none';
+    document.getElementById('tab-emp').classList.toggle('active', which === 'emp');
+    document.getElementById('tab-owner').classList.toggle('active', which === 'owner');
+  }
+</script>
+{% endblock %}

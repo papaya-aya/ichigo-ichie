@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Recurring Orders · Ichigo Ichie{% endblock %}
+{% block content %}
+
+<h1>Recurring orders</h1>
+<p class="subtitle">Default quantities per client per production day. Apply to a month to pre-fill orders.</p>
+
+{# ── Top action bar ──────────────────────────────────────────────────────── #}
+<div style="display:flex; gap:0.8rem; flex-wrap:wrap; margin-bottom:1.2rem; align-items:flex-start">
+
+  {# Apply to month #}
+  <div class="card" style="flex:1; min-width:16rem; margin:0; padding:0.9rem 1rem">
+    <b>Apply to month</b>
+    <p class="help" style="margin:0.2rem 0 0.5rem">Pre-fills orders for all matching shift dates. Skips dates that already have an order.</p>
+    <form method="post" action="{{ url_for('apply_recurring_orders') }}" class="row-actions" style="margin:0">
+      <input type="text" name="month" value="{{ next_month }}" pattern="\d{4}-\d{2}" style="width:7.5rem">
+      <button type="submit">Apply</button>
+    </form>
+  </div>
+
+  {# Add new client #}
+  <div class="card" style="flex:1; min-width:16rem; margin:0; padding:0.9rem 1rem">
+    <b>Add a client</b>
+    <p class="help" style="margin:0.2rem 0 0.5rem">New clients appear in all order forms immediately.</p>
+    <form method="post" action="{{ url_for('recurring_add_client') }}" class="row-actions" style="margin:0">
+      <input type="text" name="name" placeholder="Client name" required style="flex:1">
+      <button type="submit">Add</button>
+    </form>
+  </div>
+
+</div>
+
+{# ── Auto-calculate preview ──────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Auto-calculate quantities &amp; staffing
+    <form method="post" action="{{ url_for('sync_templates_from_recurring') }}" class="inline-form" style="float:right">
+      <button type="submit" class="btn-ghost btn-sm">⟳ Sync to shift templates</button>
+    </form>
+  </h2>
+  <p class="help">Totals from all recurring orders below, and suggested min/max staff based on target productivity.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Shift</th>
+        <th style="text-align:right">Total pcs (recurring)</th>
+        <th style="text-align:right">Current qty</th>
+        <th style="text-align:right">Suggested min</th>
+        <th style="text-align:right">Suggested max</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in sync_preview %}
+      <tr>
+        <td><span class="badge badge-day">{{ weekday_names[p.weekday] }}</span>
+            <span class="muted" style="font-size:0.85rem">&nbsp;{{ p.label }}</span></td>
+        <td style="text-align:right">
+          {% if p.new_qty %}<b>{{ p.new_qty }}</b>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right; color:var(--muted)">{{ p.cur_qty }}</td>
+        <td style="text-align:right">
+          {% if p.new_min %}<span class="ok">{{ p.new_min }}</span>{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right">
+          {% if p.new_max %}<span class="ok">{{ p.new_max }}</span>{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="help" style="margin-top:0.5rem">Click <b>⟳ Sync to shift templates</b> to apply these numbers. This updates Input's shift template table.</p>
+</div>
+
+{# ── Per-client recurring orders ─────────────────────────────────────────── #}
+{% if not clients %}
+  <div class="card"><p class="muted">No active clients yet. Add one above.</p></div>
+{% else %}
+
+{% for client in clients %}
+<div class="card">
+  <h2 style="margin-top:0">{{ client.name }}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:8rem">Day</th>
+        {% for _, label in flavors %}<th style="text-align:right">{{ label }}</th>{% endfor %}
+        <th style="text-align:right">Total</th>
+        <th style="text-align:right">Deliver in</th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in templates %}
+      {% set ro = lookup.get((client.id, t.weekday)) %}
+      <tr>
+        <form method="post" action="{{ url_for('save_recurring_order') }}">
+          <input type="hidden" name="client_id" value="{{ client.id }}">
+          <input type="hidden" name="weekday"   value="{{ t.weekday }}">
+          <td>
+            <span class="badge badge-day">{{ weekday_names[t.weekday] }}</span>
+            <span class="muted" style="font-size:0.78rem">&nbsp;{{ t.start_time }}–{{ t.end_time }}</span>
+          </td>
+          {% for suffix, label in flavors %}
+          <td style="text-align:right">
+            <input type="number" name="qty_{{ suffix }}"
+                   value="{{ ro['qty_' ~ suffix] if ro else 0 }}"
+                   min="0" style="width:4.5rem; text-align:right">
+          </td>
+          {% endfor %}
+          <td style="text-align:right; font-weight:600; min-width:3rem">
+            {% if ro %}{{ ro.qty_original + ro.qty_matcha + ro.qty_hojicha + ro.qty_other }}
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td style="text-align:right; white-space:nowrap">
+            <input type="number" name="delivery_offset"
+                   value="{{ ro.delivery_offset if ro else 0 }}"
+                   min="0" max="14" style="width:3.5rem; text-align:right">
+            <span class="muted" style="font-size:0.82rem"> days</span>
+          </td>
+          <td><button type="submit" class="btn-ghost btn-sm">Save</button></td>
+        </form>
+        <td>
+          {% if ro %}
+          <form method="post" action="{{ url_for('delete_recurring_order') }}" class="inline-form"
+                onsubmit="return confirm('Remove this recurring order?')">
+            <input type="hidden" name="client_id" value="{{ client.id }}">
+            <input type="hidden" name="weekday"   value="{{ t.weekday }}">
+            <button type="submit" class="btn-ghost btn-sm"
+                    style="color:var(--red);border-color:var(--red)">✕</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

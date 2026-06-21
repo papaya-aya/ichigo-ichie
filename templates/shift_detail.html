@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ url_for('owner_schedule', month=inst.date[:7]) }}">← Back to schedule</a></p>
+<h1>{{ weekday }} {{ inst.date }} · {{ inst.label }}</h1>
+<p class="subtitle">Shift hours {{ inst.start_time }}–{{ inst.end_time }} ·
+  target {{ inst.min_people }}–{{ inst.max_people }} people</p>
+
+<div class="card">
+  <h2 style="margin-top:0">Production &amp; demand
+    <span class="pill">{{ totals.total }} pcs ordered</span>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('orders_day', date=inst.date) }}" style="float:right">Edit orders</a>
+  </h2>
+
+  {% if totals.total %}
+  <div class="grid2">
+    <div>
+      <table>
+        <tbody>
+          <tr><td class="muted">Suggested team (from orders)</td>
+              <td><b>{{ staff.suggested }}</b> people
+              {% if staff.below_min %}<span class="pill">orders light → min {{ inst.min_people }}</span>
+              {% elif staff.above_max %}<span class="pill">orders exceed max {{ inst.max_people }}!</span>{% endif %}</td></tr>
+          <tr><td class="muted">Person-hours needed</td><td>{{ staff.needed_person_hours }} h</td></tr>
+          <tr><td class="muted">Person-hours assigned</td>
+              <td class="{{ 'bad' if staff.understaffed_for_orders else 'ok' }}">{{ staff.assigned_person_hours }} h</td></tr>
+          <tr><td class="muted">Productivity (actual)</td>
+              <td>{% if staff.actual_productivity is not none %}
+                    <b>{{ staff.actual_productivity }}</b> pcs/person-hour
+                    <span class="muted">(target {{ staff.target_productivity }})</span>
+                  {% else %}<span class="muted">— assign people first</span>{% endif %}</td></tr>
+        </tbody>
+      </table>
+      {% if staff.understaffed_for_orders %}
+        <p class="bad">⚠ Assigned labor is below what these orders need at the target rate. Add people or trim orders.</p>
+      {% endif %}
+    </div>
+    <div>
+      <table>
+        <thead><tr><th>Client</th>{% for s, label in flavors %}<th>{{ label }}</th>{% endfor %}<th>Total</th></tr></thead>
+        <tbody>
+          {% for o in orders %}
+          <tr><td>{{ o.client_name }}</td>
+            {% for s, label in flavors %}<td>{{ o['qty_' ~ s] or '' }}</td>{% endfor %}
+            <td><b>{{ o.total }}</b></td></tr>
+          {% endfor %}
+          <tr><td class="muted">Total</td>
+            {% for s, label in flavors %}<td><b>{{ totals.by_flavor[s] }}</b></td>{% endfor %}
+            <td><b>{{ totals.total }}</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+    <p class="muted">No orders entered for this day yet —
+      <a href="{{ url_for('orders_day', date=inst.date) }}">add them</a> to get a staffing suggestion.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Coverage</h2>
+  <p>
+    Average headcount across the shift:
+    <span class="{{ 'bad' if cov.under_target or cov.over_target else 'ok' }}" style="font-size:1.2rem">{{ cov.avg }}</span>
+    (target {{ inst.min_people }}–{{ inst.max_people }}).
+    Lowest moment {{ cov.min_count }}, highest {{ cov.max_count }}.
+  </p>
+  {% if cov.slots %}
+  <div class="timeline">
+    {% for s in cov.slots %}
+      <div class="bar {{ 'under' if s.under }} {{ 'over' if s.over }}"
+           style="height: {{ 8 + s.count * 16 }}px" title="{{ s.label }} · {{ s.count }} people">
+        <span class="n">{{ s.count }}</span>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="tl-labels"><span>{{ inst.start_time }}</span><span>{{ inst.end_time }}</span></div>
+  {% endif %}
+  <p class="help">Amber = below min at that moment, red = above max. Bars account for partial windows.</p>
+
+  <form method="post" class="inline-form">
+    <button type="submit" name="action" value="auto">⚡ Auto-assign from approved availability</button>
+  </form>
+</div>
+
+<form method="post">
+  <div class="card">
+    <h2 style="margin-top:0">People (approved availability)</h2>
+    {% if not candidates %}
+      <p class="muted">No approved availability for this shift yet.
+        Check the <a href="{{ url_for('approvals') }}">approvals</a> page.</p>
+    {% else %}
+    <table>
+      <thead><tr><th>Include</th><th>Name</th><th>Available</th><th>Assign window</th><th title="Manager gets +5% pay">Manager 👑</th></tr></thead>
+      <tbody>
+        {% for c in candidates %}
+        <tr>
+          <td><input type="checkbox" name="include" value="{{ c.employee_id }}"
+                     {% if c.included %}checked{% endif %}></td>
+          <td>{{ c.name }}</td>
+          <td class="muted">{{ c.start }}–{{ c.end }}</td>
+          <td>
+            <input type="time" name="start_{{ c.employee_id }}" value="{{ c.assigned_start }}"
+                   min="{{ inst.start_time }}" max="{{ inst.end_time }}">
+            –
+            <input type="time" name="end_{{ c.employee_id }}" value="{{ c.assigned_end }}"
+                   min="{{ inst.start_time }}" max="{{ inst.end_time }}">
+          </td>
+          <td style="text-align:center">
+            <input type="checkbox" name="manager" value="{{ c.employee_id }}"
+                   {% if c.is_manager %}checked{% endif %}>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="row-actions" style="margin-top:0.8rem">
+      <button type="submit" name="action" value="save">Save assignment</button>
+    </div>
+    {% endif %}
+  </div>
+</form>
+<div class="card">
+  <h2 style="margin-top:0">📋 Shift report</h2>
+  {% if not shift_report %}
+    <p class="muted">No report submitted yet. The assigned manager submits it from their "My Shifts" page.</p>
+  {% elif shift_report.status == 'pending' %}
+    <p>⏳ Report submitted by <b>{{ shift_report.submitter }}</b> on {{ shift_report.submitted_at[:10] }} — awaiting approval.
+      <a href="{{ url_for('approvals') }}">Review on Approvals page →</a></p>
+  {% elif shift_report.status == 'approved' %}
+    <p class="ok">✓ Report approved on {{ shift_report.decided_at[:10] }}. Hours confirmed.</p>
+  {% elif shift_report.status == 'rejected' %}
+    <p style="color:var(--red)">✗ Report rejected on {{ shift_report.decided_at[:10] }}. Manager can resubmit.</p>
+  {% endif %}
+</div>
+{% endblock %}

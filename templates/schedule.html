@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_monthnav.html" import monthnav %}
+{% block content %}
+<h1>Schedule &amp; assignment</h1>
+<p class="subtitle">Each shift shows the average headcount across its hours (people may work
+  partial windows). Aim to keep the average within the min–max band.</p>
+
+{{ monthnav('owner_schedule', prev_month, next_month, month_label) }}
+
+{% if rows %}
+<div class="card">
+  <h2 style="margin-top:0">Assign the whole month</h2>
+  <p class="help">Auto-assign every shift below in one click, using approved availability.</p>
+  <form method="post" action="{{ url_for('auto_assign_month') }}" class="row-actions">
+    <input type="hidden" name="month" value="{{ month }}">
+    <button type="submit" name="mode" value="empty">⚡ Assign empty shifts</button>
+    <button type="submit" name="mode" value="all" class="btn-ghost"
+            onclick="return confirm('Re-assign ALL shifts this month? This overwrites any manual changes.');">
+      Re-assign all (overwrite)
+    </button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  {% if not rows %}
+    <p class="muted">No shifts for {{ month_label }}. Generate the month from the
+      <a href="{{ url_for('owner_dashboard') }}">Input</a> first.</p>
+  {% else %}
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Shift</th><th title="min–max guardrail">Band</th>
+          <th title="pieces ordered">Orders</th>
+          <th title="suggested team size from order volume">Suggest</th>
+          <th>Assigned</th><th>Avg</th>
+          <th title="pieces ÷ assigned person-hours">Productivity</th>
+          <th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><span class="badge badge-day">{{ r.weekday }}</span> {{ r.inst.date }}</td>
+        <td>{{ r.inst.start_time }}–{{ r.inst.end_time }}</td>
+        <td>{{ r.inst.min_people }}–{{ r.inst.max_people }}</td>
+        <td>{{ r.total_pieces or '—' }}</td>
+        <td>
+          {% if r.total_pieces %}
+            <b>{{ r.staff.suggested }}</b>
+            {% if r.staff.below_min %}<span class="pill" title="orders are light; min guardrail applies">min</span>
+            {% elif r.staff.above_max %}<span class="pill" title="orders exceed max guardrail">max!</span>{% endif %}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>{{ r.n_assigned }}</td>
+        <td>
+          <span class="{{ 'bad' if r.cov.under_target or r.cov.over_target else 'ok' }}">{{ r.cov.avg }}</span>
+        </td>
+        <td>
+          {% if r.staff.actual_productivity is not none %}
+            <span class="{{ 'warn' if r.staff.understaffed_for_orders else 'ok' }}">{{ r.staff.actual_productivity }}</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>
+          {% if r.staff.understaffed_for_orders %}<span class="bad">short for orders</span>
+          {% elif r.n_assigned == 0 %}<span class="muted">—</span>
+          {% elif r.cov.any_understaffed %}<span class="warn">under at times</span>
+          {% elif r.cov.any_overstaffed %}<span class="warn">over at times</span>
+          {% else %}<span class="ok">in band</span>{% endif %}
+        </td>
+        <td><a class="btn btn-ghost btn-sm" href="{{ url_for('shift_detail', instance_id=r.inst.instance_id) }}">Assign</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="help">Suggested team size = pieces ÷ {{ target_productivity }} pcs/person-hour ÷ shift length,
+    clamped to the min–max band. Adjust the target on the
+    <a href="{{ url_for('owner_dashboard') }}">Input</a>.</p>
+  {% endif %}
+</div>
+{% endblock %}

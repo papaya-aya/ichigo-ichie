@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "shifto",
+      "runtimeExecutable": "/Users/papaya/Desktop/shifto/venv/bin/python",
+      "runtimeArgs": ["/Users/papaya/Desktop/shifto/app.py"],
+      "port": 5001
+    }
+  ]
+}

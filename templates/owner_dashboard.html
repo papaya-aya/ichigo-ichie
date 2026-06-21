@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Input</h1>
+<p class="subtitle">Manage employees, generate months, set rates, and configure shift templates.</p>
+
+{% if pending %}
+  <div class="flash flash-success">
+    {{ pending }} availability submission(s) waiting for approval —
+    <a href="{{ url_for('approvals') }}">review now</a>.
+  </div>
+{% endif %}
+
+{# ── Upcoming shifts: list view with month nav ── #}
+<div style="display:flex; align-items:center; gap:1rem; margin-bottom:0.5rem; flex-wrap:wrap">
+  <h2 style="margin:0">Shifts</h2>
+  <div class="month-nav" style="margin:0">
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('owner_dashboard', month=dash_prev) }}">‹</a>
+    <span class="label">{{ dash_label }}</span>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('owner_dashboard', month=dash_next) }}">›</a>
+  </div>
+</div>
+
+{% if upcoming %}
+  {% for row in upcoming %}
+  <div class="shift-row {{ 'shift-past' if row.is_past else '' }} {{ 'shift-today' if row.is_today else '' }}"
+       style="margin-bottom:0.5rem">
+    <div class="shift-date">
+      <span class="shift-dayname">{{ row.weekday }}</span>
+      <span class="shift-daynum">{{ row.inst.date[8:] }}</span>
+      {% if row.is_today %}<span class="badge badge-day" style="font-size:0.7rem">Today</span>{% endif %}
+    </div>
+    <div class="shift-meta">
+      <div class="shift-time">{{ row.inst.start_time }}–{{ row.inst.end_time }}</div>
+      {% if row.total_pieces %}
+        <div class="muted" style="font-size:0.78rem">{{ row.total_pieces }} pcs total</div>
+      {% else %}
+        <div class="muted" style="font-size:0.78rem">No orders yet</div>
+      {% endif %}
+    </div>
+    <div class="shift-orders">
+      {% if row.orders %}
+        {% for o in row.orders %}
+        <div class="order-line">
+          <span class="order-client">{{ o.client_name }}</span>
+          <span class="order-qtys">
+            {% for suffix, label in flavors %}{% if o['qty_' ~ suffix] %}<span>{{ label[0] }}{{ o['qty_' ~ suffix] }}</span>{% endif %}{% endfor %}
+            <span class="order-total">= {{ o.total }}</span>
+          </span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <span class="muted" style="font-size:0.8rem">No orders</span>
+      {% endif %}
+    </div>
+    <div class="shift-people">
+      {% if row.people %}
+        {% for p in row.people %}
+          <span class="pill shift-other">{{ p.name }}{% if p.is_manager %} 👑{% endif %}</span>
+        {% endfor %}
+        {% if row.n_assigned < row.inst.min_people %}
+          <span class="warn" style="font-size:0.8rem">need {{ row.inst.min_people - row.n_assigned }} more</span>
+        {% endif %}
+      {% else %}
+        <span class="muted" style="font-size:0.85rem">No one assigned</span>
+      {% endif %}
+    </div>
+    <div class="shift-actions">
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('shift_detail', instance_id=row.inst.instance_id) }}">Staff</a>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('orders_day', date=row.inst.date) }}">Orders</a>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="card">
+    <p class="muted">No shifts for {{ dash_label }}. <a href="{{ url_for('owner_dashboard') }}#generate">Generate the month on Input</a> first.</p>
+  </div>
+{% endif %}
+
+<style>
+.shift-row{display:flex;align-items:flex-start;gap:1rem;padding:.75rem 1rem;background:var(--card);border:1px solid var(--pink-line);border-radius:var(--radius)}
+.shift-row.shift-past{opacity:.5}
+.shift-row.shift-today{border-left:4px solid var(--pink)}
+.shift-date{min-width:3.5rem;text-align:center;flex-shrink:0;padding-top:.15rem}
+.shift-dayname{display:block;font-weight:700;color:var(--pink);font-size:.88rem;text-transform:uppercase}
+.shift-daynum{display:block;font-size:1.4rem;font-weight:700;line-height:1.1}
+.shift-meta{min-width:8rem;flex-shrink:0}
+.shift-time{font-weight:600;font-size:.95rem}
+.shift-orders{flex:1.2;font-size:.82rem;display:flex;flex-direction:column;gap:.15rem}
+.order-line{display:flex;gap:.4rem;align-items:baseline;flex-wrap:wrap}
+.order-client{font-weight:600;white-space:nowrap}
+.order-qtys{display:flex;gap:.25rem;flex-wrap:wrap;color:var(--muted)}
+.order-qtys span{background:var(--pink-soft);border-radius:4px;padding:.05rem .3rem}
+.order-total{font-weight:600;color:var(--ink)}
+.shift-people{min-width:9rem;flex:1;display:flex;flex-wrap:wrap;gap:.3rem;align-items:flex-start;padding-top:.1rem}
+.shift-other{background:var(--pink-soft);color:var(--ink)}
+.shift-actions{display:flex;gap:.3rem;flex-shrink:0;padding-top:.1rem}
+</style>
+
+<div class="grid2">
+  <div class="card" id="generate">
+    <h2 style="margin-top:0">Open a month</h2>
+    <p class="help">Generates the Mon/Tue/Wed/Fri shift dates so employees can submit availability and you can assign people.</p>
+    <form method="post" action="{{ url_for('generate_month') }}" class="row-actions">
+      <input type="text" name="month" value="{{ next_month }}" pattern="\d{4}-\d{2}" style="width:8rem">
+      <button type="submit">Generate shifts</button>
+    </form>
+    <p class="help">Format YYYY-MM. Safe to re-run; existing dates are kept.</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Owner password</h2>
+    <form method="post" action="{{ url_for('change_password') }}" class="row-actions">
+      <input type="password" name="new_password" placeholder="New password" required>
+      <button type="submit" class="btn-ghost">Change</button>
+    </form>
+    <p class="help">Default is <code>ichigo-admin</code> — change it now.</p>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h2 style="margin-top:0">Target productivity</h2>
+    <p class="help">Pieces per person-hour. Used to suggest team size from each day's orders.</p>
+    <form method="post" action="{{ url_for('set_productivity') }}" class="row-actions">
+      <input type="number" name="target_productivity" step="0.1" min="0.1"
+             value="{{ target_productivity }}" style="width:6rem">
+      <span class="muted">pcs / person-hour</span>
+      <button type="submit" class="btn-ghost">Save</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Pay rates &amp; fees</h2>
+    <p class="help">All dollar amounts used in the salary calculation.</p>
+    <form method="post" action="{{ url_for('set_piece_rate') }}" class="row-actions" style="margin-bottom:0.5rem">
+      <span style="min-width:12rem" class="muted">Piece rate</span>
+      <span>$</span><input type="number" name="piece_rate" step="0.01" min="0.01"
+             value="{{ piece_rate }}" style="width:5.5rem">
+      <span class="muted">/ daifuku</span>
+      <button type="submit" class="btn-ghost btn-sm">Save</button>
+    </form>
+    <form method="post" action="{{ url_for('set_gusto_rate') }}" class="row-actions" style="margin-bottom:0.5rem">
+      <span style="min-width:12rem" class="muted">Gusto base rate</span>
+      <span>$</span><input type="number" name="gusto_rate" step="0.01" min="0.01"
+             value="{{ gusto_rate }}" style="width:5.5rem">
+      <span class="muted">/ hr</span>
+      <button type="submit" class="btn-ghost btn-sm">Save</button>
+    </form>
+    <form method="post" action="{{ url_for('set_strawberry_price') }}" class="row-actions" style="margin-bottom:0.5rem">
+      <span style="min-width:12rem" class="muted">🍓 Strawberry price</span>
+      <span>$</span><input type="number" name="strawberry_price" step="0.01" min="0"
+             value="{{ strawberry_price_val }}" style="width:5.5rem">
+      <span class="muted">/ purchase</span>
+      <button type="submit" class="btn-ghost btn-sm">Save</button>
+    </form>
+    <form method="post" action="{{ url_for('set_delivery_transport') }}" class="row-actions">
+      <span style="min-width:12rem" class="muted">🚗 Delivery fee</span>
+      <span>$</span><input type="number" name="delivery_transport" step="0.01" min="0"
+             value="{{ delivery_transport_val }}" style="width:5.5rem">
+      <span class="muted">/ stop &nbsp;<span style="font-size:0.8rem">(Mon/Tue/Fri: fee × stops · Wed/Thu: base + fee × stops)</span></span>
+      <button type="submit" class="btn-ghost btn-sm">Save</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Clients</h2>
+    <form method="post" action="{{ url_for('add_client') }}" class="row-actions" style="margin-bottom:0.8rem">
+      <input type="text" name="name" placeholder="Client name" required>
+      <button type="submit">Add</button>
+    </form>
+    {% if clients %}
+    <table>
+      <tbody>
+        {% for c in clients %}
+        <tr>
+          <td>{{ c.name }}</td>
+          <td>{% if c.active %}<span class="ok">active</span>{% else %}<span class="muted">inactive</span>{% endif %}</td>
+          <td style="text-align:right">
+            <form method="post" action="{{ url_for('toggle_client', client_id=c.id) }}" class="inline-form">
+              <button type="submit" class="btn-ghost btn-sm">{{ 'Hide' if c.active else 'Restore' }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">No clients yet.</p>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Weekly production shifts</h2>
+  <p class="help">Edit any row and click Save. Changes apply to future shift generation — existing scheduled dates are not affected.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Day</th>
+        <th>Label</th>
+        <th>Start</th>
+        <th>End</th>
+        <th style="text-align:right">Approx qty</th>
+        <th style="text-align:right">Min</th>
+        <th style="text-align:right">Max</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <form method="post" action="{{ url_for('update_shift_template', template_id=t.id) }}">
+          <td>
+            <select name="weekday" style="width:5rem">
+              {% for i, name in enumerate(weekday_names) %}
+                <option value="{{ i }}" {% if t.weekday == i %}selected{% endif %}>{{ name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input type="text" name="label" value="{{ t.label }}" style="width:10rem"></td>
+          <td><input type="time" name="start_time" value="{{ t.start_time }}" style="width:7rem"></td>
+          <td><input type="time" name="end_time"   value="{{ t.end_time }}"   style="width:7rem"></td>
+          <td><input type="number" name="quantity"   value="{{ t.quantity }}"   min="0" style="width:5rem; text-align:right"></td>
+          <td><input type="number" name="min_people" value="{{ t.min_people }}" min="1" style="width:4rem; text-align:right"></td>
+          <td><input type="number" name="max_people" value="{{ t.max_people }}" min="1" style="width:4rem; text-align:right"></td>
+          <td><button type="submit" class="btn-ghost btn-sm">Save</button></td>
+        </form>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Weekly managers</h2>
+  <p class="muted" style="margin-top:-.3rem">Default manager per production day. They are auto-marked 👑 when shifts are assigned.</p>
+  <form method="post" action="{{ url_for('set_weekday_managers') }}">
+    <table>
+      <thead><tr><th>Day</th><th>Manager</th></tr></thead>
+      <tbody>
+        {% for wd, day in [(0,'Monday'),(1,'Tuesday'),(2,'Wednesday'),(4,'Friday')] %}
+        <tr>
+          <td>{{ day }}</td>
+          <td>
+            <select name="mgr_{{ wd }}" style="width:12rem">
+              <option value="">— none —</option>
+              {% for e in employees if e.active %}
+                <option value="{{ e.id }}"
+                  {% if weekday_managers.get(wd) == e.id %}selected{% endif %}>
+                  {{ e.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div style="margin-top:.7rem"><button type="submit">Save</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Employees</h2>
+  <form method="post" action="{{ url_for('add_employee') }}" class="row-actions" style="margin-bottom:1rem">
+    <input type="text" name="name" placeholder="Name" required>
+    <button type="submit">Add employee</button>
+  </form>
+
+  {% if employees %}
+  <table>
+    <thead><tr><th>Name</th><th>Status</th><th>Reset PIN</th><th></th></tr></thead>
+    <tbody>
+      {% for e in employees %}
+      <tr>
+        <td>{{ e.name }}</td>
+        <td>{% if e.active %}<span class="ok">active</span>{% else %}<span class="muted">inactive</span>{% endif %}</td>
+        <td>
+          <form method="post" action="{{ url_for('update_employee', emp_id=e.id) }}"
+                onsubmit="return confirm('Clear PIN for {{ e.name }}? They will set a new one on next login.')">
+            <input type="hidden" name="action" value="reset_pin">
+            <button type="submit" class="btn-ghost btn-sm">Clear PIN</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('update_employee', emp_id=e.id) }}" class="inline-form">
+            <input type="hidden" name="action" value="toggle">
+            <button type="submit" class="btn-ghost btn-sm">{{ 'Deactivate' if e.active else 'Reactivate' }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No employees yet. Add your team above.</p>
+  {% endif %}
+</div>
+{% endblock %}

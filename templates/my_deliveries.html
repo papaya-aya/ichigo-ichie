@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}My Deliveries · Ichigo Ichie{% endblock %}
+{% block content %}
+<h1>🚚 My deliveries</h1>
+<p class="subtitle">Orders assigned to you. Tap "Mark delivered" after each drop-off.</p>
+
+{% if not delivery_days %}
+  <div class="card">
+    <p class="muted">No deliveries assigned to you in the past week or upcoming days.</p>
+  </div>
+{% else %}
+  {% for day in delivery_days %}
+  {% set is_today = day.date == today %}
+  <div class="card" style="margin-bottom:1rem; {{ 'border-left:4px solid var(--pink)' if is_today else '' }}">
+    <h2 style="margin-top:0">
+      <span class="badge badge-day">{{ day.weekday }}</span>
+      {{ day.date }}
+      {% if is_today %}<span class="pill" style="background:var(--pink);color:#fff;font-size:.8rem">Today</span>{% endif %}
+      <span class="muted" style="font-weight:400;font-size:.85rem">
+        — {{ day.n_total }} stop{{ 's' if day.n_total != 1 }},
+        {% if day.n_done == day.n_total %}<span class="ok">all done ✓</span>
+        {% elif day.n_done %}<span class="warn">{{ day.n_done }}/{{ day.n_total }} done</span>
+        {% else %}not started{% endif %}
+      </span>
+    </h2>
+
+    {% for client in day.clients %}
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+                gap:.6rem;padding:.6rem 0;border-top:1px solid var(--pink-line)">
+      <div>
+        <b>{{ client.client_name }}</b>
+        <span class="muted" style="font-size:.85rem;margin-left:.5rem">
+          {% if client.qty_original %}O:{{ client.qty_original }} {% endif %}
+          {% if client.qty_matcha   %}M:{{ client.qty_matcha   }} {% endif %}
+          {% if client.qty_hojicha  %}H:{{ client.qty_hojicha  }} {% endif %}
+          {% if client.qty_other    %}X:{{ client.qty_other    }} {% endif %}
+          = {{ client.total }} pcs
+        </span>
+        {% if client.delivered %}
+          <span class="ok" style="margin-left:.5rem">✓ Delivered</span>
+        {% endif %}
+      </div>
+      <form method="post" style="margin:0">
+        <input type="hidden" name="deliver_on" value="{{ day.date }}">
+        <input type="hidden" name="client_id"  value="{{ client.client_id }}">
+        {% if client.delivered %}
+          <input type="hidden" name="delivered" value="">
+          <button type="submit" class="btn-ghost btn-sm" style="color:var(--muted)">Undo</button>
+        {% else %}
+          <input type="hidden" name="delivered" value="1">
+          <button type="submit" class="btn-sm" style="background:var(--pink);color:#fff;border:none;padding:.4rem 1rem;border-radius:var(--radius);font-size:.9rem">
+            ✓ Mark delivered
+          </button>
+        {% endif %}
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

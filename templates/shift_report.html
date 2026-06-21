@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ url_for('my_shifts') }}">← Back to my shifts</a></p>
+<h1>📋 Shift report — {{ weekday }} {{ inst.date }}</h1>
+<p class="subtitle">{{ inst.label }} · {{ inst.start_time }}–{{ inst.end_time }}</p>
+
+{% if existing and existing.status == 'approved' %}
+<div class="card" style="border-left:4px solid var(--green,#4caf50)">
+  <p class="ok" style="margin:0">✓ This report was approved on {{ existing.decided_at[:10] }}. Hours have been confirmed.</p>
+</div>
+{% elif existing and existing.status == 'pending' %}
+<div class="card" style="border-left:4px solid var(--amber,#f59e0b)">
+  <p style="margin:0">⏳ Report submitted on {{ existing.submitted_at[:10] }} — awaiting owner approval. You can update and resubmit.</p>
+</div>
+{% elif existing and existing.status == 'rejected' %}
+<div class="card" style="border-left:4px solid var(--red,#ef4444)">
+  <p style="margin:0">✗ Report was rejected. Please correct and resubmit below.</p>
+</div>
+{% endif %}
+
+<form method="post">
+  <div class="card">
+    <h2 style="margin-top:0">Actual hours worked</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Scheduled</th>
+          <th>Actual start</th>
+          <th>Actual end</th>
+          <th style="text-align:right">Hours</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in workers %}
+        {% set eh = existing_hours.get(w.employee_id) %}
+        <tr>
+          <td>
+            {{ w.name }}
+            {% if w.is_manager %}<span class="pill">👑</span>{% endif %}
+          </td>
+          <td class="muted">{{ w.sched_start }}–{{ w.sched_end }}</td>
+          <td>
+            <input type="time" name="actual_start_{{ w.employee_id }}"
+                   value="{{ eh.actual_start if eh else w.actual_start or (manager_early if w.is_manager else w.sched_start) }}"
+                   {% if existing and existing.status == 'approved' %}disabled{% endif %}>
+          </td>
+          <td>
+            <input type="time" name="actual_end_{{ w.employee_id }}"
+                   value="{{ eh.actual_end if eh else w.actual_end or w.sched_end }}"
+                   {% if existing and existing.status == 'approved' %}disabled{% endif %}>
+          </td>
+          <td style="text-align:right; font-variant-numeric:tabular-nums" class="muted"
+              id="hrs-{{ w.employee_id }}">—</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">End-of-day inventory</h2>
+    <div style="display:flex; gap:1.5rem; flex-wrap:wrap">
+      <label class="field">
+        🍓 Strawberries remaining
+        <input type="text" name="strawberry_stock"
+               value="{{ existing.strawberry_stock if existing and existing.strawberry_stock is not none else '' }}"
+               placeholder="e.g. 2 flats"
+               {% if existing and existing.status == 'approved' %}disabled{% endif %}>
+      </label>
+      <label class="field">
+        🫘 Anko remaining
+        <input type="text" name="anko_stock"
+               value="{{ existing.anko_stock if existing and existing.anko_stock is not none else '' }}"
+               placeholder="e.g. 1 bag"
+               {% if existing and existing.status == 'approved' %}disabled{% endif %}>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Memo for next shift</h2>
+    <textarea name="memo" rows="4" style="width:100%; box-sizing:border-box"
+              placeholder="Anything the next manager should know…"
+              {% if existing and existing.status == 'approved' %}disabled{% endif %}>{{ existing.memo if existing else '' }}</textarea>
+  </div>
+
+  {% if not existing or existing.status != 'approved' %}
+  <button type="submit">Submit report</button>
+  {% endif %}
+</form>
+
+<script>
+function calcHrs(s, e) {
+  if (!s || !e) return null;
+  const [sh,sm] = s.split(":").map(Number);
+  const [eh,em] = e.split(":").map(Number);
+  const m = (eh*60+em)-(sh*60+sm);
+  return m > 0 ? (m/60).toFixed(2) : null;
+}
+{% for w in workers %}
+(function(){
+  const s = document.querySelector('[name="actual_start_{{ w.employee_id }}"]');
+  const e = document.querySelector('[name="actual_end_{{ w.employee_id }}"]');
+  const cell = document.getElementById('hrs-{{ w.employee_id }}');
+  function upd(){ const h = calcHrs(s.value, e.value); cell.textContent = h ? h+' hr' : '—'; }
+  s && s.addEventListener('change', upd);
+  e && e.addEventListener('change', upd);
+  upd();
+})();
+{% endfor %}
+</script>
+{% endblock %}

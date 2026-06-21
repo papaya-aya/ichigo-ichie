@@ -1,0 +1,7 @@
+{% macro monthnav(endpoint, prev_month, next_month, month_label) %}
+<div class="month-nav">
+  <a class="btn btn-ghost btn-sm" href="{{ url_for(endpoint, month=prev_month) }}">← Prev</a>
+  <span class="label">{{ month_label }}</span>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for(endpoint, month=next_month) }}">Next →</a>
+</div>
+{% endmacro %}

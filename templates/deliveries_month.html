@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "_monthnav.html" import monthnav %}
+{% block content %}
+<h1>Deliveries</h1>
+<p class="subtitle">Deliverers are auto-assigned from availability. You can override any dropdown. ✦ = said they can deliver. Hit <b>Save all</b> when done.</p>
+
+{{ monthnav('deliveries_month', prev_month, next_month, month_label) }}
+
+{% if not rows %}
+  <div class="card">
+    <p class="muted">No deliveries scheduled for {{ month_label }}.</p>
+  </div>
+{% else %}
+
+<form method="post" action="{{ url_for('deliveries_month', month=month) }}">
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Client</th>
+        <th style="text-align:right">Pcs</th>
+        <th>Status</th>
+        <th style="min-width:11rem">Deliverer</th>
+        <th>No delivery</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        {# Date header row spanning all clients #}
+        <tr style="background:{{ 'var(--gray-soft,#eee)' if row.no_delivery else 'var(--pink-soft)' }}">
+          <td colspan="4" style="font-weight:700; padding:0.4rem 0.6rem; {{ 'opacity:.5' if row.no_delivery }}">
+            <span class="badge badge-day">{{ row.weekday }}</span>
+            {{ row.date }}
+            <span class="muted" style="font-weight:400; font-size:0.82rem">
+              — {{ row.n_total }} stop{{ 's' if row.n_total != 1 else '' }} ·
+              {{ row.pcs }} pcs ·
+              {% if row.no_delivery %}<span class="muted">no delivery</span>
+              {% elif row.n_done == row.n_total %}<span class="ok">all done ✓</span>
+              {% elif row.n_done %}<span class="warn">{{ row.n_done }}/{{ row.n_total }} done</span>
+              {% else %}pending{% endif %}
+              {% if row.can_deliver and not row.no_delivery %}
+                · ✦ {{ row.can_deliver|join(', ') }}
+              {% endif %}
+            </span>
+          </td>
+          <td style="background:inherit; {{ 'opacity:.5' if row.no_delivery }}">
+            {# Show auto-assigned deliverer for this date (same person for all clients) #}
+            {% if not row.no_delivery %}
+              <select name="dlv_{{ row.date }}_all" style="width:100%; font-size:.85em"
+                      onchange="syncDateDeliverer(this, '{{ row.date }}')">
+                <option value="">— unassigned —</option>
+                {% for e in employees %}
+                  <option value="{{ e.name }}"
+                    {% if row.auto_deliverer == e.name %}selected{% endif %}>
+                    {{ '✦ ' if e.name in row.can_deliver else '' }}{{ e.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            {% endif %}
+          </td>
+          <td style="background:inherit; text-align:center; vertical-align:middle">
+            <label style="display:flex;align-items:center;justify-content:center;gap:.3rem;cursor:pointer">
+              <input type="checkbox" name="no_del_{{ row.date }}"
+                     {% if row.no_delivery %}checked{% endif %}
+                     onchange="this.form.submit()">
+              <span class="muted" style="font-size:.8em">skip</span>
+            </label>
+          </td>
+          <td style="background:inherit; text-align:right">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('deliveries_day', date=row.date) }}">Manage</a>
+          </td>
+        </tr>
+        {# One row per client — hidden if no_delivery #}
+        {% if not row.no_delivery %}
+        {% for client in row.clients %}
+        <tr class="{{ 'muted' if client.delivered }}">
+          <td></td>
+          <td>
+            {{ client.client_name }}
+            {% if client.delivered %}<span class="ok" style="font-size:0.8rem">✓</span>{% endif %}
+          </td>
+          <td style="text-align:right">{{ client.total }}</td>
+          <td>
+            {% if client.delivered %}
+              <span class="ok" style="font-size:0.82rem">done</span>
+            {% else %}
+              <span class="muted" style="font-size:0.82rem">pending</span>
+            {% endif %}
+          </td>
+          <td>
+            {# Key: dlv_{deliver_on}_{client_id} — synced from date-level dropdown #}
+            <select name="dlv_{{ row.date }}_{{ client.client_id }}"
+                    class="dlv-{{ row.date }}" style="width:100%">
+              <option value="">— unassigned —</option>
+              {% for e in employees %}
+                <option value="{{ e.name }}"
+                  {% if client.deliverer == e.name %}selected{% endif %}>
+                  {{ '✦ ' if e.name in row.can_deliver else '' }}{{ e.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </td>
+          <td></td>
+          <td></td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+        {# Spacer #}
+        <tr><td colspan="7" style="padding:0.2rem; border:none"></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="row-actions" style="margin-top:0.5rem">
+  <button type="submit">Save all</button>
+</div>
+</form>
+
+<script>
+function syncDateDeliverer(sel, dateKey) {
+  const val = sel.value;
+  document.querySelectorAll('.dlv-' + dateKey).forEach(s => { s.value = val; });
+}
+// On page load, sync any pre-selected date-level value to client rows
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('select[name^="dlv_"][name$="_all"]').forEach(sel => {
+    const dateKey = sel.name.replace('dlv_', '').replace('_all', '');
+    if (sel.value) syncDateDeliverer(sel, dateKey);
+  });
+});
+</script>
+
+{% endif %}
+{% endblock %}

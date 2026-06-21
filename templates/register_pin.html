@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-wrap">
+  <h1>🍓 Ichigo Ichie Shifts</h1>
+  <p class="subtitle">Welcome, {{ emp_name }}! Set a PIN to secure your account.</p>
+
+  <div class="card">
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in msgs %}
+        <div class="flash flash-{{ cat }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="post">
+      <div class="field">
+        <label>Choose a PIN <span class="muted" style="font-weight:400;font-size:.85em">(4+ digits)</span></label>
+        <input type="password" name="pin" inputmode="numeric" autocomplete="new-password" autofocus required>
+      </div>
+      <div class="field">
+        <label>Confirm PIN</label>
+        <input type="password" name="confirm" inputmode="numeric" autocomplete="new-password" required>
+      </div>
+      <button type="submit">Set PIN &amp; sign in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

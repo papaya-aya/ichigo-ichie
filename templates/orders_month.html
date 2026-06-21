@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_monthnav.html" import monthnav %}
+{% block content %}
+<h1>Orders</h1>
+<p class="subtitle">Client orders per production day. Totals drive the suggested team size on the schedule.</p>
+
+{{ monthnav('orders_month', prev_month, next_month, month_label) }}
+
+<div class="card">
+  {% if not rows %}
+    <p class="muted">No production days for {{ month_label }}. Generate the month on the
+      <a href="{{ url_for('owner_dashboard') }}">Input</a> first.</p>
+  {% else %}
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Shift</th><th>Orders</th>
+          {% for s, label in flavors %}<th>{{ label }}</th>{% endfor %}
+          <th>Total pcs</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><span class="badge badge-day">{{ r.weekday }}</span> {{ r.inst.date }}</td>
+        <td class="muted">{{ r.inst.start_time }}–{{ r.inst.end_time }}</td>
+        <td>{{ r.totals.n_orders }}</td>
+        {% for s, label in flavors %}
+          <td>{{ r.totals.by_flavor[s] or '' }}</td>
+        {% endfor %}
+        <td><b>{{ r.totals.total or '—' }}</b></td>
+        <td><a class="btn btn-ghost btn-sm" href="{{ url_for('orders_day', date=r.inst.date) }}">Edit orders</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Salary report</h1>
+<p class="subtitle">
+  Production rate = (${{ piece_rate }} × daifuku) ÷ total person-hours.
+  Manager +5%. Gusto hours = (wage + transport) ÷ ${{ gusto_rate }}/hr.
+</p>
+
+{# ── Date-range picker ──────────────────────────────────────────────────── #}
+<form method="get" class="card row-actions" style="margin-bottom:1.2rem; flex-wrap:wrap; gap:0.6rem; align-items:flex-end">
+  <label class="field">From <input type="date" name="from" value="{{ date_from }}"></label>
+  <label class="field">To   <input type="date" name="to"   value="{{ date_to }}"></label>
+  <button type="submit">Calculate</button>
+</form>
+
+{# ── Add strawberry purchase ─────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">🍓 Strawberry purchases</h2>
+  <p class="help">Record when an employee buys a strawberry. ${{ strawberry_price }} deducted from their pay. Each entry = 1 strawberry.</p>
+  <form method="post" action="{{ url_for('add_strawberry_purchase') }}"
+        style="display:flex; flex-wrap:wrap; gap:0.55rem; align-items:flex-end; margin-bottom:{% if not employees %}0{% else %}1rem{% endif %}">
+    <input type="hidden" name="date_from" value="{{ date_from }}">
+    <input type="hidden" name="date_to"   value="{{ date_to }}">
+    <label class="field" style="min-width:10rem">
+      Employee
+      <select name="employee_id" required>
+        <option value="" disabled selected>Choose…</option>
+        {% for e in all_employees %}<option value="{{ e.id }}">{{ e.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field" style="width:9rem">
+      Date
+      <input type="date" name="date" value="{{ date_from }}" required>
+    </label>
+    <div class="field"><span style="visibility:hidden;font-size:0.9rem">x</span>
+      <button type="submit">Add</button>
+    </div>
+  </form>
+
+  {% set all_purchases = [] %}
+  {% for emp in employees %}{% for sp in emp.strawberry_purchases %}{% set _ = all_purchases.append((emp.name, sp)) %}{% endfor %}{% endfor %}
+  {% if all_purchases %}
+  <table>
+    <thead><tr><th>Employee</th><th>Date</th><th style="text-align:right">Cost</th><th></th></tr></thead>
+    <tbody>
+      {% for emp_name, sp in all_purchases|sort(attribute='1.date') %}
+      <tr>
+        <td>{{ emp_name }}</td>
+        <td>{{ sp.date }}</td>
+        <td style="text-align:right; color:var(--red)">-${{ "%.2f"|format(sp.cost) }}</td>
+        <td>
+          <form method="post"
+                action="{{ url_for('delete_strawberry_purchase', purchase_id=sp.id) }}"
+                class="inline-form" onsubmit="return confirm('Remove this purchase?')">
+            <input type="hidden" name="date_from" value="{{ date_from }}">
+            <input type="hidden" name="date_to"   value="{{ date_to }}">
+            <button type="submit" class="btn-ghost btn-sm"
+                    style="color:var(--red);border-color:var(--red)">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted" style="margin:0">No strawberry purchases recorded for this period.</p>
+  {% endif %}
+</div>
+
+{# ── Add pop-up entry ───────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Add pop-up / extra hours</h2>
+  <p class="help">Use this for events, markets, or any hours outside the regular production schedule.</p>
+  <form method="post" action="{{ url_for('add_popup') }}" style="display:flex; flex-wrap:wrap; gap:0.55rem; align-items:flex-end">
+    <input type="hidden" name="date_from" value="{{ date_from }}">
+    <input type="hidden" name="date_to"   value="{{ date_to }}">
+    <label class="field" style="min-width:10rem">
+      Employee
+      <select name="employee_id" required>
+        <option value="" disabled selected>Choose…</option>
+        {% for e in all_employees %}<option value="{{ e.id }}">{{ e.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field" style="width:9rem">
+      Date
+      <input type="date" name="date" value="{{ date_from }}" required>
+    </label>
+    <label class="field" style="min-width:10rem">
+      Description
+      <input type="text" name="description" placeholder="e.g. Ferry Building market">
+    </label>
+    <label class="field" style="width:7rem">
+      Start time
+      <input type="time" name="start_time" required>
+    </label>
+    <label class="field" style="width:7rem">
+      End time
+      <input type="time" name="end_time" required>
+    </label>
+    <label class="field" style="width:6.5rem">
+      Rate ($/hr)
+      <input type="number" name="hourly_rate" min="0" step="0.01" placeholder="{{ gusto_rate }}"
+             title="Leave 0 to use the Gusto base rate (${{ gusto_rate }}/hr)">
+    </label>
+    <label class="field" style="width:7rem">
+      Transport ($)
+      <input type="number" name="transport" min="0" step="0.01" value="0"
+             title="Bridge toll, BART, etc.">
+    </label>
+    <div class="field"><span style="visibility:hidden;font-size:0.9rem">x</span>
+      <button type="submit">Add</button>
+    </div>
+  </form>
+</div>
+
+{% if not employees %}
+  <div class="card"><p class="muted">No assignments or pop-up entries found for this period.</p></div>
+{% else %}
+
+{# ── Gusto input summary ─────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Gusto input
+    <span class="pill">{{ date_from }} → {{ date_to }}</span>
+  </h2>
+  <p class="help">Enter the <b>Gusto hours</b> column into Gusto at ${{ gusto_rate }}/hr.
+    Transport is included; strawberry purchases are deducted.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th style="text-align:right">Hours</th>
+        <th style="text-align:right">Wage pay</th>
+        <th style="text-align:right">Transport</th>
+        <th style="text-align:right">🍓 Strawberries</th>
+        <th style="text-align:right">Net pay</th>
+        <th style="text-align:right; background:#fef3f3">Gusto hours<br>
+          <span style="font-weight:400; font-size:0.78em">@ ${{ gusto_rate }}/hr</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for emp in employees %}
+      <tr>
+        <td><b>{{ emp.name }}</b></td>
+        <td style="text-align:right">{{ emp.total_hours }} hrs</td>
+        <td style="text-align:right">${{ "%.2f"|format(emp.total_pay) }}</td>
+        <td style="text-align:right">
+          {% if emp.total_transport %}${{ "%.2f"|format(emp.total_transport) }}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right; color:var(--red)">
+          {% if emp.total_strawberry_cost %}-${{ "%.2f"|format(emp.total_strawberry_cost) }}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(emp.net_pay) }}</b></td>
+        <td style="text-align:right; font-size:1.1rem; font-weight:700; background:#fef3f3">
+          {{ emp.gusto_hours }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid var(--pink-line)">
+        <td><b>Total</b></td>
+        <td style="text-align:right"><b>{{ employees|sum(attribute='total_hours') }} hrs</b></td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(grand_pay) }}</b></td>
+        <td style="text-align:right"><b>{% if grand_transport %}${{ "%.2f"|format(grand_transport) }}{% else %}—{% endif %}</b></td>
+        <td style="text-align:right; color:var(--red)"><b>{% if grand_strawberry %}-${{ "%.2f"|format(grand_strawberry) }}{% else %}—{% endif %}</b></td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(grand_pay + grand_transport - grand_strawberry) }}</b></td>
+        <td style="text-align:right; background:#fef3f3"><b>{{ grand_gusto }}</b></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{# ── Per-employee breakdown ──────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Breakdown by employee</h2>
+
+  {% for emp in employees %}
+  <h3 style="margin-bottom:0.25rem; margin-top:1.4rem">
+    {{ emp.name }}
+    <span class="muted" style="font-weight:400; font-size:0.88rem">
+      — {{ emp.total_hours }} hrs &nbsp;·&nbsp;
+      ${{ "%.2f"|format(emp.total_pay) }} wage
+      {% if emp.total_transport %}+ ${{ "%.2f"|format(emp.total_transport) }} transport{% endif %}
+      &nbsp;·&nbsp; <b>{{ emp.gusto_hours }} Gusto hrs</b>
+    </span>
+  </h3>
+
+  {# Production shifts #}
+  {% if emp.shifts %}
+  <table style="margin-bottom:0.6rem">
+    <thead>
+      <tr>
+        <th>Date</th><th>Day</th><th>Shift</th>
+        <th>Hours worked</th>
+        <th style="text-align:right">Pcs</th>
+        <th style="text-align:right">Rate</th>
+        <th style="text-align:right">Pay</th>
+        <th>Role</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in emp.shifts %}
+      <tr>
+        <td>{{ s.date }}</td>
+        <td><span class="badge badge-day">{{ s.weekday }}</span></td>
+        <td class="muted">{{ s.label }}</td>
+        <td>
+          {{ s.time_window }}
+          <span class="muted" style="font-size:0.82rem">({{ s.hours }} hr)</span>
+          {% if not s.confirmed %}
+            <span class="muted" style="font-size:0.78rem" title="Actual hours not yet confirmed on shift detail page">⚠ unconfirmed</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right">
+          {% if s.pieces %}{{ s.pieces }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right">
+          {% if s.rate %}${{ "%.2f"|format(s.rate) }}/hr{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(s.pay) }}</b></td>
+        <td>
+          {% if s.is_manager %}<span class="pill" title="+5%">👑 Mgr</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {# Pop-up entries #}
+  {% if emp.popups %}
+  <table style="margin-bottom:0.6rem">
+    <thead>
+      <tr>
+        <th>Date</th><th>Description</th>
+        <th>Time</th>
+        <th style="text-align:right">Hours</th>
+        <th style="text-align:right">Rate</th>
+        <th style="text-align:right">Pay</th>
+        <th style="text-align:right">Transport</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in emp.popups %}
+      <tr>
+        <td>{{ p.date }}</td>
+        <td>{{ p.description or '<span class="muted">Pop-up</span>'|safe }}</td>
+        <td class="muted">
+          {% if p.start_time and p.end_time %}
+            {{ p.start_time }}–{{ p.end_time }}
+          {% else %}—{% endif %}
+        </td>
+        <td style="text-align:right">{{ p.hours }}</td>
+        <td style="text-align:right">${{ "%.2f"|format(p.hourly_rate) }}/hr</td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(p.pay) }}</b></td>
+        <td style="text-align:right">
+          {% if p.transport %}${{ "%.2f"|format(p.transport) }}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>
+          <form method="post"
+                action="{{ url_for('delete_popup', popup_id=p.id) }}"
+                class="inline-form"
+                onsubmit="return confirm('Remove this pop-up entry?')">
+            <input type="hidden" name="date_from" value="{{ date_from }}">
+            <input type="hidden" name="date_to"   value="{{ date_to }}">
+            <button type="submit" class="btn-ghost btn-sm"
+                    style="color:var(--red);border-color:var(--red)">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if emp.strawberry_purchases %}
+  <table style="margin-bottom:0.6rem">
+    <thead>
+      <tr><th>Date</th><th style="text-align:right">Deduction</th></tr>
+    </thead>
+    <tbody>
+      {% for sp in emp.strawberry_purchases %}
+      <tr>
+        <td>🍓 {{ sp.date }}</td>
+        <td style="text-align:right; color:var(--red)"><b>-${{ "%.2f"|format(sp.cost) }}</b></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if emp.delivery_transports %}
+  <table style="margin-bottom:0.6rem">
+    <thead>
+      <tr>
+        <th>Date</th><th>Day</th><th colspan="4">Delivery transport (kitchen trip)</th>
+        <th style="text-align:right">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dt in emp.delivery_transports %}
+      <tr>
+        <td>{{ dt.date }}</td>
+        <td><span class="badge badge-day">{{ dt.weekday }}</span></td>
+        <td colspan="4" class="muted">
+          {% if dt.has_base %}
+            Base ${{ "%.2f"|format(delivery_transport) }} + {{ dt.stops }} stop{{ 's' if dt.stops != 1 else '' }} × ${{ "%.2f"|format(delivery_transport) }}
+          {% else %}
+            {{ dt.stops }} stop{{ 's' if dt.stops != 1 else '' }} × ${{ "%.2f"|format(delivery_transport) }}
+          {% endif %}
+        </td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(dt.amount) }}</b></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% endfor %}
+
+</div>
+{% endif %}
+{% endblock %}

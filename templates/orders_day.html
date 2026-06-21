@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ url_for('orders_month', month=date[:7]) }}">← Back to orders</a></p>
+<h1>Orders · {{ weekday }} {{ date }}</h1>
+{% if inst %}
+  <p class="subtitle">{{ inst.label }} · shift {{ inst.start_time }}–{{ inst.end_time }} ·
+    <a href="{{ url_for('shift_detail', instance_id=inst.instance_id) }}">go to staffing →</a></p>
+{% else %}
+  <p class="subtitle">No production shift on this date.</p>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">
+    Orders for the day
+    {% if totals.total %}<span class="pill">{{ totals.total }} pcs total</span>{% endif %}
+  </h2>
+
+  {% if orders %}
+  <table>
+    <thead>
+      <tr>
+        <th>Client</th>
+        {% for s, label in flavors %}<th style="text-align:right">{{ label }}</th>{% endfor %}
+        <th style="text-align:right">Total</th>
+        <th>Deliver on</th>
+        <th>Deliverer</th>
+        <th>Note</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      {# Each row is wrapped in a form so quantities are editable inline #}
+      <tr id="row-{{ o.id }}">
+        <form method="post">
+          <input type="hidden" name="action" value="update">
+          <input type="hidden" name="order_id" value="{{ o.id }}">
+          <td><b>{{ o.client_name }}</b></td>
+          {% for s, label in flavors %}
+          <td style="text-align:right">
+            <input type="number" name="qty_{{ s }}" value="{{ o['qty_' ~ s] }}"
+                   min="0" style="width:4.2rem; text-align:right">
+          </td>
+          {% endfor %}
+          <td style="text-align:right; font-weight:600" id="total-{{ o.id }}">{{ o.total }}</td>
+          <td>
+            <input type="date" name="delivery_date"
+                   value="{{ o.delivery_date or date }}" style="width:8.5rem">
+          </td>
+          <td>
+            <select name="deliverer" style="width:8rem">
+              <option value="">—</option>
+              {% for e in employees %}
+                <option value="{{ e.name }}" {% if o.deliverer == e.name %}selected{% endif %}>{{ e.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <input type="text" name="note" value="{{ o.note or '' }}"
+                   placeholder="—" style="width:7rem">
+          </td>
+          <td style="white-space:nowrap">
+            <button type="submit" class="btn-ghost btn-sm">Save</button>
+            &nbsp;
+          </td>
+        </form>
+        <td>
+          <form method="post" class="inline-form"
+                onsubmit="return confirm('Remove this order?');">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="order_id" value="{{ o.id }}">
+            <button type="submit" class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+
+      {# Day totals footer row #}
+      <tr style="border-top:2px solid var(--pink-line); font-weight:600">
+        <td class="muted">Day total</td>
+        {% for s, label in flavors %}
+          <td style="text-align:right">{{ totals.by_flavor[s] or '—' }}</td>
+        {% endfor %}
+        <td style="text-align:right">{{ totals.total or '—' }}</td>
+        <td colspan="4"></td>
+      </tr>
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No orders yet for this day.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Add an order</h2>
+  {% if clients %}
+  <form method="post">
+    <input type="hidden" name="action" value="add">
+    <div style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:flex-end">
+      <label class="field" style="min-width:9rem">
+        Client
+        <select name="client_id" id="add-client" required>
+          <option value="" disabled selected>Choose…</option>
+          {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </label>
+      {% for s, label in flavors %}
+      <label class="field" style="width:5rem">
+        {{ label }}
+        <input type="number" name="qty_{{ s }}" min="0" value="0">
+      </label>
+      {% endfor %}
+      <label class="field" style="width:9rem">
+        Deliver on
+        <input type="date" name="delivery_date" id="add-delivery-date" value="{{ date }}">
+      </label>
+      <label class="field" style="width:9rem">
+        Deliverer
+        <select name="deliverer">
+          <option value="">—</option>
+          {% for e in employees %}
+            <option value="{{ e.name }}">{{ e.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field" style="width:9rem">
+        Note
+        <input type="text" name="note" placeholder="optional">
+      </label>
+      <div class="field">
+        <span style="visibility:hidden; font-size:0.92rem">x</span>
+        <button type="submit">Add order</button>
+      </div>
+    </div>
+  </form>
+  {# Auto-fill delivery date from recurring offset when client changes #}
+  <script>
+  (function () {
+    const suggestions = {{ delivery_suggestions | tojson }};
+    const sel  = document.getElementById('add-client');
+    const inp  = document.getElementById('add-delivery-date');
+    const base = '{{ date }}';
+    sel.addEventListener('change', function () {
+      const suggested = suggestions[this.value];
+      inp.value = suggested || base;
+    });
+  })();
+  </script>
+  {% else %}
+    <p class="muted">Add clients on the <a href="{{ url_for('owner_dashboard') }}">Input</a> first.</p>
+  {% endif %}
+</div>
+{% endblock %}

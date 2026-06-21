@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% from "_monthnav.html" import monthnav %}
+{% set delivery_times = {
+  "Mon": "9:30–11:00",
+  "Tue": "9:30–11:00",
+  "Wed": "9:30–11:00",
+  "Thu": "9:30–11:00",
+  "Fri": "Iyasare 9:30–11:00 · BWT/Teance 10:30–12:00"
+} %}
+{% set has_existing = rows | selectattr('status') | list | length > 0 %}
+{% block content %}
+<h1>My availability</h1>
+<p class="subtitle">Tick the shifts you can work. If you can only come for part of a shift,
+  adjust the start/end times. Submissions go to the owner for approval.</p>
+
+{{ monthnav('availability', prev_month, next_month, month_label) }}
+
+{% if has_existing %}
+<div style="display:flex;gap:1rem;margin-bottom:.6rem;font-size:.85rem;align-items:center">
+  <span style="display:inline-flex;align-items:center;gap:.35rem">
+    <span style="width:12px;height:12px;border-radius:3px;background:var(--pink-soft);border:1px solid var(--pink-line);display:inline-block"></span> Already submitted
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:.35rem">
+    <span style="width:12px;height:12px;border-radius:3px;background:#fff8e1;border:2px solid #f59e0b;display:inline-block"></span> You changed this
+  </span>
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('availability', month=month) }}" id="avail-form">
+  {% if not rows %}
+    <div class="card"><p class="muted">No shifts scheduled for {{ month_label }} yet.
+      The owner needs to generate this month first.</p></div>
+  {% else %}
+  <div class="card" style="padding:0">
+    <table>
+      <thead>
+        <tr>
+          <th>Work?</th><th>Date</th><th>Shift</th><th>Shift hours</th>
+          <th>I'm available</th>
+          <th title="Let the owner know you can do delivery for this shift">🚗 Delivery?</th>
+          <th>Note</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        {% set submitted = r.status is not none and r.status != '' %}
+        <tr class="avail-row {{ 'row-submitted' if submitted else '' }}"
+            data-submitted="{{ 'true' if submitted else 'false' }}"
+            data-orig-checked="{{ 'true' if r.checked else 'false' }}"
+            data-orig-start="{{ r.start }}"
+            data-orig-end="{{ r.end }}"
+            data-orig-deliver="{{ 'true' if r.can_deliver else 'false' }}"
+            data-orig-note="{{ r.note }}">
+          <td><input type="checkbox" name="work_{{ r.inst.instance_id }}"
+                     {% if r.checked %}checked{% endif %}
+                     class="row-trigger"></td>
+          <td><span class="badge badge-day">{{ r.weekday }}</span> {{ r.inst.date }}</td>
+          <td>{{ r.inst.label }}</td>
+          <td class="muted">{{ r.inst.start_time }}–{{ r.inst.end_time }}</td>
+          <td>
+            <input type="time" name="start_{{ r.inst.instance_id }}" value="{{ r.start }}"
+                   min="{{ r.inst.start_time }}" max="{{ r.inst.end_time }}"
+                   class="row-trigger">
+            –
+            <input type="time" name="end_{{ r.inst.instance_id }}" value="{{ r.end }}"
+                   min="{{ r.inst.start_time }}" max="{{ r.inst.end_time }}"
+                   class="row-trigger">
+          </td>
+          <td style="text-align:center">
+            <input type="checkbox" name="deliver_{{ r.inst.instance_id }}"
+                   {% if r.can_deliver %}checked{% endif %}
+                   class="row-trigger">
+            {% if delivery_times[r.weekday] is defined %}
+            <div class="muted" style="font-size:.8em;margin-top:.2rem">{{ delivery_times[r.weekday] }}</div>
+            {% endif %}
+          </td>
+          <td><input type="text" name="note_{{ r.inst.instance_id }}" value="{{ r.note }}"
+                     placeholder="optional" style="width:9rem" class="row-trigger"></td>
+          <td>
+            {% if r.status %}<span class="badge badge-{{ r.status }}">{{ r.status }}</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <button type="submit" id="submit-btn">{{ 'Update availability' if has_existing else 'Save availability' }}</button>
+  <p class="help">Saving a shift re-submits it as <b>pending</b>. Un-ticking a shift withdraws it.</p>
+  {% endif %}
+
+  {% if del_rows %}
+  <div class="card" style="margin-top:1.5rem">
+    <h2 style="margin-top:0">🚗 Delivery-only days</h2>
+    <p class="muted" style="margin-top:-.5rem">These days have no production shift. Check the box if you're available to do delivery.</p>
+    <table>
+      <thead>
+        <tr><th>Available?</th><th>Date</th><th>Delivery time</th></tr>
+      </thead>
+      <tbody>
+        {% for d in del_rows %}
+        <tr>
+          <td><input type="checkbox" name="del_day_{{ d.date }}" {% if d.checked %}checked{% endif %}></td>
+          <td><span class="badge badge-day">{{ d.weekday }}</span> {{ d.date }}</td>
+          <td class="muted">{{ delivery_times[d.weekday] if delivery_times[d.weekday] is defined else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <button type="submit">{{ 'Update availability' if has_existing else 'Save availability' }}</button>
+  {% endif %}
+</form>
+
+<style>
+.row-submitted td { background: var(--pink-soft); }
+.row-modified td  { background: #fff8e1 !important; border-top: 2px solid #f59e0b; border-bottom: 2px solid #f59e0b; }
+.row-modified td:first-child { border-left: 3px solid #f59e0b; }
+</style>
+
+<script>
+document.querySelectorAll('.avail-row').forEach(row => {
+  if (row.dataset.submitted !== 'true') return;
+  const origChecked  = row.dataset.origChecked === 'true';
+  const origStart    = row.dataset.origStart;
+  const origEnd      = row.dataset.origEnd;
+  const origDeliver  = row.dataset.origDeliver === 'true';
+  const origNote     = row.dataset.origNote;
+
+  function isModified() {
+    const cbWork    = row.querySelector('[name^="work_"]');
+    const inStart   = row.querySelector('[name^="start_"]');
+    const inEnd     = row.querySelector('[name^="end_"]');
+    const cbDeliver = row.querySelector('[name^="deliver_"]');
+    const inNote    = row.querySelector('[name^="note_"]');
+    if (cbWork    && cbWork.checked    !== origChecked)  return true;
+    if (inStart   && inStart.value     !== origStart)    return true;
+    if (inEnd     && inEnd.value       !== origEnd)      return true;
+    if (cbDeliver && cbDeliver.checked !== origDeliver)  return true;
+    if (inNote    && inNote.value      !== origNote)     return true;
+    return false;
+  }
+
+  function update() {
+    row.classList.toggle('row-modified', isModified());
+  }
+
+  row.querySelectorAll('.row-trigger').forEach(el => {
+    el.addEventListener('change', update);
+    el.addEventListener('input',  update);
+  });
+});
+</script>
+{% endblock %}

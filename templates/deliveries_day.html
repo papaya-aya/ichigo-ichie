@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ url_for('deliveries_month', month=date[:7]) }}">← Back to deliveries</a></p>
+<h1>Deliveries · {{ weekday }} {{ date }}</h1>
+<p class="subtitle">{{ rows|length }} stop(s) · {{ total_pcs }} pieces · {{ n_done }} delivered</p>
+
+<form method="post">
+  <div class="card">
+    {% if not rows %}
+      <p class="muted">Nothing to deliver on this day.</p>
+    {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Done</th>
+          <th>Client</th>
+          {% for s, label in flavors %}<th style="text-align:right">{{ label }}</th>{% endfor %}
+          <th style="text-align:right">Total</th>
+          <th>Made on</th>
+          <th>Deliverer</th>
+          <th>Reschedule to</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in rows %}
+        <tr class="{{ 'muted' if o.delivered }}">
+          <td>
+            {# Key by client_id so all orders for this client update together #}
+            <input type="hidden" name="client_id" value="{{ o.client_id }}">
+            <input type="checkbox" name="delivered_{{ o.client_id }}"
+                   {% if o.delivered %}checked{% endif %}>
+          </td>
+          <td><b>{{ o.client_name }}</b></td>
+          {% for s, label in flavors %}
+          <td style="text-align:right">
+            {% if o['qty_' ~ s] %}{{ o['qty_' ~ s] }}{% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          {% endfor %}
+          <td style="text-align:right"><b>{{ o.total }}</b></td>
+          <td class="muted" style="font-size:0.82rem">
+            {% if o.prod_dates|length == 1 %}
+              {{ o.prod_dates[0] }}
+              {% if o.prod_dates[0] != date %}<span class="pill">made earlier</span>{% endif %}
+            {% else %}
+              {{ o.prod_dates|join(', ') }}
+            {% endif %}
+          </td>
+          <td>
+            <select name="deliverer_{{ o.client_id }}" style="width:9rem">
+              <option value="">—</option>
+              {% for e in employees %}
+                <option value="{{ e.name }}"
+                  {% if o.deliverer == e.name %}selected{% endif %}>{{ e.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <input type="date" name="deliver_on_{{ o.client_id }}" value="{{ o.deliver_on }}">
+          </td>
+        </tr>
+        {% endfor %}
+
+        {# Totals row #}
+        {% if rows|length > 1 %}
+        <tr style="border-top:2px solid var(--pink-line); font-weight:600">
+          <td></td>
+          <td class="muted">Total</td>
+          {% for s, label in flavors %}
+          <td style="text-align:right">{{ rows|sum(attribute='qty_' ~ s) or '—' }}</td>
+          {% endfor %}
+          <td style="text-align:right">{{ total_pcs }}</td>
+          <td colspan="3"></td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+    <div class="row-actions" style="margin-top:0.8rem">
+      <button type="submit">Save deliveries</button>
+    </div>
+    <p class="help">Tick "Done" when delivered. Multiple orders for the same client are combined. Change "Reschedule to" to move a stop to another day.</p>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

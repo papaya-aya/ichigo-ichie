@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}My Shifts & Pay · Ichigo Ichie{% endblock %}
+{% block content %}
+
+<h1>My shifts &amp; pay</h1>
+<p class="subtitle">Your confirmed schedule, pay breakdown, and requests.</p>
+
+{# ── Request forms ───────────────────────────────────────────────────────── #}
+<div style="display:flex; gap:0.8rem; flex-wrap:wrap; margin-bottom:1.2rem">
+
+  <div class="card" style="flex:1; min-width:15rem; margin:0; padding:0.9rem 1rem">
+    <b>🍓 Request strawberry purchase</b>
+    <p class="help" style="margin:.2rem 0 .5rem">Submit to owner for approval. Will be deducted from your pay once approved.</p>
+    <form method="post" action="{{ url_for('employee_request_strawberry') }}" class="row-actions" style="margin:0">
+      <label class="field">Date <input type="date" name="date" value="{{ date_from }}" required></label>
+      <button type="submit">Request</button>
+    </form>
+  </div>
+
+  <div class="card" style="flex:1; min-width:15rem; margin:0; padding:0.9rem 1rem">
+    <b>📅 Request pop-up / event hours</b>
+    <p class="help" style="margin:.2rem 0 .5rem">Submit hours from an event or pop-up for owner approval.</p>
+    <form method="post" action="{{ url_for('employee_request_popup') }}" style="display:flex; flex-wrap:wrap; gap:.4rem; align-items:flex-end; margin:0">
+      <label class="field" style="width:8.5rem">Date <input type="date" name="date" value="{{ date_from }}" required></label>
+      <label class="field" style="width:7rem">Start <input type="time" name="start_time" required></label>
+      <label class="field" style="width:7rem">End <input type="time" name="end_time" required></label>
+      <label class="field" style="flex:1; min-width:9rem">Description <input type="text" name="description" placeholder="e.g. Ferry Building market"></label>
+      <label class="field" style="width:7rem">Transport ($) <input type="number" name="transport" min="0" step="0.01" value="0" placeholder="0"></label>
+      <div class="field"><span style="visibility:hidden;font-size:.9rem">x</span><button type="submit">Request</button></div>
+    </form>
+  </div>
+
+</div>
+
+{# ── Pending requests ────────────────────────────────────────────────────── #}
+{% if pending_sp or pending_pp %}
+<div class="card" style="border-left:4px solid var(--amber)">
+  <h2 style="margin-top:0">⏳ Pending requests</h2>
+  {% if pending_sp %}
+  <p class="muted" style="font-size:0.85rem; margin-bottom:0.4rem">🍓 Strawberry purchases awaiting approval:</p>
+  <ul style="margin:0 0 0.8rem; padding-left:1.2rem; font-size:0.9rem">
+    {% for r in pending_sp %}<li>{{ r.date }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if pending_pp %}
+  <p class="muted" style="font-size:0.85rem; margin-bottom:0.4rem">📅 Pop-up / event hours awaiting approval:</p>
+  <ul style="margin:0; padding-left:1.2rem; font-size:0.9rem">
+    {% for r in pending_pp %}
+    <li>{{ r.date }} · {{ r.description or 'Pop-up' }} · {{ r.start_time }}–{{ r.end_time }} ({{ r.hours }} hr){% if r.transport %} · ${{ "%.2f"|format(r.transport) }} transport{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Upcoming shifts ─────────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Upcoming shifts</h2>
+  {% if upcoming %}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Day</th>
+        <th>Shift</th>
+        <th>Your hours</th>
+        <th>Role</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in upcoming %}
+      <tr>
+        <td><b>{{ s.date }}</b></td>
+        <td><span class="badge badge-day">{{ s.weekday }}</span></td>
+        <td class="muted">{{ s.label }}<br>
+          <span style="font-size:0.8rem">{{ s.shift_hours }}</span>
+        </td>
+        <td><b>{{ s.window }}</b></td>
+        <td>
+          {% if s.is_manager %}
+            <span class="pill">👑 Manager</span>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if s.confirmed %}
+            <span class="ok">✓ Hours confirmed</span>
+          {% elif s.is_manager and s.report_status == 'pending' %}
+            <span class="badge badge-pending">⏳ Report pending</span>
+          {% elif s.is_manager %}
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('shift_report', instance_id=s.instance_id) }}">📋 Submit report</a>
+          {% else %}
+            <span class="badge badge-pending">Scheduled</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No upcoming shifts assigned yet.</p>
+  {% endif %}
+</div>
+
+{# ── Pay period picker ───────────────────────────────────────────────────── #}
+<h2>Pay breakdown</h2>
+<form method="get" class="card row-actions" style="margin-bottom:1.2rem; flex-wrap:wrap; gap:0.6rem; align-items:flex-end">
+  <label class="field">From <input type="date" name="from" value="{{ date_from }}"></label>
+  <label class="field">To   <input type="date" name="to"   value="{{ date_to }}"></label>
+  <button type="submit">Calculate</button>
+</form>
+
+{% if not shifts and not popups %}
+  <div class="card"><p class="muted">No shifts or pop-up hours found for this period.</p></div>
+{% else %}
+
+{# ── Summary card ────────────────────────────────────────────────────────── #}
+<div class="card" style="border-left: 4px solid var(--pink)">
+  <h2 style="margin-top:0">Summary · {{ date_from }} → {{ date_to }}</h2>
+  <table>
+    <tbody>
+      <tr>
+        <td class="muted">Hours worked</td>
+        <td><b>{{ total_hours }} hrs</b></td>
+      </tr>
+      <tr>
+        <td class="muted">Wage pay</td>
+        <td><b>${{ "%.2f"|format(total_pay) }}</b></td>
+      </tr>
+      {% if total_transport %}
+      <tr>
+        <td class="muted">Delivery transport</td>
+        <td class="ok">+${{ "%.2f"|format(total_transport) }}</td>
+      </tr>
+      {% endif %}
+      {% if total_strawberry %}
+      <tr>
+        <td class="muted">🍓 Strawberry purchases</td>
+        <td style="color:var(--red)">-${{ "%.2f"|format(total_strawberry) }}</td>
+      </tr>
+      {% endif %}
+      <tr style="border-top: 2px solid var(--pink-line)">
+        <td><b>Net pay</b></td>
+        <td style="font-size:1.2rem"><b>${{ "%.2f"|format(net_pay) }}</b></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+{# ── Production shifts breakdown ─────────────────────────────────────────── #}
+{% if shifts %}
+<div class="card">
+  <h2 style="margin-top:0">Production shifts</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Day</th>
+        <th>Shift</th>
+        <th>Your hours</th>
+        <th style="text-align:right">Pcs made</th>
+        <th style="text-align:right">Rate</th>
+        <th style="text-align:right">Pay</th>
+        <th>Role</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in shifts %}
+      <tr>
+        <td>{{ s.date }}</td>
+        <td><span class="badge badge-day">{{ s.weekday }}</span></td>
+        <td class="muted">{{ s.label }}</td>
+        <td>
+          {{ s.time_window }}
+          <span class="muted" style="font-size:0.82rem">({{ s.hours }} hr)</span>
+          {% if not s.confirmed %}
+            <span class="muted" style="font-size:0.78rem" title="Hours not yet confirmed by owner">⚠</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right">
+          {% if s.pieces %}{{ s.pieces }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right">
+          {% if s.rate %}${{ "%.2f"|format(s.rate) }}/hr{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(s.pay) }}</b></td>
+        <td>
+          {% if s.is_manager %}<span class="pill">👑 +5%</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid var(--pink-line)">
+        <td colspan="3" class="muted">Subtotal</td>
+        <td><b>{{ shifts|sum(attribute='hours') }} hrs</b></td>
+        <td colspan="2"></td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(shifts|sum(attribute='pay')) }}</b></td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endif %}
+
+{# ── Pop-up / extra hours ────────────────────────────────────────────────── #}
+{% if popups %}
+<div class="card">
+  <h2 style="margin-top:0">Pop-up &amp; extra hours</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Description</th>
+        <th>Time</th>
+        <th style="text-align:right">Hours</th>
+        <th style="text-align:right">Rate</th>
+        <th style="text-align:right">Pay</th>
+        <th style="text-align:right">Transport</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in popups %}
+      <tr>
+        <td>{{ p.date }}</td>
+        <td>{{ p.description }}</td>
+        <td class="muted">{{ p.time }}</td>
+        <td style="text-align:right">{{ p.hours }}</td>
+        <td style="text-align:right">${{ "%.2f"|format(p.rate) }}/hr</td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(p.pay) }}</b></td>
+        <td style="text-align:right">
+          {% if p.transport %}<span class="ok">+${{ "%.2f"|format(p.transport) }}</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── Deductions ──────────────────────────────────────────────────────────── #}
+{% if strawberries or transports %}
+<div class="card">
+  <h2 style="margin-top:0">Adjustments</h2>
+  <table>
+    <thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
+    <tbody>
+      {% for t in transports %}
+      <tr>
+        <td>{{ t.date }}</td>
+        <td>
+          <span class="badge badge-day">{{ t.weekday }}</span>
+          {% if t.has_base %}Delivery — base + {{ t.stops }} stop{{ 's' if t.stops != 1 else '' }}
+          {% else %}Delivery — {{ t.stops }} stop{{ 's' if t.stops != 1 else '' }}{% endif %}
+        </td>
+        <td style="text-align:right" class="ok">+${{ "%.2f"|format(t.amount) }}</td>
+      </tr>
+      {% endfor %}
+      {% for sp in strawberries %}
+      <tr>
+        <td>{{ sp.date }}</td>
+        <td>🍓 Strawberr{{ 'y' if sp.quantity == 1 else 'ies' }} × {{ sp.quantity }}</td>
+        <td style="text-align:right; color:var(--red)">-${{ "%.2f"|format(sp.cost) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

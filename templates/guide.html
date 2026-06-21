@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% block title %}Owner Guide · Ichigo Ichie{% endblock %}
+{% block content %}
+
+<h1>Owner Guide</h1>
+<p class="subtitle">Everything you need to do each month, in order.</p>
+
+{# ── Timeline nav ────────────────────────────────────────────────────────── #}
+<div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:1.6rem">
+  <a href="#setup"      class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">1 · One-time setup</a>
+  <a href="#generate"   class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">2 · Open the month</a>
+  <a href="#approvals"  class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">3 · Approve availability</a>
+  <a href="#orders"     class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">4 · Enter orders</a>
+  <a href="#schedule"   class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">5 · Assign people</a>
+  <a href="#confirm"    class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">6 · Confirm hours</a>
+  <a href="#salary"     class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">7 · Salary & Gusto</a>
+</div>
+
+{# ── Section 1: One-time setup ───────────────────────────────────────────── #}
+<div class="card" id="setup">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
+                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
+                 font-weight:700; flex-shrink:0">1</span>
+    <h2 style="margin:0">One-time setup</h2>
+    <span class="muted" style="font-size:0.85rem">Do this once when you first start</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Change the owner password</div>
+      <p class="help">The default password is <code>ichigo-admin</code> — change it before sharing the app with anyone.</p>
+      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Owner password</b> card → type a new password → <b>Change</b></p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Add your employees</div>
+      <p class="help">Each employee needs a name and a PIN (4+ digits) to log in.</p>
+      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Employees</b> card → fill in name + PIN → <b>Add employee</b><br>
+      Share each person's name + PIN with them directly. They can change their PIN after logging in.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Add your clients</div>
+      <p class="help">Clients are the restaurants and cafes you sell to.</p>
+      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Clients</b> card → enter client name → <b>Add</b></p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Set pay rates</div>
+      <p class="help">These drive the salary calculation. Check they're correct.</p>
+      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Pay rate</b> card<br>
+      • <b>Piece rate</b> — dollars earned per daifuku produced (default $2.00)<br>
+      • <b>Gusto base rate</b> — the hourly rate used to convert total pay into Gusto hours (default $20.00)</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Set target productivity <span class="muted">(optional)</span></div>
+      <p class="help">Used to suggest how many people to assign based on the day's order volume.</p>
+      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Target productivity</b> card → enter pieces per person-hour → <b>Save</b></p>
+    </div>
+
+  </div>
+</div>
+
+{# ── Section 2: Open the month ───────────────────────────────────────────── #}
+<div class="card" id="generate">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
+                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
+                 font-weight:700; flex-shrink:0">2</span>
+    <h2 style="margin:0">Open the month</h2>
+    <span class="muted" style="font-size:0.85rem">Do this ~3–4 weeks before the month starts</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Generate shift dates</div>
+      <p class="help">This creates the Mon/Tue/Wed/Fri dates for the chosen month so employees can submit availability.</p>
+      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Open a month</b> card → type the month (e.g. <code>2026-08</code>) → <b>Generate shifts</b><br>
+      Safe to run again — it won't create duplicates.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Tell your team to submit availability</div>
+      <p class="help">Employees log in and go to <b>My availability</b> to mark which shifts they can work, including partial time windows if needed.</p>
+      <p>Give them a deadline — at least 1 week before the month starts is recommended.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── Section 3: Approve availability ─────────────────────────────────────── #}
+<div class="card" id="approvals">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
+                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
+                 font-weight:700; flex-shrink:0">3</span>
+    <h2 style="margin:0">Approve availability</h2>
+    <span class="muted" style="font-size:0.85rem">After employees submit, before you assign</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Review submissions</div>
+      <p class="help">Each submission shows the employee name, which shift, and their available time window.</p>
+      <p><a href="{{ url_for('approvals') }}">Approvals</a> → review each row →
+      click <b>Approve</b> or <b>Reject</b><br>
+      Only approved submissions appear as options when you assign people to shifts.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Check coverage</div>
+      <p class="help">Make sure enough people are available for each shift (min/max targets: Mon 3, Tue 4–5, Wed 4–5, Fri 5–7).</p>
+      <p>If a shift looks short, reach out to employees before assigning.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── Section 4: Enter orders ─────────────────────────────────────────────── #}
+<div class="card" id="orders">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
+                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
+                 font-weight:700; flex-shrink:0">4</span>
+    <h2 style="margin:0">Enter client orders</h2>
+    <span class="muted" style="font-size:0.85rem">Before assigning staff — orders drive the suggested team size</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Add orders per production day</div>
+      <p class="help">Enter how many of each flavor (Original / Matcha / Hojicha / Other) each client ordered for that day.</p>
+      <p>Two ways to get there:<br>
+      • <a href="{{ url_for('orders_month') }}">Orders</a> → pick the month → click <b>Edit orders</b> on any row<br>
+      • <a href="{{ url_for('owner_dashboard') }}">Input</a> → upcoming shifts table → <b>Edit orders</b> button on any day</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Edit or remove orders</div>
+      <p class="help">On any day's order page, quantities are editable inline — just change the numbers and hit <b>Save</b>. Use the red ✕ to delete an order.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── Section 5: Assign people ────────────────────────────────────────────── #}
+<div class="card" id="schedule">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
+                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
+                 font-weight:700; flex-shrink:0">5</span>
+    <h2 style="margin:0">Assign people to shifts</h2>
+    <span class="muted" style="font-size:0.85rem">Once orders are entered and availability is approved</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Open the schedule</div>
+      <p><a href="{{ url_for('owner_schedule') }}">Schedule</a> → pick the month → see all shift dates with staffing status</p>
+      <p class="help">Each row shows how many people are assigned vs. needed, and total pieces ordered.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Auto-assign (quick option)</div>
+      <p class="help">The app picks people automatically to keep the average headcount within the min/max band.</p>
+      <p>On the Schedule page: <b>⚡ Auto-assign empty shifts</b> button fills every unstaffed shift at once.<br>
+      Or open a specific shift → <b>⚡ Auto-assign from approved availability</b> for just that day.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Manual assignment</div>
+      <p class="help">Use this to override auto-assign or fine-tune individual shifts.</p>
+      <p>Schedule → click a shift date → <b>People</b> section:<br>
+      • Tick the checkbox next to each person to include them<br>
+      • Adjust their start/end window if needed (e.g. someone can only come for part of the shift)<br>
+      • Tick <b>Manager 👑</b> for whoever is leading that shift (+5% pay)<br>
+      • Click <b>Save assignment</b></p>
+      <p class="help">The <b>Coverage</b> bar chart shows average headcount across the shift — amber = below minimum, red = above maximum.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Check the calendar</div>
+      <p><a href="{{ url_for('calendar_view') }}">Calendar</a> → verify the month looks right before sharing with your team</p>
+      <p class="help">Employees can see the calendar anytime — their own shifts are highlighted.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── Section 6: Confirm hours ────────────────────────────────────────────── #}
+<div class="card" id="confirm">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
+                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
+                 font-weight:700; flex-shrink:0">6</span>
+    <h2 style="margin:0">Confirm actual hours worked</h2>
+    <span class="muted" style="font-size:0.85rem">After each production day</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Go to the shift's detail page</div>
+      <p><a href="{{ url_for('owner_schedule') }}">Schedule</a> → click the date → scroll to <b>"Confirm actual hours worked"</b> at the bottom</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Review and adjust times</div>
+      <p class="help">Times are pre-filled automatically:</p>
+      <p>• <b>Manager 👑</b> — start time is set 15 minutes before the official shift start<br>
+      • <b>Everyone else</b> — start/end match their assigned window</p>
+      <p>Change any time if someone arrived late, left early, or stayed longer. The hours calculate live as you type.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Save</div>
+      <p>Click <b>Save actual hours</b> → status changes to <span class="ok">✓ confirmed</span><br>
+      These confirmed times are then used in the salary calculation.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── Section 7: Salary & Gusto ───────────────────────────────────────────── #}
+<div class="card" id="salary">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
+                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
+                 font-weight:700; flex-shrink:0">7</span>
+    <h2 style="margin:0">Salary &amp; Gusto</h2>
+    <span class="muted" style="font-size:0.85rem">At the end of the pay period</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Add any pop-up hours</div>
+      <p class="help">For markets, events, or any work outside the regular production schedule.</p>
+      <p><a href="{{ url_for('salary_report') }}">Salary</a> → <b>Add pop-up / extra hours</b> form:<br>
+      Select the employee, date, start time, end time, hourly rate, and any transport cost (bridge toll, BART, etc.).<br>
+      Leave the rate blank to use the default Gusto rate (${{ gusto_rate }}).</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Set the date range and calculate</div>
+      <p><a href="{{ url_for('salary_report') }}">Salary</a> → set <b>From</b> and <b>To</b> dates for the pay period → <b>Calculate</b></p>
+      <p class="help">How the hourly rate is calculated per shift:<br>
+      <code>rate = (${{ piece_rate }} × total daifuku produced) ÷ total person-hours on that shift</code><br>
+      Manager pay = rate × hours × 1.05 (5% bonus). All other workers = rate × hours.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Read the Gusto input table</div>
+      <p class="help">The highlighted <b>Gusto hours</b> column is the single number to enter per person in Gusto at ${{ gusto_rate }}/hr.</p>
+      <p>Formula: <code>Gusto hours = (total wage pay + transport costs) ÷ ${{ gusto_rate }}</code><br>
+      Transport is folded in so you enter one number per person — no separate line items needed.</p>
+      <p class="help">Shifts showing <span class="warn">⚠ unconfirmed</span> means actual hours haven't been saved yet on that shift's detail page — go confirm them first for accurate numbers.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Enter hours into Gusto</div>
+      <p>In Gusto, run payroll and enter each person's <b>Gusto hours</b> at the ${{ gusto_rate }}/hr base rate.<br>
+      That's it — the app has done all the math.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── Quick reference ─────────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Quick reference — production shifts</h2>
+  <table>
+    <thead>
+      <tr><th>Day</th><th>Time</th><th>Min people</th><th>Max people</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="badge badge-day">Mon</span></td><td>6:45 am – 8:30 am</td><td>3</td><td>3</td></tr>
+      <tr><td><span class="badge badge-day">Tue</span></td><td>6:45 am – 9:30 am</td><td>4</td><td>5</td></tr>
+      <tr><td><span class="badge badge-day">Wed</span></td><td>2:30 pm – 5:15 pm</td><td>4</td><td>5</td></tr>
+      <tr><td><span class="badge badge-day">Fri</span></td><td>6:45 am – 9:30 am</td><td>5</td><td>7</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<style>
+.guide-steps { display: flex; flex-direction: column; gap: 0; }
+.guide-step {
+  padding: 0.9rem 0 0.9rem 1.1rem;
+  border-left: 3px solid var(--pink-line);
+  margin-left: 0.9rem;
+  margin-bottom: 0.1rem;
+  position: relative;
+}
+.guide-step::before {
+  content: '';
+  position: absolute;
+  left: -6px; top: 1.15rem;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--pink);
+}
+.guide-step:last-child { border-left-color: transparent; }
+.guide-step-label {
+  font-weight: 600;
+  font-size: 0.97rem;
+  margin-bottom: 0.25rem;
+}
+.guide-step p { margin: 0.2rem 0 0; }
+.guide-step .help { margin-top: 0.3rem; }
+code {
+  background: var(--pink-soft);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.88rem;
+  color: var(--pink);
+}
+</style>
+
+{% endblock %}
