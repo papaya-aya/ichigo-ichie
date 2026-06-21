@@ -126,6 +126,16 @@
 </style>
 
 <script>
+// Mutual exclusion: "Work" and "If needed" can't both be checked
+document.querySelectorAll('.avail-row').forEach(row => {
+  const cbWork     = row.querySelector('[name^="work_"]');
+  const cbIfNeeded = row.querySelector('[name^="if_needed_"]');
+  if (cbWork && cbIfNeeded) {
+    cbWork.addEventListener('change', () => { if (cbWork.checked) cbIfNeeded.checked = false; });
+    cbIfNeeded.addEventListener('change', () => { if (cbIfNeeded.checked) cbWork.checked = false; });
+  }
+});
+
 document.querySelectorAll('.avail-row').forEach(row => {
   if (row.dataset.submitted !== 'true') return;
   const origChecked  = row.dataset.origChecked === 'true';
