@@ -110,16 +110,12 @@ class _Connection:
 
 
 def get_db():
-    # Parse the URL manually so special characters in passwords (%, @, etc.)
-    # are handled correctly regardless of encoding.
-    from urllib.parse import urlparse, unquote
-    url = urlparse(DATABASE_URL)
     conn = psycopg2.connect(
-        host=url.hostname,
-        port=url.port or 5432,
-        dbname=url.path.lstrip("/"),
-        user=url.username,
-        password=unquote(url.password) if url.password else "",
+        host=os.environ.get("DB_HOST", ""),
+        port=int(os.environ.get("DB_PORT", "5432")),
+        dbname=os.environ.get("DB_NAME", "postgres"),
+        user=os.environ.get("DB_USER", "postgres"),
+        password=os.environ.get("DB_PASSWORD", ""),
         sslmode="require",
     )
     conn.autocommit = False
