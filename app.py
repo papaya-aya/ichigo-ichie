@@ -178,15 +178,17 @@ def approved_candidates(instance_id):
     return [
         {
             "employee_id": r["employee_id"],
-            "name": r["name"],
-            "start": r["start"],
-            "end": r["end"],
+            "name":        r["name"],
+            "start":       r["start"],
+            "end":         r["end"],
+            "if_needed":   bool(r["if_needed"]),
         }
         for r in g.db.execute(
-            """SELECT av.employee_id, e.name, av.start_time AS start, av.end_time AS end
+            """SELECT av.employee_id, e.name, av.start_time AS start, av.end_time AS end,
+                      av.if_needed
                  FROM availability av JOIN employees e ON e.id = av.employee_id
                 WHERE av.shift_instance_id = ? AND av.status = 'approved'
-                ORDER BY e.name""",
+                ORDER BY av.if_needed, e.name""",
             (instance_id,),
         ).fetchall()
     ]

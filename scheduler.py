@@ -116,10 +116,12 @@ def coverage(template, people):
 def auto_assign(template, candidates):
     """Greedily pick people to bring every slot up to min_people.
 
-    `candidates` is a list of dicts: {'employee_id', 'name', 'start', 'end'}
-    (approved availability windows). We repeatedly add the candidate who covers
-    the most currently-understaffed slots, without pushing any slot over
-    max_people, until no understaffed slot can be improved.
+    Candidates with if_needed=True are only used as a last resort — the
+    algorithm runs a first pass using only willing candidates, then a second
+    pass with if_needed candidates to fill any remaining gaps.
+
+    `candidates` is a list of dicts: {'employee_id', 'name', 'start', 'end',
+    'if_needed'} (approved availability windows).
 
     Returns the list of chosen candidate dicts (full availability windows).
     """
@@ -128,7 +130,7 @@ def auto_assign(template, candidates):
     starts = slot_starts(s, e)
     mn, mx = template["min_people"], template["max_people"]
 
-    cand = [
+    all_cand = [
         {**c, "_win": (to_minutes(c["start"]), to_minutes(c["end"]))}
         for c in candidates
     ]
@@ -136,31 +138,38 @@ def auto_assign(template, candidates):
     chosen = []
     chosen_ids = set()
 
-    while True:
-        deficient = [slot for slot in starts if counts[slot] < mn]
-        if not deficient:
-            break
+    def _greedy_pass(pool):
+        """One greedy pass: keep picking from pool until no deficient slots remain."""
+        while True:
+            deficient = [slot for slot in starts if counts[slot] < mn]
+            if not deficient:
+                break
+            best, best_gain = None, 0
+            for c in pool:
+                if c["employee_id"] in chosen_ids:
+                    continue
+                a, b = c["_win"]
+                if any(covers(a, b, slot) and counts[slot] + 1 > mx for slot in starts):
+                    continue
+                gain = sum(1 for slot in deficient if covers(a, b, slot))
+                if gain > best_gain:
+                    best, best_gain = c, gain
+            if best is None or best_gain == 0:
+                break
+            a, b = best["_win"]
+            for slot in starts:
+                if covers(a, b, slot):
+                    counts[slot] += 1
+            chosen.append(best)
+            chosen_ids.add(best["employee_id"])
 
-        best, best_gain = None, 0
-        for c in cand:
-            if c["employee_id"] in chosen_ids:
-                continue
-            a, b = c["_win"]
-            # Reject if adding would push any covered slot above max.
-            if any(covers(a, b, slot) and counts[slot] + 1 > mx for slot in starts):
-                continue
-            gain = sum(1 for slot in deficient if covers(a, b, slot))
-            if gain > best_gain:
-                best, best_gain = c, gain
+    # Pass 1: willing candidates only
+    willing = [c for c in all_cand if not c.get("if_needed")]
+    _greedy_pass(willing)
 
-        if best is None or best_gain == 0:
-            break
-
-        a, b = best["_win"]
-        for slot in starts:
-            if covers(a, b, slot):
-                counts[slot] += 1
-        chosen.append(best)
-        chosen_ids.add(best["employee_id"])
+    # Pass 2: fill remaining gaps with if_needed candidates
+    if any(counts[slot] < mn for slot in starts):
+        backup = [c for c in all_cand if c.get("if_needed")]
+        _greedy_pass(backup)
 
     return [{k: v for k, v in c.items() if k != "_win"} for c in chosen]
