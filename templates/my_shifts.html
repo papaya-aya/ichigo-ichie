@@ -10,7 +10,7 @@
 
   <div class="card" style="flex:1; min-width:15rem; margin:0; padding:0.9rem 1rem">
     <b>🍓 Request strawberry purchase</b>
-    <p class="help" style="margin:.2rem 0 .5rem">Submit to owner for approval. Will be deducted from your pay once approved.</p>
+    <p class="help" style="margin:.2rem 0 .5rem">Submit to owner for approval. Will be added to your pay once approved.</p>
     <form method="post" action="{{ url_for('employee_request_strawberry') }}" class="row-actions" style="margin:0">
       <label class="field">Date <input type="date" name="date" value="{{ date_from }}" required></label>
       <button type="submit">Request</button>

@@ -38,7 +38,8 @@
       "Bash(npm --version)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(sqlite3 shifto.db \".tables\")"
     ]
   }
 }
