@@ -1,4 +1,4 @@
--- Ichigo Ichie shift manager — SQLite schema
+-- Ichigo Ichie shift manager — PostgreSQL schema
 
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE TABLE IF NOT EXISTS employees (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  id         SERIAL PRIMARY KEY,
   name       TEXT NOT NULL UNIQUE,
   pin_hash   TEXT NOT NULL,
   active     INTEGER NOT NULL DEFAULT 1,
@@ -15,11 +15,11 @@ CREATE TABLE IF NOT EXISTS employees (
 
 -- Weekly recurring production shifts. weekday uses Python's convention: Mon=0 .. Sun=6.
 CREATE TABLE IF NOT EXISTS shift_templates (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  id         SERIAL PRIMARY KEY,
   weekday    INTEGER NOT NULL,
   label      TEXT NOT NULL,
-  start_time TEXT NOT NULL,   -- 'HH:MM'
-  end_time   TEXT NOT NULL,   -- 'HH:MM'
+  start_time TEXT NOT NULL,
+  end_time   TEXT NOT NULL,
   quantity   INTEGER NOT NULL,
   min_people INTEGER NOT NULL,
   max_people INTEGER NOT NULL,
@@ -28,108 +28,113 @@ CREATE TABLE IF NOT EXISTS shift_templates (
 
 -- A concrete dated occurrence of a template (e.g. Mon 2026-07-06).
 CREATE TABLE IF NOT EXISTS shift_instances (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  id          SERIAL PRIMARY KEY,
   template_id INTEGER NOT NULL REFERENCES shift_templates(id),
-  date        TEXT NOT NULL,    -- 'YYYY-MM-DD'
+  date        TEXT NOT NULL,
   UNIQUE(template_id, date)
 );
 
--- An employee's submitted availability for one shift instance (may be a partial window).
+-- An employee's submitted availability for one shift instance.
 CREATE TABLE IF NOT EXISTS availability (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  id                SERIAL PRIMARY KEY,
   employee_id       INTEGER NOT NULL REFERENCES employees(id),
   shift_instance_id INTEGER NOT NULL REFERENCES shift_instances(id),
-  start_time        TEXT NOT NULL,   -- 'HH:MM'
-  end_time          TEXT NOT NULL,   -- 'HH:MM'
-  status            TEXT NOT NULL DEFAULT 'pending',  -- pending / approved / rejected
+  start_time        TEXT NOT NULL,
+  end_time          TEXT NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'pending',
   note              TEXT,
   submitted_at      TEXT NOT NULL,
   decided_at        TEXT,
+  can_deliver       INTEGER NOT NULL DEFAULT 0,
+  is_update         INTEGER NOT NULL DEFAULT 0,
   UNIQUE(employee_id, shift_instance_id)
 );
 
--- Who is actually scheduled on a shift instance, and for which window.
+-- Who is actually scheduled on a shift instance.
 CREATE TABLE IF NOT EXISTS assignments (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  id                SERIAL PRIMARY KEY,
   shift_instance_id INTEGER NOT NULL REFERENCES shift_instances(id),
   employee_id       INTEGER NOT NULL REFERENCES employees(id),
   start_time        TEXT NOT NULL,
   end_time          TEXT NOT NULL,
+  is_manager        INTEGER NOT NULL DEFAULT 0,
+  actual_start      TEXT,
+  actual_end        TEXT,
+  strawberries_bought INTEGER NOT NULL DEFAULT 0,
   UNIQUE(shift_instance_id, employee_id)
 );
 
--- ---------------------------------------------------------------------------
--- Production / order tracking (Phase 1)
--- ---------------------------------------------------------------------------
-
 -- Restaurants / cafes we sell to.
 CREATE TABLE IF NOT EXISTS clients (
-  id     INTEGER PRIMARY KEY AUTOINCREMENT,
+  id     SERIAL PRIMARY KEY,
   name   TEXT NOT NULL UNIQUE,
   active INTEGER NOT NULL DEFAULT 1
 );
 
--- One client's order for one production date, with quantities per flavor.
--- Flavors are fixed columns to mirror the spreadsheet's "O:8 M:8 H:30" style.
+-- One client's order for one production date.
 CREATE TABLE IF NOT EXISTS orders (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  id            SERIAL PRIMARY KEY,
   client_id     INTEGER NOT NULL REFERENCES clients(id),
-  date          TEXT NOT NULL,            -- production day, 'YYYY-MM-DD'
+  date          TEXT NOT NULL,
   qty_original  INTEGER NOT NULL DEFAULT 0,
   qty_matcha    INTEGER NOT NULL DEFAULT 0,
   qty_hojicha   INTEGER NOT NULL DEFAULT 0,
   qty_other     INTEGER NOT NULL DEFAULT 0,
   deliverer     TEXT,
   note          TEXT,
-  delivery_date TEXT,                     -- when it ships; NULL = same as production day
+  delivery_date TEXT,
   delivered     INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(date);
--- idx_orders_delivery is created in db.py after the delivery_date migration,
--- so it works on databases created before that column existed.
+CREATE INDEX IF NOT EXISTS idx_orders_delivery ON orders(delivery_date);
 
 -- Extra hours not tied to a production shift (pop-ups, markets, etc.)
--- Plus per-entry transportation reimbursement (bridge toll etc.)
 CREATE TABLE IF NOT EXISTS popups (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  id           SERIAL PRIMARY KEY,
   employee_id  INTEGER NOT NULL REFERENCES employees(id),
-  date         TEXT    NOT NULL,  -- 'YYYY-MM-DD'
+  date         TEXT    NOT NULL,
   description  TEXT    NOT NULL DEFAULT '',
   hours        REAL    NOT NULL DEFAULT 0,
-  hourly_rate  REAL    NOT NULL DEFAULT 0,  -- $/hr; 0 = use gusto_rate setting
-  transport    REAL    NOT NULL DEFAULT 0,  -- transportation reimbursement in $
-  created_at   TEXT    NOT NULL
+  hourly_rate  REAL    NOT NULL DEFAULT 0,
+  transport    REAL    NOT NULL DEFAULT 0,
+  created_at   TEXT    NOT NULL,
+  status       TEXT    NOT NULL DEFAULT 'approved',
+  requested_by INTEGER,
+  start_time   TEXT,
+  end_time     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_popups_date ON popups(date);
 
--- Employee availability for delivery-only days (no production shift that day)
+-- Employee availability for delivery-only days.
 CREATE TABLE IF NOT EXISTS delivery_availability (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  id          SERIAL PRIMARY KEY,
   employee_id INTEGER NOT NULL REFERENCES employees(id),
-  date        TEXT    NOT NULL,  -- 'YYYY-MM-DD'
+  date        TEXT    NOT NULL,
   created_at  TEXT    NOT NULL,
   UNIQUE(employee_id, date)
 );
 CREATE INDEX IF NOT EXISTS idx_del_av_date ON delivery_availability(date);
 
--- Strawberry purchases per employee per date (deducted from salary at $strawberry_price each)
+-- Strawberry purchases per employee per date.
 CREATE TABLE IF NOT EXISTS strawberry_purchases (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  id          SERIAL PRIMARY KEY,
   employee_id INTEGER NOT NULL REFERENCES employees(id),
-  date        TEXT    NOT NULL,  -- 'YYYY-MM-DD'
+  date        TEXT    NOT NULL,
   quantity    INTEGER NOT NULL DEFAULT 1,
-  created_at  TEXT    NOT NULL
+  created_at  TEXT    NOT NULL,
+  status      TEXT    NOT NULL DEFAULT 'approved',
+  requested_by INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_strawberry_date ON strawberry_purchases(date);
 
--- Manager post-shift reports (inventory + memo + actual hours).
+-- Manager post-shift reports.
 CREATE TABLE IF NOT EXISTS shift_reports (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  id                SERIAL PRIMARY KEY,
   shift_instance_id INTEGER NOT NULL REFERENCES shift_instances(id),
   submitted_by      INTEGER NOT NULL REFERENCES employees(id),
-  status            TEXT    NOT NULL DEFAULT 'pending',  -- pending / approved / rejected
+  status            TEXT    NOT NULL DEFAULT 'pending',
   strawberry_stock  INTEGER,
   anko_stock        INTEGER,
   memo              TEXT,
@@ -139,33 +144,34 @@ CREATE TABLE IF NOT EXISTS shift_reports (
 );
 
 CREATE TABLE IF NOT EXISTS shift_report_hours (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  report_id   INTEGER NOT NULL REFERENCES shift_reports(id),
-  employee_id INTEGER NOT NULL REFERENCES employees(id),
-  actual_start TEXT   NOT NULL,
-  actual_end   TEXT   NOT NULL,
+  id           SERIAL PRIMARY KEY,
+  report_id    INTEGER NOT NULL REFERENCES shift_reports(id),
+  employee_id  INTEGER NOT NULL REFERENCES employees(id),
+  actual_start TEXT    NOT NULL,
+  actual_end   TEXT    NOT NULL,
   UNIQUE(report_id, employee_id)
 );
 
--- Default manager per weekday (Mon=0 … Sun=6).
+-- Default manager per weekday.
 CREATE TABLE IF NOT EXISTS weekday_managers (
   weekday     INTEGER PRIMARY KEY,
   employee_id INTEGER REFERENCES employees(id)
 );
 
--- Dates when no delivery happens (owner can toggle per day).
+-- Dates when no delivery happens.
 CREATE TABLE IF NOT EXISTS delivery_blackout (
   date TEXT PRIMARY KEY
 );
 
--- Default quantities per client per weekday, used to pre-fill orders each month.
+-- Default quantities per client per weekday.
 CREATE TABLE IF NOT EXISTS recurring_orders (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  id           SERIAL PRIMARY KEY,
   client_id    INTEGER NOT NULL REFERENCES clients(id),
-  weekday      INTEGER NOT NULL,  -- 0=Mon … 6=Sun
+  weekday      INTEGER NOT NULL,
   qty_original INTEGER NOT NULL DEFAULT 0,
   qty_matcha   INTEGER NOT NULL DEFAULT 0,
   qty_hojicha  INTEGER NOT NULL DEFAULT 0,
   qty_other    INTEGER NOT NULL DEFAULT 0,
+  delivery_offset INTEGER NOT NULL DEFAULT 0,
   UNIQUE(client_id, weekday)
 );

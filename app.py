@@ -1726,7 +1726,7 @@ def deliveries_month():
         for key in request.form:
             if key.startswith("no_del_"):
                 g.db.execute(
-                    "INSERT OR IGNORE INTO delivery_blackout (date) VALUES (?)",
+                    "INSERT INTO delivery_blackout (date) VALUES (?) ON CONFLICT DO NOTHING",
                     (key[len("no_del_"):],),
                 )
         # Per-client per-date deliverer assignment
