@@ -666,7 +666,7 @@ def calendar_view():
                   MAX(o.deliverer)    AS deliverer
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
-            GROUP BY deliver_on, o.client_id
+            GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
         (month + "-%",),
     ).fetchall()
@@ -1752,7 +1752,7 @@ def deliveries_month():
                   MAX(o.deliverer)  AS deliverer
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
-            GROUP BY deliver_on, o.client_id
+            GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
         (month + "-%",),
     ).fetchall()
@@ -2262,8 +2262,8 @@ def my_deliveries():
                   MAX(o.delivered)    AS delivered
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE lower(o.deliverer) = lower(?)
-              AND COALESCE(o.delivery_date, o.date) >= CURRENT_DATE - INTERVAL '7 days'
-            GROUP BY deliver_on, o.client_id
+              AND COALESCE(o.delivery_date, o.date) >= (CURRENT_DATE - INTERVAL '7 days')::text
+            GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
         (emp_name,),
     ).fetchall()
