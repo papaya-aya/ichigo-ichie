@@ -14,7 +14,15 @@ def hash_password(password):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # On Render, set DB_DIR=/data so the database survives deploys (persistent disk).
 # Locally it stays next to the app.
-_db_dir = os.environ.get("DB_DIR", BASE_DIR)
+# On Render, set DB_DIR=/data (persistent disk).
+# On Vercel, the only writable path is /tmp (ephemeral — use a real DB for prod).
+# Locally it stays next to the app.
+if os.environ.get("DB_DIR"):
+    _db_dir = os.environ["DB_DIR"]
+elif os.environ.get("VERCEL"):
+    _db_dir = "/tmp"
+else:
+    _db_dir = BASE_DIR
 DB_PATH = os.path.join(_db_dir, "shifto.db")
 SCHEMA_PATH = os.path.join(BASE_DIR, "schema.sql")
 
