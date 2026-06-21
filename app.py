@@ -325,23 +325,25 @@ def availability():
                                   f"{inst['start_time']}–{inst['end_time']} and start before end.")
                     continue
                 can_deliver = 1 if request.form.get(f"deliver_{iid}") else 0
+                if_needed = 1 if request.form.get(f"if_needed_{iid}") else 0
                 g.db.execute(
                     """INSERT INTO availability
                          (employee_id, shift_instance_id, start_time, end_time,
-                          status, note, can_deliver, submitted_at, is_update)
-                       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, 0)
+                          status, note, can_deliver, if_needed, submitted_at, is_update)
+                       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, 0)
                        ON CONFLICT(employee_id, shift_instance_id) DO UPDATE SET
                          start_time   = excluded.start_time,
                          end_time     = excluded.end_time,
                          status       = 'pending',
                          note         = excluded.note,
                          can_deliver  = excluded.can_deliver,
+                         if_needed    = excluded.if_needed,
                          submitted_at = excluded.submitted_at,
                          decided_at   = NULL,
                          is_update    = 1""",
                     (emp_id, iid, start, end,
                      request.form.get(f"note_{iid}", "").strip(),
-                     can_deliver, database.now_iso()),
+                     can_deliver, if_needed, database.now_iso()),
                 )
                 saved += 1
             else:
@@ -623,6 +625,7 @@ def _decorate_instances(instances, existing):
             "note":        av["note"]        if av else "",
             "status":      av["status"]      if av else None,
             "can_deliver": bool(av["can_deliver"]) if av else False,
+            "if_needed":   bool(av["if_needed"])   if av else False,
         })
     return rows
 
@@ -1967,7 +1970,7 @@ def approvals():
     status = request.values.get("status", "pending")
     rows = g.db.execute(
         """SELECT av.id, av.start_time, av.end_time, av.status, av.note,
-                  av.submitted_at, av.is_update, e.name AS emp_name, si.date,
+                  av.submitted_at, av.is_update, av.if_needed, e.name AS emp_name, si.date,
                   t.label, t.start_time AS shift_start, t.end_time AS shift_end, t.weekday
              FROM availability av
              JOIN employees e ON e.id = av.employee_id

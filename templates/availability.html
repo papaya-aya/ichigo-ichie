@@ -35,7 +35,7 @@
     <table>
       <thead>
         <tr>
-          <th>Work?</th><th>Date</th><th>Shift</th><th>Shift hours</th>
+          <th>Work?</th><th>If needed?</th><th>Date</th><th>Shift</th><th>Shift hours</th>
           <th>I'm available</th>
           <th title="Let the owner know you can do delivery for this shift">🚗 Delivery?</th>
           <th>Note</th><th>Status</th>
@@ -50,10 +50,17 @@
             data-orig-start="{{ r.start }}"
             data-orig-end="{{ r.end }}"
             data-orig-deliver="{{ 'true' if r.can_deliver else 'false' }}"
+            data-orig-if-needed="{{ 'true' if r.if_needed else 'false' }}"
             data-orig-note="{{ r.note }}">
           <td><input type="checkbox" name="work_{{ r.inst.instance_id }}"
                      {% if r.checked %}checked{% endif %}
                      class="row-trigger"></td>
+          <td style="text-align:center">
+            <input type="checkbox" name="if_needed_{{ r.inst.instance_id }}"
+                   {% if r.if_needed %}checked{% endif %}
+                   class="row-trigger"
+                   title="I can work if needed but prefer not to">
+          </td>
           <td><span class="badge badge-day">{{ r.weekday }}</span> {{ r.inst.date }}</td>
           <td>{{ r.inst.label }}</td>
           <td class="muted">{{ r.inst.start_time }}–{{ r.inst.end_time }}</td>
@@ -125,19 +132,22 @@ document.querySelectorAll('.avail-row').forEach(row => {
   const origStart    = row.dataset.origStart;
   const origEnd      = row.dataset.origEnd;
   const origDeliver  = row.dataset.origDeliver === 'true';
+  const origIfNeeded = row.dataset.origIfNeeded === 'true';
   const origNote     = row.dataset.origNote;
 
   function isModified() {
-    const cbWork    = row.querySelector('[name^="work_"]');
-    const inStart   = row.querySelector('[name^="start_"]');
-    const inEnd     = row.querySelector('[name^="end_"]');
-    const cbDeliver = row.querySelector('[name^="deliver_"]');
-    const inNote    = row.querySelector('[name^="note_"]');
-    if (cbWork    && cbWork.checked    !== origChecked)  return true;
-    if (inStart   && inStart.value     !== origStart)    return true;
-    if (inEnd     && inEnd.value       !== origEnd)      return true;
-    if (cbDeliver && cbDeliver.checked !== origDeliver)  return true;
-    if (inNote    && inNote.value      !== origNote)     return true;
+    const cbWork     = row.querySelector('[name^="work_"]');
+    const inStart    = row.querySelector('[name^="start_"]');
+    const inEnd      = row.querySelector('[name^="end_"]');
+    const cbDeliver  = row.querySelector('[name^="deliver_"]');
+    const cbIfNeeded = row.querySelector('[name^="if_needed_"]');
+    const inNote     = row.querySelector('[name^="note_"]');
+    if (cbWork     && cbWork.checked     !== origChecked)   return true;
+    if (inStart    && inStart.value      !== origStart)     return true;
+    if (inEnd      && inEnd.value        !== origEnd)       return true;
+    if (cbDeliver  && cbDeliver.checked  !== origDeliver)   return true;
+    if (cbIfNeeded && cbIfNeeded.checked !== origIfNeeded)  return true;
+    if (inNote     && inNote.value       !== origNote)      return true;
     return false;
   }
 

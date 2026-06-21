@@ -46,6 +46,7 @@
             {% endif %}
           </td>
           <td class="muted">{{ r.note or '' }}</td>
+          <td>{% if r.if_needed %}<span class="pill" title="Can work if needed but prefers not to">if needed</span>{% endif %}</td>
           <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
         </tr>
         {% endfor %}
@@ -81,6 +82,7 @@
             {% endif %}
           </td>
           <td class="muted">{{ r.note or '' }}</td>
+          <td>{% if r.if_needed %}<span class="pill" title="Can work if needed but prefers not to">if needed</span>{% endif %}</td>
           <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
         </tr>
         {% endfor %}

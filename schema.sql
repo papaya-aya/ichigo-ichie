@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS availability (
   submitted_at      TEXT NOT NULL,
   decided_at        TEXT,
   can_deliver       INTEGER NOT NULL DEFAULT 0,
+  if_needed         INTEGER NOT NULL DEFAULT 0,
   is_update         INTEGER NOT NULL DEFAULT 0,
   UNIQUE(employee_id, shift_instance_id)
 );
