@@ -372,7 +372,13 @@ def availability():
                     "DELETE FROM delivery_availability WHERE employee_id=? AND date=?",
                     (emp_id, d),
                 )
-        g.db.commit()
+        try:
+            g.db.commit()
+        except Exception as db_err:
+            import traceback
+            app.logger.error("Availability commit failed: %s\n%s", db_err, traceback.format_exc())
+            flash(f"Database error: {db_err}", "error")
+            return redirect(url_for("availability", month=month))
         for e in errors:
             flash(e, "error")
         if not errors:
