@@ -319,7 +319,9 @@ def availability():
         saved, errors = 0, []
         for inst in instances:
             iid = inst["instance_id"]
-            if request.form.get(f"work_{iid}"):
+            work_checked     = bool(request.form.get(f"work_{iid}"))
+            if_needed_checked = bool(request.form.get(f"if_needed_{iid}"))
+            if work_checked or if_needed_checked:
                 start = request.form.get(f"start_{iid}") or inst["start_time"]
                 end = request.form.get(f"end_{iid}") or inst["end_time"]
                 if not _within(start, end, inst):
@@ -327,7 +329,7 @@ def availability():
                                   f"{inst['start_time']}–{inst['end_time']} and start before end.")
                     continue
                 can_deliver = 1 if request.form.get(f"deliver_{iid}") else 0
-                if_needed = 1 if request.form.get(f"if_needed_{iid}") else 0
+                if_needed = 1 if if_needed_checked else 0
                 g.db.execute(
                     """INSERT INTO availability
                          (employee_id, shift_instance_id, start_time, end_time,
@@ -621,7 +623,7 @@ def _decorate_instances(instances, existing):
         rows.append({
             "inst":        inst,
             "weekday":     WEEKDAY_NAMES[inst["weekday"]],
-            "checked":     av is not None,
+            "checked":     av is not None and not av["if_needed"],
             "start":       av["start_time"]  if av else inst["start_time"],
             "end":         av["end_time"]    if av else inst["end_time"],
             "note":        av["note"]        if av else "",
