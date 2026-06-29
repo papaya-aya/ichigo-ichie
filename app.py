@@ -1770,32 +1770,43 @@ def deliveries_month():
         (month + "-%",),
     ).fetchall()
 
-    # Employees available to deliver — from production shift can_deliver flag
-    can_deliver_rows = g.db.execute(
-        """SELECT DISTINCT COALESCE(o.delivery_date, o.date) AS deliver_on, e.name AS emp_name
+    # Step 1: who said can_deliver on each production shift (keyed by shift date)
+    can_deliver_shift_rows = g.db.execute(
+        """SELECT DISTINCT si.date AS shift_date, e.name AS emp_name
              FROM availability av
              JOIN employees e ON e.id = av.employee_id
              JOIN shift_instances si ON si.id = av.shift_instance_id
-             JOIN orders o ON o.date = si.date
-            WHERE av.can_deliver = 1
-              AND COALESCE(o.delivery_date, o.date) LIKE ?
-            ORDER BY deliver_on, e.name""",
+            WHERE av.can_deliver = 1 AND si.date LIKE ?
+            ORDER BY si.date, e.name""",
         (month + "-%",),
     ).fetchall()
-    can_deliver_map = {}
-    for r in can_deliver_rows:
-        can_deliver_map.setdefault(r["deliver_on"], []).append(r["emp_name"])
 
-    # Also include employees who signed up via delivery_availability (e.g. Thursdays)
-    del_av_rows = g.db.execute(
+    # Step 2: map each shift date to its delivery date(s) via existing orders
+    shift_to_deliver = {}
+    for r in g.db.execute(
+        """SELECT DISTINCT date AS shift_date, COALESCE(delivery_date, date) AS deliver_on
+             FROM orders WHERE date LIKE ?""",
+        (month + "-%",),
+    ).fetchall():
+        shift_to_deliver.setdefault(r["shift_date"], set()).add(r["deliver_on"])
+
+    can_deliver_map = {}
+    for r in can_deliver_shift_rows:
+        # Map to actual delivery dates if orders exist; fall back to shift date
+        for d in shift_to_deliver.get(r["shift_date"], {r["shift_date"]}):
+            names = can_deliver_map.setdefault(d, [])
+            if r["emp_name"] not in names:
+                names.append(r["emp_name"])
+
+    # Step 3: also include employees who signed up for delivery-only days (e.g. Thursdays)
+    for r in g.db.execute(
         """SELECT da.date AS deliver_on, e.name AS emp_name
              FROM delivery_availability da
              JOIN employees e ON e.id = da.employee_id
             WHERE da.date LIKE ?
             ORDER BY da.date, e.name""",
         (month + "-%",),
-    ).fetchall()
-    for r in del_av_rows:
+    ).fetchall():
         names = can_deliver_map.setdefault(r["deliver_on"], [])
         if r["emp_name"] not in names:
             names.append(r["emp_name"])
