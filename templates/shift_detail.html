@@ -77,14 +77,23 @@
   {% endif %}
   <p class="help">Amber = below min at that moment, red = above max. Bars account for partial windows.</p>
 
-  <form method="post" class="inline-form">
-    <button type="submit" name="action" value="auto">⚡ Auto-assign from approved availability</button>
-  </form>
+  <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.6rem">
+    <form method="post" class="inline-form">
+      <button type="submit" name="action" value="auto"
+              title="Picks the optimal subset using the scheduler algorithm">⚡ Smart auto-assign</button>
+    </form>
+    {% if candidates %}
+    <form method="post" class="inline-form">
+      <button type="submit" name="action" value="add_all" class="btn-ghost"
+              title="Adds every person with approved availability to the shift">✓ Assign all available ({{ candidates|length }})</button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 
 <form method="post">
   <div class="card">
-    <h2 style="margin-top:0">People (approved availability)</h2>
+    <h2 style="margin-top:0">People with approved availability</h2>
     {% if not candidates %}
       <p class="muted">No approved availability for this shift yet.
         Check the <a href="{{ url_for('approvals') }}">approvals</a> page.</p>
@@ -96,7 +105,7 @@
         <tr>
           <td><input type="checkbox" name="include" value="{{ c.employee_id }}"
                      {% if c.included %}checked{% endif %}></td>
-          <td>{{ c.name }}</td>
+          <td>{{ c.name }}{% if c.if_needed %} <span class="muted" style="font-size:.8em">(if needed)</span>{% endif %}</td>
           <td class="muted">{{ c.start }}–{{ c.end }}</td>
           <td>
             <input type="time" name="start_{{ c.employee_id }}" value="{{ c.assigned_start }}"
@@ -113,10 +122,39 @@
         {% endfor %}
       </tbody>
     </table>
-    <div class="row-actions" style="margin-top:0.8rem">
-      <button type="submit" name="action" value="save">Save assignment</button>
-    </div>
     {% endif %}
+  </div>
+
+  {% if other_employees %}
+  <div class="card">
+    <h2 style="margin-top:0">Add someone without availability</h2>
+    <p class="muted" style="margin-top:-.4rem; font-size:.88rem">These people didn't submit availability for this shift. Tick the box to add them manually.</p>
+    <table>
+      <thead><tr><th>Add?</th><th>Name</th><th>Assign window</th><th title="Manager gets +5% pay">Manager 👑</th></tr></thead>
+      <tbody>
+        {% for e in other_employees %}
+        <tr>
+          <td><input type="checkbox" name="include" value="{{ e.employee_id }}"></td>
+          <td>{{ e.name }}</td>
+          <td>
+            <input type="time" name="start_{{ e.employee_id }}" value="{{ inst.start_time }}"
+                   min="{{ inst.start_time }}" max="{{ inst.end_time }}">
+            –
+            <input type="time" name="end_{{ e.employee_id }}" value="{{ inst.end_time }}"
+                   min="{{ inst.start_time }}" max="{{ inst.end_time }}">
+          </td>
+          <td style="text-align:center">
+            <input type="checkbox" name="manager" value="{{ e.employee_id }}">
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="row-actions" style="margin-top:0.4rem">
+    <button type="submit" name="action" value="save">Save assignment</button>
   </div>
 </form>
 <div class="card">

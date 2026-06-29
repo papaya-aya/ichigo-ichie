@@ -2132,11 +2132,11 @@ def shift_detail(instance_id):
     if request.method == "POST":
         action = request.form.get("action")
         default_mgr = weekday_manager_id(inst["weekday"])
+
         if action == "auto":
+            # Smart auto-assign: fills shift to min/max using scheduler
             chosen = auto_assign(inst, candidates)
             chosen_ids = {c["employee_id"] for c in chosen}
-            # If the weekday manager has approved availability but wasn't picked,
-            # force-add them.
             if default_mgr and default_mgr not in chosen_ids:
                 mgr_cand = next((c for c in candidates if c["employee_id"] == default_mgr), None)
                 if mgr_cand:
@@ -2150,23 +2150,37 @@ def shift_detail(instance_id):
             )
             g.db.commit()
             flash(f"Auto-assigned {len(chosen)} person(s).", "success")
+
+        elif action == "add_all":
+            # Add ALL approved candidates at their full availability window
+            g.db.execute("DELETE FROM assignments WHERE shift_instance_id = ?", (instance_id,))
+            g.db.executemany(
+                "INSERT INTO assignments (shift_instance_id, employee_id, start_time, end_time, is_manager)"
+                " VALUES (?, ?, ?, ?, ?)",
+                [(instance_id, c["employee_id"], c["start"], c["end"],
+                  1 if c["employee_id"] == default_mgr else 0) for c in candidates],
+            )
+            g.db.commit()
+            flash(f"Assigned all {len(candidates)} available person(s).", "success")
+
         elif action == "save":
-            chosen_ids = request.form.getlist("include")
-            manager_ids = set(int(x) for x in request.form.getlist("manager"))
-            # Always include the default weekday manager in manager_ids
+            chosen_ids = [int(x) for x in request.form.getlist("include")]
+            manager_ids = {int(x) for x in request.form.getlist("manager")}
             if default_mgr:
                 manager_ids.add(default_mgr)
+            # All active employees (for manual assignments)
+            all_emp = {r["id"]: r["name"] for r in g.db.execute(
+                "SELECT id, name FROM employees WHERE active=1"
+            ).fetchall()}
             g.db.execute("DELETE FROM assignments WHERE shift_instance_id = ?", (instance_id,))
             errors = []
             for cid in chosen_ids:
-                cid = int(cid)
                 cand = cand_by_id.get(cid)
-                if not cand:
-                    continue
-                start = request.form.get(f"start_{cid}") or cand["start"]
-                end = request.form.get(f"end_{cid}") or cand["end"]
+                emp_name = (cand["name"] if cand else all_emp.get(cid, f"#{cid}"))
+                start = request.form.get(f"start_{cid}") or (cand["start"] if cand else inst["start_time"])
+                end   = request.form.get(f"end_{cid}")   or (cand["end"]   if cand else inst["end_time"])
                 if not _within(start, end, inst):
-                    errors.append(f"{cand['name']}: window must be within shift hours.")
+                    errors.append(f"{emp_name}: window must be within shift hours.")
                     continue
                 g.db.execute(
                     "INSERT INTO assignments (shift_instance_id, employee_id, start_time, end_time, is_manager)"
@@ -2178,13 +2192,13 @@ def shift_detail(instance_id):
                 flash(e, "error")
             if not errors:
                 flash("Assignment saved.", "success")
+
         return redirect(url_for("shift_detail", instance_id=instance_id))
 
     assigned = {a["employee_id"]: a for a in assigned_people(instance_id)}
     cov = coverage(inst, [dict(a) for a in assigned.values()])
 
-    # Build candidate rows: start from approved availability, then add any
-    # assigned people who aren't in that list (assigned without approval).
+    # Approved candidates + anyone already assigned outside the candidate list
     cand_ids = {c["employee_id"] for c in candidates}
     merged_candidates = list(candidates)
     for a in assigned.values():
@@ -2194,6 +2208,7 @@ def shift_detail(instance_id):
                 "name":        a["name"],
                 "start":       a["start"],
                 "end":         a["end"],
+                "if_needed":   False,
             })
     merged_candidates.sort(key=lambda c: c["name"])
 
@@ -2207,6 +2222,15 @@ def shift_detail(instance_id):
             "assigned_end":   a["end"]        if a else c["end"],
             "is_manager":     bool(a["is_manager"]) if a else False,
         })
+
+    # All active employees NOT already in cand_rows (for manual add)
+    all_cand_ids = {c["employee_id"] for c in merged_candidates}
+    other_employees = [
+        dict(r) for r in g.db.execute(
+            "SELECT id AS employee_id, name FROM employees WHERE active=1 ORDER BY name"
+        ).fetchall()
+        if r["id"] not in all_cand_ids
+    ]
 
     # Shift report status (submitted by manager)
     shift_report = g.db.execute(
@@ -2224,7 +2248,7 @@ def shift_detail(instance_id):
     return render_template(
         "shift_detail.html",
         inst=inst, weekday=WEEKDAY_NAMES[inst["weekday"]],
-        candidates=cand_rows, cov=cov,
+        candidates=cand_rows, other_employees=other_employees, cov=cov,
         shift_report=shift_report,
         totals=totals, orders=orders, staff=staff, flavors=FLAVORS,
         strawberry_price=STRAWBERRY_PRICE,
