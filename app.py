@@ -1743,14 +1743,17 @@ def deliveries_month():
                     (key[len("no_del_"):],),
                 )
         # Per-client per-date deliverer assignment
+        # key format: dlv_{deliver_on}_{client_id}  (client_id is an integer)
+        # The date-level "all" sync dropdown also submits dlv_{date}_all — skip it.
         for key, deliverer in request.form.items():
             if not key.startswith("dlv_"):
                 continue
-            # key format: dlv_{deliver_on}_{client_id}
             _, deliver_on, client_id = key.split("_", 2)
+            if not client_id.isdigit():
+                continue
             g.db.execute(
                 "UPDATE orders SET deliverer=? WHERE client_id=? AND COALESCE(delivery_date, date)=?",
-                (deliverer.strip(), client_id, deliver_on),
+                (deliverer.strip(), int(client_id), deliver_on),
             )
         g.db.commit()
         flash("Deliverer assignments saved.", "success")
