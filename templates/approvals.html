@@ -271,11 +271,15 @@
       {% for r in decided_shift_reports %}
       <tr>
         <td>
+          {% if r.instance_id %}
           <a href="{{ url_for('shift_detail', instance_id=r.instance_id) }}">
-            <span class="badge badge-day">{{ weekday_names[r.weekday] }}</span>
-            {{ r.date }}
-          </a><br>
-          <span class="muted" style="font-size:.85em">{{ r.label }}</span>
+            <span class="badge badge-day">{{ weekday_names[r.weekday] if r.weekday is not none else '?' }}</span>
+            {{ r.date or '(unknown date)' }}
+          </a>
+          {% else %}
+          <span class="muted">shift #{{ r.shift_instance_id }}</span>
+          {% endif %}<br>
+          <span class="muted" style="font-size:.85em">{{ r.label or '—' }}</span>
         </td>
         <td>{{ r.submitter }}</td>
         <td>{{ r.strawberry_stock if r.strawberry_stock is not none else '—' }}</td>
