@@ -1641,6 +1641,21 @@ def orders_day(date):
         action = request.form.get("action")
         if action == "add":
             client_id = request.form.get("client_id")
+            new_client_name = None
+            if client_id == "__new__":
+                new_client_name = request.form.get("new_client_name", "").strip()
+                if not new_client_name:
+                    flash("Enter a name for the new client.", "error")
+                    return redirect(url_for("orders_day", date=date))
+                try:
+                    row = g.db.execute(
+                        "INSERT INTO clients (name) VALUES (?) RETURNING id",
+                        (new_client_name,),
+                    ).fetchone()
+                    client_id = row["id"]
+                except Exception:
+                    flash(f"A client named '{new_client_name}' already exists.", "error")
+                    return redirect(url_for("orders_day", date=date))
             if not client_id:
                 flash("Pick a client.", "error")
             else:
@@ -1656,7 +1671,10 @@ def orders_day(date):
                      request.form.get("note", "").strip(), deliver_on, database.now_iso()),
                 )
                 g.db.commit()
-                flash("Order added.", "success")
+                if new_client_name:
+                    flash(f"Client '{new_client_name}' created and order added.", "success")
+                else:
+                    flash("Order added.", "success")
         elif action == "update":
             order_id = int(request.form.get("order_id"))
             qtys = [_int(request.form.get(f"qty_{s}")) for s, _ in FLAVORS]

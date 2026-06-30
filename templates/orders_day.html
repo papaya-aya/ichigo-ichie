@@ -94,7 +94,6 @@
 
 <div class="card">
   <h2 style="margin-top:0">Add an order</h2>
-  {% if clients %}
   <form method="post">
     <input type="hidden" name="action" value="add">
     <div style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:flex-end">
@@ -103,7 +102,12 @@
         <select name="client_id" id="add-client" required>
           <option value="" disabled selected>Choose…</option>
           {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          <option value="__new__">+ New client…</option>
         </select>
+      </label>
+      <label class="field" id="new-client-field" style="min-width:9rem; display:none">
+        New client name
+        <input type="text" name="new_client_name" placeholder="Client name">
       </label>
       {% for s, label in flavors %}
       <label class="field" style="width:5rem">
@@ -134,21 +138,23 @@
       </div>
     </div>
   </form>
-  {# Auto-fill delivery date from recurring offset when client changes #}
   <script>
   (function () {
     const suggestions = {{ delivery_suggestions | tojson }};
-    const sel  = document.getElementById('add-client');
-    const inp  = document.getElementById('add-delivery-date');
+    const sel      = document.getElementById('add-client');
+    const inp      = document.getElementById('add-delivery-date');
+    const newField = document.getElementById('new-client-field');
     const base = '{{ date }}';
     sel.addEventListener('change', function () {
-      const suggested = suggestions[this.value];
-      inp.value = suggested || base;
+      if (this.value === '__new__') {
+        newField.style.display = '';
+        inp.value = base;
+      } else {
+        newField.style.display = 'none';
+        inp.value = suggestions[this.value] || base;
+      }
     });
   })();
   </script>
-  {% else %}
-    <p class="muted">Add clients on the <a href="{{ url_for('owner_dashboard') }}">Input</a> first.</p>
-  {% endif %}
 </div>
 {% endblock %}
