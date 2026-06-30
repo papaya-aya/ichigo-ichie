@@ -119,6 +119,7 @@ def get_db():
         sslmode="require",
     )
     conn.autocommit = False
+    conn.set_client_encoding("UTF8")
     return _Connection(conn)
 
 
