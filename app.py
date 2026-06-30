@@ -387,6 +387,33 @@ def availability():
             if saved:     parts.append(f"{saved} shift(s)")
             if del_saved: parts.append(f"{del_saved} delivery day(s)")
             flash(f"Saved: {', '.join(parts) or 'no changes'}. Shift submissions await owner approval.", "success")
+
+        # Warn the employee if they are already assigned to shifts they didn't mark available.
+        conflicts = g.db.execute(
+            """SELECT si.date, t.label, t.weekday
+                 FROM assignments a
+                 JOIN shift_instances si ON si.id = a.shift_instance_id
+                 JOIN shift_templates t  ON t.id  = si.template_id
+                WHERE a.employee_id = ?
+                  AND si.date LIKE ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM availability av
+                     WHERE av.shift_instance_id = a.shift_instance_id
+                       AND av.employee_id = a.employee_id
+                  )
+                ORDER BY si.date""",
+            (emp_id, month + "-%"),
+        ).fetchall()
+        if conflicts:
+            names = ", ".join(
+                f"{WEEKDAY_NAMES[r['weekday']]} {r['date']} ({r['label']})"
+                for r in conflicts
+            )
+            flash(
+                f"You are assigned to {len(conflicts)} shift(s) you did not mark as available: "
+                f"{names}. Please contact the owner if you cannot work these.",
+                "error",
+            )
         return redirect(url_for("availability", month=month))
 
     instances = instances_for_month(month)
@@ -2326,6 +2353,32 @@ def approvals():
             LIMIT 60"""
     ).fetchall()
 
+    # Employees assigned to upcoming shifts they did not mark as available.
+    # Condition: has an assignment, submitted availability for that month
+    # (has ≥1 row for any shift that month), but has no row for this specific shift.
+    assignment_conflicts = g.db.execute(
+        """SELECT e.name AS emp_name, si.date, t.label, t.weekday,
+                  a.start_time AS assigned_start, a.end_time AS assigned_end
+             FROM assignments a
+             JOIN shift_instances si ON si.id = a.shift_instance_id
+             JOIN shift_templates t  ON t.id  = si.template_id
+             JOIN employees e        ON e.id  = a.employee_id
+            WHERE si.date >= ?
+              AND NOT EXISTS (
+                SELECT 1 FROM availability av
+                 WHERE av.shift_instance_id = a.shift_instance_id
+                   AND av.employee_id = a.employee_id
+              )
+              AND EXISTS (
+                SELECT 1 FROM availability av2
+                  JOIN shift_instances si2 ON si2.id = av2.shift_instance_id
+                 WHERE av2.employee_id = a.employee_id
+                   AND LEFT(si2.date, 7) = LEFT(si.date, 7)
+              )
+            ORDER BY si.date, e.name""",
+        (date.today().isoformat(),),
+    ).fetchall()
+
     return render_template(
         "approvals.html", rows=rows, status=status, counts=counts,
         weekday_names=WEEKDAY_NAMES,
@@ -2333,6 +2386,7 @@ def approvals():
         pending_popups=pending_popups,
         pending_shift_reports=pending_shift_reports,
         decided_shift_reports=decided_shift_reports,
+        assignment_conflicts=assignment_conflicts,
     )
 
 

@@ -3,6 +3,28 @@
 <h1>Availability approvals</h1>
 <p class="subtitle">Only approved availability is used when assigning people to shifts.</p>
 
+{% if assignment_conflicts %}
+<div class="card" style="border-left:4px solid var(--red,#e53935); margin-bottom:1rem; padding:.8rem 1rem">
+  <h2 style="margin-top:0; color:var(--red,#e53935)">⚠️ Assignment conflicts ({{ assignment_conflicts|length }})</h2>
+  <p class="muted" style="margin:.1rem 0 .6rem">These employees are assigned to upcoming shifts they did not mark as available.</p>
+  <table>
+    <thead>
+      <tr><th>Employee</th><th>Date</th><th>Shift</th><th>Assigned window</th></tr>
+    </thead>
+    <tbody>
+      {% for r in assignment_conflicts %}
+      <tr>
+        <td><b>{{ r.emp_name }}</b></td>
+        <td><span class="badge badge-day">{{ weekday_names[r.weekday] }}</span> {{ r.date }}</td>
+        <td>{{ r.label }}</td>
+        <td class="muted">{{ r.assigned_start }}–{{ r.assigned_end }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <div class="month-nav">
   {% for s in ['pending', 'approved', 'rejected'] %}
     <a class="btn btn-sm {{ 'btn-ghost' if status != s }}" href="{{ url_for('approvals', status=s) }}">
