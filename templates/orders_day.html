@@ -16,6 +16,19 @@
   </h2>
 
   {% if orders %}
+  {# Declare one form per order row OUTSIDE the table (form inside tr is invalid HTML) #}
+  {% for o in orders %}
+  <form id="upd-{{ o.id }}" method="post">
+    <input type="hidden" name="action" value="update">
+    <input type="hidden" name="order_id" value="{{ o.id }}">
+  </form>
+  <form id="del-{{ o.id }}" method="post"
+        onsubmit="return confirm('Remove this order?');">
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="order_id" value="{{ o.id }}">
+  </form>
+  {% endfor %}
+
   <table>
     <thead>
       <tr>
@@ -30,47 +43,35 @@
     </thead>
     <tbody>
       {% for o in orders %}
-      {# Each row is wrapped in a form so quantities are editable inline #}
       <tr id="row-{{ o.id }}">
-        <form method="post">
-          <input type="hidden" name="action" value="update">
-          <input type="hidden" name="order_id" value="{{ o.id }}">
-          <td><b>{{ o.client_name }}</b></td>
-          {% for s, label in flavors %}
-          <td style="text-align:right">
-            <input type="number" name="qty_{{ s }}" value="{{ o['qty_' ~ s] }}"
-                   min="0" style="width:4.2rem; text-align:right">
-          </td>
-          {% endfor %}
-          <td style="text-align:right; font-weight:600" id="total-{{ o.id }}">{{ o.total }}</td>
-          <td>
-            <input type="date" name="delivery_date"
-                   value="{{ o.delivery_date or date }}" style="width:8.5rem">
-          </td>
-          <td>
-            <select name="deliverer" style="width:8rem">
-              <option value="">—</option>
-              {% for e in employees %}
-                <option value="{{ e.name }}" {% if o.deliverer == e.name %}selected{% endif %}>{{ e.name }}</option>
-              {% endfor %}
-            </select>
-          </td>
-          <td>
-            <input type="text" name="note" value="{{ o.note or '' }}"
-                   placeholder="—" style="width:7rem">
-          </td>
-          <td style="white-space:nowrap">
-            <button type="submit" class="btn-ghost btn-sm">Save</button>
-            &nbsp;
-          </td>
-        </form>
+        <td><b>{{ o.client_name }}</b></td>
+        {% for s, label in flavors %}
+        <td style="text-align:right">
+          <input form="upd-{{ o.id }}" type="number" name="qty_{{ s }}"
+                 value="{{ o['qty_' ~ s] }}" min="0" style="width:4.2rem; text-align:right">
+        </td>
+        {% endfor %}
+        <td style="text-align:right; font-weight:600">{{ o.total }}</td>
         <td>
-          <form method="post" class="inline-form"
-                onsubmit="return confirm('Remove this order?');">
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="order_id" value="{{ o.id }}">
-            <button type="submit" class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)">✕</button>
-          </form>
+          <input form="upd-{{ o.id }}" type="date" name="delivery_date"
+                 value="{{ o.delivery_date or date }}" style="width:8.5rem">
+        </td>
+        <td>
+          <select form="upd-{{ o.id }}" name="deliverer" style="width:8rem">
+            <option value="">—</option>
+            {% for e in employees %}
+              <option value="{{ e.name }}" {% if o.deliverer == e.name %}selected{% endif %}>{{ e.name }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <input form="upd-{{ o.id }}" type="text" name="note"
+                 value="{{ o.note or '' }}" placeholder="—" style="width:7rem">
+        </td>
+        <td style="white-space:nowrap">
+          <button form="upd-{{ o.id }}" type="submit" class="btn-ghost btn-sm">Save</button>
+          <button form="del-{{ o.id }}" type="submit" class="btn-ghost btn-sm"
+                  style="color:var(--red);border-color:var(--red)">✕</button>
         </td>
       </tr>
       {% endfor %}
