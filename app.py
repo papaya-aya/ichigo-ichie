@@ -2149,30 +2149,33 @@ def approvals():
                     lines.append(f"  • {s}")
             _send_slack("\n".join(lines))
 
+        def _update_availability(av_ids, new_status):
+            """Single UPDATE using IN clause — avoids executemany type issues."""
+            placeholders = ",".join("?" * len(av_ids))
+            g.db.execute(
+                f"UPDATE availability SET status=?, decided_at=? WHERE id IN ({placeholders})",
+                [new_status, database.now_iso()] + list(av_ids),
+            )
+            g.db.commit()
+            try:
+                _notify_employees(av_ids, new_status)
+            except Exception as exc:
+                app.logger.error("Slack notify failed: %s", exc)
+
         if action == "approve_originals":
             rows_to_approve = g.db.execute(
                 "SELECT id FROM availability WHERE status='pending' AND is_update=0"
             ).fetchall()
             ids_to_approve = [r["id"] for r in rows_to_approve]
             if ids_to_approve:
-                g.db.executemany(
-                    "UPDATE availability SET status='approved', decided_at=? WHERE id=?",
-                    [(database.now_iso(), i) for i in ids_to_approve],
-                )
-                g.db.commit()
-                _notify_employees(ids_to_approve, "approved")
+                _update_availability(ids_to_approve, "approved")
                 flash(f"{len(ids_to_approve)} original submission(s) approved.", "success")
             else:
                 flash("No original submissions to approve.", "info")
         elif action in ("approve", "reject") and ids:
-            status = "approved" if action == "approve" else "rejected"
-            g.db.executemany(
-                "UPDATE availability SET status = ?, decided_at = ? WHERE id = ?",
-                [(status, database.now_iso(), i) for i in ids],
-            )
-            g.db.commit()
-            _notify_employees(ids, status)
-            flash(f"{len(ids)} submission(s) {status}.", "success")
+            new_status = "approved" if action == "approve" else "rejected"
+            _update_availability(ids, new_status)
+            flash(f"{len(ids)} submission(s) {new_status}.", "success")
         return redirect(url_for("approvals", status=request.values.get("status", "pending")))
 
     status = request.values.get("status", "pending")
