@@ -85,12 +85,19 @@
           {% endif %}
         </td>
         <td>
-          {% if s.confirmed %}
-            <span class="ok">✓ Hours confirmed</span>
-          {% elif s.is_manager and s.report_status == 'pending' %}
-            <span class="badge badge-pending">⏳ Report pending</span>
-          {% elif s.is_manager %}
-            <a class="btn btn-ghost btn-sm" href="{{ url_for('shift_report', instance_id=s.instance_id) }}">📋 Submit report</a>
+          {% if s.is_manager %}
+            {% if s.confirmed %}
+              <span class="ok">✓ Hours confirmed</span>
+              <a class="btn btn-ghost btn-sm" style="margin-left:.3rem" href="{{ url_for('shift_report', instance_id=s.instance_id) }}">Edit</a>
+            {% elif s.report_status == 'pending' %}
+              <span class="badge badge-pending">⏳ Awaiting approval</span>
+              <a class="btn btn-ghost btn-sm" style="margin-left:.3rem" href="{{ url_for('shift_report', instance_id=s.instance_id) }}">Edit</a>
+            {% elif s.report_status == 'rejected' %}
+              <span class="badge" style="background:var(--red-soft,#fdecea);color:var(--red,#c62828)">✗ Rejected</span>
+              <a class="btn btn-ghost btn-sm" style="margin-left:.3rem" href="{{ url_for('shift_report', instance_id=s.instance_id) }}">Resubmit</a>
+            {% else %}
+              <a class="btn btn-ghost btn-sm" href="{{ url_for('shift_report', instance_id=s.instance_id) }}">📋 Submit report</a>
+            {% endif %}
           {% else %}
             <span class="badge badge-pending">Scheduled</span>
           {% endif %}
