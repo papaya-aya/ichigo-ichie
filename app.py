@@ -2753,39 +2753,44 @@ def shift_report(instance_id):
         strawberry = request.form.get("strawberry_stock", "").strip()
         anko = request.form.get("anko_stock", "").strip()
         memo = request.form.get("memo", "").strip()
+        now  = database.now_iso()
 
-        # Upsert the report
-        g.db.execute(
-            """INSERT INTO shift_reports
-                 (shift_instance_id, submitted_by, status, strawberry_stock, anko_stock, memo, submitted_at)
-               VALUES (?, ?, 'pending', ?, ?, ?, ?)
-               ON CONFLICT(shift_instance_id) DO UPDATE SET
-                 submitted_by=excluded.submitted_by,
-                 status='pending',
-                 strawberry_stock=excluded.strawberry_stock,
-                 anko_stock=excluded.anko_stock,
-                 memo=excluded.memo,
-                 submitted_at=excluded.submitted_at,
-                 decided_at=NULL""",
-            (instance_id, emp_id,
-             strawberry or None, anko or None,
-             memo, database.now_iso()),
-        )
-        report = g.db.execute(
-            "SELECT id FROM shift_reports WHERE shift_instance_id=?", (instance_id,)
-        ).fetchone()
-        report_id = report["id"]
+        # Save or update the report without relying on ON CONFLICT (UNIQUE
+        # constraint may not exist on tables created before schema update).
+        if existing:
+            g.db.execute(
+                """UPDATE shift_reports
+                      SET submitted_by=?, status='pending',
+                          strawberry_stock=?, anko_stock=?, memo=?,
+                          submitted_at=?, decided_at=NULL
+                    WHERE id=?""",
+                (emp_id, strawberry or None, anko or None, memo, now, existing["id"]),
+            )
+            report_id = existing["id"]
+        else:
+            g.db.execute(
+                """INSERT INTO shift_reports
+                     (shift_instance_id, submitted_by, status,
+                      strawberry_stock, anko_stock, memo, submitted_at)
+                   VALUES (?, ?, 'pending', ?, ?, ?, ?)""",
+                (instance_id, emp_id, strawberry or None, anko or None, memo, now),
+            )
+            row = g.db.execute(
+                "SELECT id FROM shift_reports WHERE shift_instance_id=?", (instance_id,)
+            ).fetchone()
+            report_id = row["id"]
 
+        # Replace hours: delete stale rows then insert fresh ones.
+        g.db.execute("DELETE FROM shift_report_hours WHERE report_id=?", (report_id,))
         for w in workers:
-            wid = w["employee_id"]
+            wid   = w["employee_id"]
             start = request.form.get(f"actual_start_{wid}", "").strip()
-            end = request.form.get(f"actual_end_{wid}", "").strip()
+            end   = request.form.get(f"actual_end_{wid}", "").strip()
             if start and end:
                 g.db.execute(
-                    """INSERT INTO shift_report_hours (report_id, employee_id, actual_start, actual_end)
-                         VALUES (?, ?, ?, ?)
-                         ON CONFLICT(report_id, employee_id) DO UPDATE SET
-                           actual_start=excluded.actual_start, actual_end=excluded.actual_end""",
+                    """INSERT INTO shift_report_hours
+                         (report_id, employee_id, actual_start, actual_end)
+                       VALUES (?, ?, ?, ?)""",
                     (report_id, wid, start, end),
                 )
         g.db.commit()
