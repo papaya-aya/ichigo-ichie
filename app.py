@@ -2229,7 +2229,7 @@ def shift_detail(instance_id):
         dict(r) for r in g.db.execute(
             "SELECT id AS employee_id, name FROM employees WHERE active=1 ORDER BY name"
         ).fetchall()
-        if r["id"] not in all_cand_ids
+        if r["employee_id"] not in all_cand_ids
     ]
 
     # Shift report status (submitted by manager)
