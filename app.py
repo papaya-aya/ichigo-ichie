@@ -44,6 +44,18 @@ def close_db(exc):
         db.close()
 
 
+@app.errorhandler(Exception)
+def handle_any_exception(e):
+    import traceback as _tb
+    tb = _tb.format_exc()
+    app.logger.error("Unhandled exception: %s\n%s", e, tb)
+    return (
+        "<html><body><h2>Error (debug)</h2>"
+        f"<pre style='white-space:pre-wrap;font-size:13px'>{e}\n\n{tb}</pre>"
+        "<p><a href='/'>Home</a></p></body></html>"
+    ), 500
+
+
 @app.context_processor
 def inject_globals():
     return {
