@@ -1060,9 +1060,9 @@ def apply_recurring_orders():
             ).fetchone()
 
             if existing:
-                # Always sync quantities to match the recurring config.
-                # Only fix delivery_date if it's still sitting at the production date
-                # (meaning the offset was never applied); leave manual overrides alone.
+                # Sync quantities to match the recurring config.
+                # Only fix delivery_date if it's still the production date
+                # (offset not yet applied); leave manual overrides alone.
                 current_del = existing["delivery_date"] or inst["date"]
                 fixed_del   = del_date if current_del == inst["date"] else current_del
                 g.db.execute(
@@ -1090,7 +1090,7 @@ def apply_recurring_orders():
     g.db.commit()
     parts = []
     if added:   parts.append(f"{added} new order(s) added")
-    if updated: parts.append(f"{updated} delivery date(s) corrected")
+    if updated: parts.append(f"{updated} existing order(s) synced (quantities updated)")
     flash(f"{month_label(month)}: {', '.join(parts) or 'nothing to change'}.", "success")
     return redirect(url_for("recurring_orders"))
 

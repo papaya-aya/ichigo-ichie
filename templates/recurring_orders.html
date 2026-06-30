@@ -10,11 +10,11 @@
 
   {# Apply to month #}
   <div class="card" style="flex:1; min-width:16rem; margin:0; padding:0.9rem 1rem">
-    <b>Apply to month</b>
-    <p class="help" style="margin:0.2rem 0 0.5rem">Pre-fills orders for all matching shift dates. Skips dates that already have an order.</p>
+    <b>Apply / sync to month</b>
+    <p class="help" style="margin:0.2rem 0 0.5rem">Adds missing orders <em>and</em> updates quantities on existing pre-filled orders to match the current recurring config. Manual delivery date overrides are preserved.</p>
     <form method="post" action="{{ url_for('apply_recurring_orders') }}" class="row-actions" style="margin:0">
       <input type="text" name="month" value="{{ next_month }}" pattern="\d{4}-\d{2}" style="width:7.5rem">
-      <button type="submit">Apply</button>
+      <button type="submit">Apply / sync</button>
     </form>
   </div>
 
