@@ -2228,10 +2228,6 @@ def approvals():
                 [new_status, database.now_iso()] + list(av_ids),
             )
             g.db.commit()
-            try:
-                _notify_employees(av_ids, new_status)
-            except Exception as exc:
-                app.logger.error("Slack notify failed: %s", exc)
 
         if action == "approve_originals":
             rows_to_approve = g.db.execute(
