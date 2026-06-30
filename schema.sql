@@ -91,6 +91,20 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(date);
 CREATE INDEX IF NOT EXISTS idx_orders_delivery ON orders(delivery_date);
 
+-- Recurring standing assignments per employee per shift template.
+CREATE TABLE IF NOT EXISTS recurring_assignments (
+  id          SERIAL PRIMARY KEY,
+  employee_id INTEGER NOT NULL REFERENCES employees(id),
+  template_id INTEGER NOT NULL REFERENCES shift_templates(id),
+  start_date  TEXT    NOT NULL,
+  end_date    TEXT,           -- NULL = no end
+  start_time  TEXT,           -- NULL = use template default
+  end_time    TEXT,           -- NULL = use template default
+  is_manager  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL,
+  UNIQUE(employee_id, template_id)
+);
+
 -- Migrations (safe to re-run)
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_pickup INTEGER NOT NULL DEFAULT 0;
 

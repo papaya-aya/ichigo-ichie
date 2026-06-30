@@ -15,6 +15,7 @@
     <nav id="main-nav">
       {% if is_owner %}
         <a href="{{ url_for('approvals') }}">Approvals</a>
+        <a href="{{ url_for('recurring_assignments') }}">Assignments</a>
         <a href="{{ url_for('recurring_orders') }}">Recurring</a>
         <a href="{{ url_for('deliveries_month') }}">Deliveries</a>
         <a href="{{ url_for('calendar_view') }}">Calendar</a>

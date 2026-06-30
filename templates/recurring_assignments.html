@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Recurring Assignments · Ichigo Ichie{% endblock %}
+{% block content %}
+
+<h1>Recurring assignments</h1>
+<p class="subtitle">Standing shift assignments per employee. Apply to a month to populate actual schedules.</p>
+
+{# ── Top action bar ─────────────────────────────────────────────────────── #}
+<div class="card" style="padding:0.9rem 1rem; margin-bottom:1.2rem">
+  <b>Apply to month</b>
+  <p class="help" style="margin:0.2rem 0 0.5rem">
+    Adds shift assignments for all matching shift dates in the month.
+    Already-assigned slots are left untouched.
+  </p>
+  <form method="post" action="{{ url_for('apply_recurring_assignments') }}" class="row-actions" style="margin:0">
+    <input type="text" name="month" value="{{ next_month }}" pattern="\d{4}-\d{2}" style="width:7.5rem">
+    <button type="submit">Apply</button>
+  </form>
+</div>
+
+{# ── Per-shift standing assignments ─────────────────────────────────────── #}
+{% for t in templates %}
+{% set ra_list = by_template.get(t.id, []) %}
+<div class="card">
+  <h2 style="margin-top:0">
+    <span class="badge badge-day">{{ weekday_names[t.weekday] }}</span>
+    {{ t.label }}
+    <span class="muted" style="font-size:.85rem; font-weight:400">&nbsp;{{ t.start_time }}–{{ t.end_time }}</span>
+  </h2>
+
+  {% if ra_list %}
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th>From</th>
+        <th>Until</th>
+        <th>Shift window</th>
+        <th style="text-align:center">Manager</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ra in ra_list %}
+      <tr>
+        <td><b>{{ ra.emp_name }}</b></td>
+        <td>{{ ra.start_date }}</td>
+        <td>{% if ra.end_date %}{{ ra.end_date }}{% else %}<span class="muted">ongoing</span>{% endif %}</td>
+        <td class="muted">
+          {{ ra.start_time or ra.tmpl_start }}–{{ ra.end_time or ra.tmpl_end }}
+        </td>
+        <td style="text-align:center">{% if ra.is_manager %}👑{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>
+          <form method="post" action="{{ url_for('delete_recurring_assignment') }}" class="inline-form"
+                onsubmit="return confirm('Remove this standing assignment?')">
+            <input type="hidden" name="id" value="{{ ra.id }}">
+            <button type="submit" class="btn-ghost btn-sm"
+                    style="color:var(--red);border-color:var(--red)">✕ Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="margin:0">No standing assignments yet for this shift.</p>
+  {% endif %}
+</div>
+{% else %}
+<div class="card"><p class="muted">No active shift templates. Generate shifts from the Input page first.</p></div>
+{% endfor %}
+
+{# ── Add new standing assignment ─────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Add a standing assignment</h2>
+  <form method="post" action="{{ url_for('add_recurring_assignment') }}">
+    <div style="display:flex; flex-wrap:wrap; gap:0.7rem; align-items:flex-end">
+
+      <label class="field" style="min-width:10rem">
+        Employee
+        <select name="employee_id" required>
+          <option value="" disabled selected>Choose…</option>
+          {% for e in employees %}
+            <option value="{{ e.id }}">{{ e.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="field" style="min-width:12rem">
+        Shift
+        <select name="template_id" required>
+          <option value="" disabled selected>Choose…</option>
+          {% for t in templates %}
+            <option value="{{ t.id }}">
+              {{ weekday_names[t.weekday] }} — {{ t.label }} ({{ t.start_time }}–{{ t.end_time }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="field" style="width:9rem">
+        From
+        <input type="date" name="start_date" required>
+      </label>
+
+      <label class="field" style="width:9rem">
+        Until <span class="muted" style="font-size:.8em">(optional)</span>
+        <input type="date" name="end_date" placeholder="leave blank = ongoing">
+      </label>
+
+      <fieldset style="border:1px solid var(--pink-line); border-radius:6px; padding:0.4rem 0.7rem; display:flex; flex-direction:column; gap:0.2rem">
+        <legend style="font-size:.82rem; color:var(--muted); padding:0 0.3rem">Shift window override</legend>
+        <div style="display:flex; gap:0.4rem; align-items:center; font-size:.9rem">
+          <input type="time" name="start_time" style="width:6.5rem">
+          <span class="muted">–</span>
+          <input type="time" name="end_time" style="width:6.5rem">
+        </div>
+        <span class="help" style="margin:0; font-size:.78rem">Leave blank to use the shift's default hours</span>
+      </fieldset>
+
+      <label class="field" style="align-self:flex-end">
+        <span style="visibility:hidden; font-size:.9rem">x</span>
+        <label style="display:flex; align-items:center; gap:.4rem; cursor:pointer; padding:.3rem 0; white-space:nowrap">
+          <input type="checkbox" name="is_manager" value="1"> Manager 👑
+        </label>
+      </label>
+
+      <div class="field" style="align-self:flex-end">
+        <span style="visibility:hidden; font-size:.9rem">x</span>
+        <button type="submit">Save assignment</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

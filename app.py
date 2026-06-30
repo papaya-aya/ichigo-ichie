@@ -1181,6 +1181,133 @@ def set_gusto_rate():
 
 
 # ---------------------------------------------------------------------------
+# Recurring assignments
+# ---------------------------------------------------------------------------
+
+@app.route("/owner/recurring-assignments")
+@require_owner
+def recurring_assignments():
+    templates = g.db.execute(
+        "SELECT * FROM shift_templates WHERE active=1 ORDER BY weekday, start_time"
+    ).fetchall()
+    employees = g.db.execute(
+        "SELECT id, name FROM employees WHERE active=1 ORDER BY name"
+    ).fetchall()
+    rows = g.db.execute(
+        """SELECT ra.*, e.name AS emp_name, t.label AS shift_label,
+                  t.weekday, t.start_time AS tmpl_start, t.end_time AS tmpl_end
+             FROM recurring_assignments ra
+             JOIN employees e ON e.id = ra.employee_id
+             JOIN shift_templates t ON t.id = ra.template_id
+            ORDER BY t.weekday, t.start_time, e.name"""
+    ).fetchall()
+    # Group by template_id
+    by_template = {}
+    for r in rows:
+        by_template.setdefault(r["template_id"], []).append(r)
+    return render_template(
+        "recurring_assignments.html",
+        templates=templates, employees=employees,
+        by_template=by_template,
+        weekday_names=WEEKDAY_NAMES,
+        next_month=next_month_str(),
+    )
+
+
+@app.route("/owner/recurring-assignments/add", methods=["POST"])
+@require_owner
+def add_recurring_assignment():
+    emp_id      = _int(request.form.get("employee_id", "0"))
+    template_id = _int(request.form.get("template_id", "0"))
+    start_date  = request.form.get("start_date", "").strip()
+    end_date    = request.form.get("end_date", "").strip() or None
+    start_time  = request.form.get("start_time", "").strip() or None
+    end_time    = request.form.get("end_time", "").strip() or None
+    is_manager  = 1 if request.form.get("is_manager") else 0
+    if not emp_id or not template_id or not start_date:
+        flash("Employee, shift, and start date are required.", "error")
+        return redirect(url_for("recurring_assignments"))
+    g.db.execute(
+        """INSERT INTO recurring_assignments
+             (employee_id, template_id, start_date, end_date,
+              start_time, end_time, is_manager, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(employee_id, template_id) DO UPDATE SET
+             start_date = excluded.start_date,
+             end_date   = excluded.end_date,
+             start_time = excluded.start_time,
+             end_time   = excluded.end_time,
+             is_manager = excluded.is_manager""",
+        (emp_id, template_id, start_date, end_date,
+         start_time, end_time, is_manager, database.now_iso()),
+    )
+    g.db.commit()
+    flash("Recurring assignment saved.", "success")
+    return redirect(url_for("recurring_assignments"))
+
+
+@app.route("/owner/recurring-assignments/delete", methods=["POST"])
+@require_owner
+def delete_recurring_assignment():
+    ra_id = _int(request.form.get("id", "0"))
+    g.db.execute("DELETE FROM recurring_assignments WHERE id=?", (ra_id,))
+    g.db.commit()
+    flash("Recurring assignment removed.", "success")
+    return redirect(url_for("recurring_assignments"))
+
+
+@app.route("/owner/recurring-assignments/apply", methods=["POST"])
+@require_owner
+def apply_recurring_assignments():
+    month = request.form.get("month") or next_month_str()
+    instances = instances_for_month(month)
+
+    ra_rows = g.db.execute(
+        """SELECT ra.*, t.start_time AS tmpl_start, t.end_time AS tmpl_end
+             FROM recurring_assignments ra
+             JOIN shift_templates t ON t.id = ra.template_id"""
+    ).fetchall()
+
+    # Group recurring assignments by template_id
+    by_template = {}
+    for ra in ra_rows:
+        by_template.setdefault(ra["template_id"], []).append(ra)
+
+    added = skipped = 0
+    for inst in instances:
+        template_id = inst["id"]   # t.id from instances_for_month join
+        for ra in by_template.get(template_id, []):
+            if ra["start_date"] > inst["date"]:
+                continue
+            if ra["end_date"] and ra["end_date"] < inst["date"]:
+                continue
+            start = ra["start_time"] or ra["tmpl_start"]
+            end   = ra["end_time"]   or ra["tmpl_end"]
+            existing = g.db.execute(
+                "SELECT id FROM assignments WHERE shift_instance_id=? AND employee_id=?",
+                (inst["instance_id"], ra["employee_id"]),
+            ).fetchone()
+            if existing:
+                skipped += 1
+            else:
+                g.db.execute(
+                    """INSERT INTO assignments
+                         (shift_instance_id, employee_id, start_time, end_time, is_manager)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (inst["instance_id"], ra["employee_id"],
+                     start, end, ra["is_manager"]),
+                )
+                added += 1
+
+    g.db.commit()
+    parts = []
+    if added:   parts.append(f"{added} assignment(s) added")
+    if skipped: parts.append(f"{skipped} already assigned (kept)")
+    flash(f"{month_label(month)}: {', '.join(parts) or 'nothing to apply'}.", "success")
+    return redirect(url_for("recurring_assignments"))
+
+
+# ---------------------------------------------------------------------------
 # Salary report + popup entries
 # ---------------------------------------------------------------------------
 
