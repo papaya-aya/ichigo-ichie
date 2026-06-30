@@ -1,0 +1,86 @@
+{% extends "base_public.html" %}
+{% block title %}Schedule · Ichigo Ichie{% endblock %}
+{% block content %}
+
+<h1>Schedule</h1>
+<p class="subtitle">Ichigo Ichie production shifts — {{ month_label }}.</p>
+
+<div class="month-nav" style="margin-bottom:1rem">
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('public_calendar', token=token, month=prev_month) }}">← {{ prev_month }}</a>
+  <b>{{ month_label }}</b>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('public_calendar', token=token, month=next_month) }}">{{ next_month }} →</a>
+</div>
+
+{% if not days %}
+  <div class="card"><p class="muted">Nothing scheduled for {{ month_label }} yet.</p></div>
+{% else %}
+  {% for day in days %}
+  <div class="day-group {{ 'day-past' if day.is_past else '' }} {{ 'day-today' if day.is_today else '' }}">
+
+    <div class="shift-date">
+      <span class="shift-dayname">{{ day.weekday }}</span>
+      <span class="shift-daynum">{{ day.date[8:] }}</span>
+      {% if day.is_today %}<span class="badge badge-day" style="font-size:0.7rem">Today</span>{% endif %}
+    </div>
+
+    <div class="day-rows">
+      {% if day.shift %}
+      <div class="day-content shift-content">
+        <div class="shift-meta">
+          <div class="shift-time">{{ day.shift.inst.start_time }}–{{ day.shift.inst.end_time }}</div>
+          <div class="muted" style="font-size:0.82rem">{{ day.shift.inst.label }}</div>
+          {% if day.shift.pieces %}
+            <div class="muted" style="font-size:0.78rem">{{ day.shift.pieces }} pcs</div>
+          {% endif %}
+        </div>
+        <div class="shift-people">
+          {% if day.shift.people %}
+            {% for p in day.shift.people %}
+              <span class="pill shift-other">{{ p.name }}{% if p.is_manager %} 👑{% endif %}</span>
+            {% endfor %}
+          {% else %}
+            <span class="muted" style="font-size:0.85rem">Not yet assigned</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if day.has_delivery %}
+      <div class="day-content delivery-content">
+        <div class="shift-meta">
+          <div class="shift-time" style="color:#2d6a40">🚚 Delivery day</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endfor %}
+{% endif %}
+
+<style>
+.day-group{display:flex;gap:1rem;margin-bottom:.7rem;align-items:flex-start}
+.day-group.day-past{opacity:.5}
+.day-group.day-today .shift-date .shift-daynum{color:var(--pink)}
+.day-group.day-today .shift-date{position:relative}
+.day-group.day-today .shift-date::before{content:'';position:absolute;left:-4px;top:0;bottom:0;width:3px;background:var(--pink);border-radius:2px}
+.shift-date{min-width:3.5rem;text-align:center;flex-shrink:0;padding-top:.15rem}
+.shift-dayname{display:block;font-weight:700;color:var(--pink);font-size:.88rem;text-transform:uppercase}
+.shift-daynum{display:block;font-size:1.4rem;font-weight:700;line-height:1.1}
+.day-rows{flex:1;display:flex;flex-direction:column;gap:.35rem}
+.day-content{display:flex;align-items:flex-start;gap:1rem;padding:.65rem .9rem;border-radius:var(--radius)}
+.shift-content{background:var(--card);border:1px solid var(--pink-line)}
+.delivery-content{background:#f5fbf7;border:1px solid #c3e6cc}
+.shift-meta{min-width:8rem;flex-shrink:0}
+.shift-time{font-weight:600;font-size:.95rem}
+.shift-people{flex:1;display:flex;flex-wrap:wrap;gap:.3rem;align-items:flex-start}
+.shift-other{background:var(--pink-soft);color:var(--ink)}
+@media(max-width:700px){
+  .day-group{flex-wrap:wrap}
+  .shift-date{display:flex;gap:.5rem;align-items:center;width:100%}
+  .day-rows{width:100%}
+  .day-content{flex-wrap:wrap}
+  .shift-people{width:100%}
+}
+</style>
+{% endblock %}

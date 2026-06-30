@@ -12,6 +12,41 @@
 
 {{ monthnav('calendar_view', prev_month, next_month, month_label) }}
 
+{% if is_owner %}
+<div class="card" style="padding:.8rem 1rem; margin-bottom:1rem">
+  <b>Shareable schedule link</b>
+  {% if public_token %}
+  <p class="muted" style="margin:.25rem 0 .5rem">Anyone with this link can view the schedule without logging in.</p>
+  <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.4rem">
+    <input id="pub-link" readonly value="{{ request.host_url }}public/calendar/{{ public_token }}?month={{ month }}"
+           style="flex:1; min-width:14rem; font-size:.82rem; background:var(--pink-soft); border:1px solid var(--pink-line); border-radius:4px; padding:.3rem .6rem; cursor:text">
+    <button type="button" onclick="copyPubLink()" class="btn-ghost btn-sm">Copy</button>
+    <a href="{{ url_for('public_calendar', token=public_token, month=month) }}" target="_blank" class="btn-ghost btn-sm">Open ↗</a>
+    <form method="post" action="{{ url_for('manage_calendar_share') }}" class="inline-form">
+      <input type="hidden" name="action" value="revoke">
+      <button type="submit" class="btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)">Revoke</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="muted" style="margin:.25rem 0 .5rem">Generate a link anyone can view without logging in.</p>
+  <form method="post" action="{{ url_for('manage_calendar_share') }}" class="inline-form">
+    <input type="hidden" name="action" value="generate">
+    <button type="submit">Generate link</button>
+  </form>
+  {% endif %}
+</div>
+<script>
+function copyPubLink() {
+  const inp = document.getElementById('pub-link');
+  inp.select(); inp.setSelectionRange(0, 99999);
+  navigator.clipboard.writeText(inp.value).then(() => {
+    const b = event.target; b.textContent = 'Copied!';
+    setTimeout(() => b.textContent = 'Copy', 1500);
+  });
+}
+</script>
+{% endif %}
+
 {% if not days %}
   <div class="card">
     <p class="muted">Nothing scheduled for {{ month_label }} yet.

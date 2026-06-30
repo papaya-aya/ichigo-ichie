@@ -7,8 +7,9 @@ from datetime import date, datetime
 from functools import wraps
 
 from flask import (
-    Flask, flash, g, redirect, render_template, request, session, url_for
+    Flask, abort, flash, g, redirect, render_template, request, session, url_for
 )
+import secrets
 from werkzeug.security import check_password_hash
 
 import db as database
@@ -712,13 +713,83 @@ def calendar_view():
             "delivery": deliveries_by_date.get(d),
         })
 
+    public_token = database.get_setting(g.db, "public_calendar_token") or ""
     return render_template(
         "calendar.html",
         month=month, month_label=month_label(month),
         prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
         days=days, flavors=FLAVORS,
         current_emp_id=current_emp_id,
+        public_token=public_token,
     )
+
+
+@app.route("/public/calendar/<token>")
+def public_calendar(token):
+    stored = database.get_setting(g.db, "public_calendar_token") or ""
+    if not stored or token != stored:
+        abort(404)
+
+    month = request.values.get("month") or date.today().strftime("%Y-%m")
+    today_str = date.today().isoformat()
+
+    instances = instances_for_month(month)
+    shifts_by_date = {}
+    for inst in instances:
+        people = assigned_people(inst["instance_id"])
+        shifts_by_date[inst["date"]] = {
+            "inst":    inst,
+            "weekday": WEEKDAY_NAMES[inst["weekday"]],
+            "people":  [dict(p) for p in people],
+            "pieces":  production.day_totals(g.db, inst["date"])["total"],
+        }
+
+    delivery_dates = {
+        r["deliver_on"]
+        for r in g.db.execute(
+            """SELECT DISTINCT COALESCE(delivery_date, date) AS deliver_on
+                 FROM orders
+                WHERE COALESCE(delivery_date, date) LIKE ?
+                  AND (is_pickup IS NULL OR is_pickup = 0)""",
+            (month + "-%",),
+        ).fetchall()
+    }
+
+    all_dates = sorted(set(list(shifts_by_date.keys()) + list(delivery_dates)))
+    days = []
+    for d in all_dates:
+        y, mo, dy = (int(x) for x in d.split("-"))
+        wday = WEEKDAY_NAMES[date(y, mo, dy).weekday()]
+        days.append({
+            "date":         d,
+            "weekday":      shifts_by_date[d]["weekday"] if d in shifts_by_date else wday,
+            "is_past":      d < today_str,
+            "is_today":     d == today_str,
+            "shift":        shifts_by_date.get(d),
+            "has_delivery": d in delivery_dates,
+        })
+
+    return render_template(
+        "calendar_public.html",
+        month=month, month_label=month_label(month),
+        prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
+        days=days, token=token,
+    )
+
+
+@app.route("/owner/calendar/share", methods=["POST"])
+@require_owner
+def manage_calendar_share():
+    action = request.form.get("action")
+    if action == "generate":
+        database.set_setting(g.db, "public_calendar_token", secrets.token_urlsafe(24))
+        g.db.commit()
+        flash("Shareable link generated.", "success")
+    elif action == "revoke":
+        database.set_setting(g.db, "public_calendar_token", "")
+        g.db.commit()
+        flash("Shareable link revoked. The old link no longer works.", "success")
+    return redirect(url_for("calendar_view"))
 
 
 # ---------------------------------------------------------------------------
