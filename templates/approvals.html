@@ -226,6 +226,50 @@
 </div>
 {% endif %}
 
+{% if decided_shift_reports %}
+<div class="card" style="margin-top:1.5rem">
+  <h2 style="margin-top:0">📋 Past shift reports</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Shift</th>
+        <th>Submitted by</th>
+        <th>🍓 Strawberry</th>
+        <th>🫘 Anko</th>
+        <th>Memo</th>
+        <th>Status</th>
+        <th>Decided</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in decided_shift_reports %}
+      <tr>
+        <td>
+          <a href="{{ url_for('shift_detail', instance_id=r.instance_id) }}">
+            <span class="badge badge-day">{{ weekday_names[r.weekday] }}</span>
+            {{ r.date }}
+          </a><br>
+          <span class="muted" style="font-size:.85em">{{ r.label }}</span>
+        </td>
+        <td>{{ r.submitter }}</td>
+        <td>{{ r.strawberry_stock if r.strawberry_stock is not none else '—' }}</td>
+        <td>{{ r.anko_stock if r.anko_stock is not none else '—' }}</td>
+        <td style="max-width:18rem; white-space:pre-wrap; font-size:.88em">{{ r.memo or '—' }}</td>
+        <td>
+          {% if r.status == 'approved' %}
+            <span class="badge badge-approved">approved</span>
+          {% else %}
+            <span class="badge badge-rejected">rejected</span>
+          {% endif %}
+        </td>
+        <td class="muted" style="font-size:.85em">{{ r.decided_at[:10] if r.decided_at else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <script>
 function toggleGroup(master, cls) {
   document.querySelectorAll('.' + cls).forEach(cb => cb.checked = master.checked);

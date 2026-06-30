@@ -2177,7 +2177,7 @@ def approvals():
 
     pending_shift_reports = g.db.execute(
         """SELECT sr.id, sr.submitted_at, sr.strawberry_stock, sr.anko_stock, sr.memo,
-                  si.date, t.label, t.weekday,
+                  si.id AS instance_id, si.date, t.label, t.weekday,
                   e.name AS submitter
              FROM shift_reports sr
              JOIN shift_instances si ON si.id = sr.shift_instance_id
@@ -2187,12 +2187,26 @@ def approvals():
             ORDER BY si.date"""
     ).fetchall()
 
+    decided_shift_reports = g.db.execute(
+        """SELECT sr.id, sr.status, sr.decided_at, sr.strawberry_stock, sr.anko_stock, sr.memo,
+                  si.id AS instance_id, si.date, t.label, t.weekday,
+                  e.name AS submitter
+             FROM shift_reports sr
+             JOIN shift_instances si ON si.id = sr.shift_instance_id
+             JOIN shift_templates t  ON t.id  = si.template_id
+             JOIN employees e        ON e.id  = sr.submitted_by
+            WHERE sr.status IN ('approved', 'rejected')
+            ORDER BY si.date DESC
+            LIMIT 60"""
+    ).fetchall()
+
     return render_template(
         "approvals.html", rows=rows, status=status, counts=counts,
         weekday_names=WEEKDAY_NAMES,
         pending_strawberries=pending_strawberries,
         pending_popups=pending_popups,
         pending_shift_reports=pending_shift_reports,
+        decided_shift_reports=decided_shift_reports,
     )
 
 
