@@ -24,15 +24,63 @@
     </div>
 
     <div class="day-rows">
+
       {% if day.shift %}
       <div class="day-content shift-content">
         <div class="shift-meta">
           <div class="shift-time">{{ day.shift.inst.start_time }}–{{ day.shift.inst.end_time }}</div>
           <div class="muted" style="font-size:0.82rem">{{ day.shift.inst.label }}</div>
           {% if day.shift.pieces %}
-            <div class="muted" style="font-size:0.78rem">{{ day.shift.pieces }} pcs</div>
+            <div class="muted" style="font-size:0.78rem">{{ day.shift.pieces }} pcs total</div>
           {% endif %}
         </div>
+
+        <div class="shift-orders">
+          {% if day.shift.orders %}
+            {% set ns = namespace(orig=false, matcha=false, hoji=false, other=false) %}
+            {% for o in day.shift.orders %}
+              {% if o.qty_original %}{% set ns.orig   = true %}{% endif %}
+              {% if o.qty_matcha   %}{% set ns.matcha = true %}{% endif %}
+              {% if o.qty_hojicha  %}{% set ns.hoji   = true %}{% endif %}
+              {% if o.qty_other    %}{% set ns.other  = true %}{% endif %}
+            {% endfor %}
+            <table class="order-table">
+              <thead><tr>
+                <th class="ot-client"></th>
+                {% if ns.orig   %}<th class="ot-original">Original</th>{% endif %}
+                {% if ns.matcha %}<th class="ot-matcha">Matcha</th>{% endif %}
+                {% if ns.hoji   %}<th class="ot-hojicha">Hojicha</th>{% endif %}
+                {% if ns.other  %}<th class="ot-other">Other</th>{% endif %}
+                <th class="ot-total">Total</th>
+              </tr></thead>
+              <tbody>
+                {% for o in day.shift.orders %}
+                <tr>
+                  <td class="ot-client">{{ o.client_name }}</td>
+                  {% if ns.orig   %}<td class="ot-original">{{ o.qty_original  or '—' }}</td>{% endif %}
+                  {% if ns.matcha %}<td class="ot-matcha">{{   o.qty_matcha    or '—' }}</td>{% endif %}
+                  {% if ns.hoji   %}<td class="ot-hojicha">{{  o.qty_hojicha   or '—' }}</td>{% endif %}
+                  {% if ns.other  %}<td class="ot-other">{{    o.qty_other     or '—' }}</td>{% endif %}
+                  <td class="ot-total">{{ o.total }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              {% if day.shift.orders|length > 1 %}
+              <tfoot><tr>
+                <td class="ot-client"><b>Total</b></td>
+                {% if ns.orig   %}<td class="ot-original"><b>{{ day.shift.orders|sum(attribute='qty_original') }}</b></td>{% endif %}
+                {% if ns.matcha %}<td class="ot-matcha"><b>{{   day.shift.orders|sum(attribute='qty_matcha')   }}</b></td>{% endif %}
+                {% if ns.hoji   %}<td class="ot-hojicha"><b>{{  day.shift.orders|sum(attribute='qty_hojicha')  }}</b></td>{% endif %}
+                {% if ns.other  %}<td class="ot-other"><b>{{    day.shift.orders|sum(attribute='qty_other')    }}</b></td>{% endif %}
+                <td class="ot-total"><b>{{ day.shift.pieces }}</b></td>
+              </tr></tfoot>
+              {% endif %}
+            </table>
+          {% else %}
+            <span class="muted" style="font-size:0.8rem">No orders yet</span>
+          {% endif %}
+        </div>
+
         <div class="shift-people">
           {% if day.shift.people %}
             {% for p in day.shift.people %}
@@ -45,15 +93,45 @@
       </div>
       {% endif %}
 
-      {% if day.has_delivery %}
+      {% if day.delivery %}
       <div class="day-content delivery-content">
         <div class="shift-meta">
-          <div class="shift-time" style="color:#2d6a40">🚚 Delivery day</div>
+          <div class="shift-time" style="color:#2d6a40">🚚 Delivery</div>
+          <div class="muted" style="font-size:0.78rem">
+            {{ day.delivery.pcs }} pcs ·
+            {% if day.delivery.n_done == day.delivery.n_total %}
+              <span class="ok">all done ✓</span>
+            {% elif day.delivery.n_done %}
+              <span class="warn">{{ day.delivery.n_done }}/{{ day.delivery.n_total }} done</span>
+            {% else %}
+              pending
+            {% endif %}
+          </div>
+        </div>
+        <div class="shift-orders delivery-clients">
+          {% for deliverer_name, clients in day.delivery.by_deliverer.items() %}
+          <div class="deliverer-group">
+            <span class="deliverer-label">
+              {% if deliverer_name %}{{ deliverer_name }}{% else %}<span class="muted">Unassigned</span>{% endif %}
+            </span>
+            <span class="deliverer-clients">
+              {% for c in clients %}
+                <span class="delivery-client">
+                  {{ c.client_name }}
+                  <span class="muted" style="font-size:0.75rem">
+                    ({% if c.qty_original %}O:{{ c.qty_original }} {% endif %}{% if c.qty_matcha %}<span style="color:#2d6a40">M:{{ c.qty_matcha }}</span> {% endif %}{% if c.qty_hojicha %}<span style="color:#6b3a1f">H:{{ c.qty_hojicha }}</span> {% endif %}{% if c.qty_other %}X:{{ c.qty_other }} {% endif %}= {{ c.total }})
+                  </span>
+                  {% if c.delivered %}<span class="ok" style="font-size:0.75rem">✓</span>{% endif %}
+                </span>
+              {% endfor %}
+            </span>
+          </div>
+          {% endfor %}
         </div>
       </div>
       {% endif %}
-    </div>
 
+    </div>
   </div>
   {% endfor %}
 {% endif %}
@@ -73,14 +151,37 @@
 .delivery-content{background:#f5fbf7;border:1px solid #c3e6cc}
 .shift-meta{min-width:8rem;flex-shrink:0}
 .shift-time{font-weight:600;font-size:.95rem}
-.shift-people{flex:1;display:flex;flex-wrap:wrap;gap:.3rem;align-items:flex-start}
+.shift-orders{flex:1.4}
+.shift-people{min-width:9rem;flex:1;display:flex;flex-wrap:wrap;gap:.3rem;align-items:flex-start}
 .shift-other{background:var(--pink-soft);color:var(--ink)}
+.delivery-clients{flex:1;display:flex;flex-direction:column;gap:.25rem}
+.deliverer-group{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap}
+.deliverer-label{font-weight:700;color:#2d6a40;white-space:nowrap;font-size:.88rem;min-width:6rem}
+.deliverer-clients{display:flex;flex-wrap:wrap;gap:.4rem}
+.delivery-client{font-size:.82rem;background:#e8f5ec;border-radius:4px;padding:.1rem .4rem}
+.order-table{border-collapse:collapse;font-size:.8rem;width:100%}
+.order-table th,.order-table td{padding:.2rem .55rem;text-align:right;white-space:nowrap;border:none}
+.order-table td.ot-client,.order-table th.ot-client{text-align:left;font-weight:600;padding-left:0}
+.order-table tbody tr:not(:last-child) td{border-bottom:1px solid var(--pink-soft)}
+.order-table tfoot td{border-top:2px solid var(--pink-line);padding-top:.3rem}
+.ot-original{color:#c0437a;background:#fce8f1;border-radius:4px 4px 0 0}
+.ot-matcha  {color:#2d6a40;background:#e6f4eb;border-radius:4px 4px 0 0}
+.ot-hojicha {color:#6b3a1f;background:#f3e8df;border-radius:4px 4px 0 0}
+.ot-other   {color:#555;   background:#f0f0f0;border-radius:4px 4px 0 0}
+.ot-total   {color:#333;   font-weight:700}
+.order-table tbody .ot-original{background:#fdf4f8;color:var(--ink)}
+.order-table tbody .ot-matcha  {background:#f2faf5;color:var(--ink)}
+.order-table tbody .ot-hojicha {background:#faf4ef;color:var(--ink)}
+.order-table tbody .ot-other   {background:#f7f7f7;color:var(--ink)}
+.order-table tfoot .ot-original{color:#c0437a;font-weight:700}
+.order-table tfoot .ot-matcha  {color:#2d6a40;font-weight:700}
+.order-table tfoot .ot-hojicha {color:#6b3a1f;font-weight:700}
 @media(max-width:700px){
   .day-group{flex-wrap:wrap}
   .shift-date{display:flex;gap:.5rem;align-items:center;width:100%}
   .day-rows{width:100%}
   .day-content{flex-wrap:wrap}
-  .shift-people{width:100%}
+  .shift-orders,.shift-people{width:100%}
 }
 </style>
 {% endblock %}

@@ -736,44 +736,65 @@ def public_calendar(token):
     instances = instances_for_month(month)
     shifts_by_date = {}
     for inst in instances:
-        people = assigned_people(inst["instance_id"])
+        people   = assigned_people(inst["instance_id"])
+        day_ord  = production.orders_for_date(g.db, inst["date"])
+        orders   = [{**dict(o), "total": production.order_total(o)} for o in day_ord]
         shifts_by_date[inst["date"]] = {
             "inst":    inst,
             "weekday": WEEKDAY_NAMES[inst["weekday"]],
             "people":  [dict(p) for p in people],
-            "pieces":  production.day_totals(g.db, inst["date"])["total"],
+            "orders":  orders,
+            "pieces":  sum(o["total"] for o in orders),
         }
 
-    delivery_dates = {
-        r["deliver_on"]
-        for r in g.db.execute(
-            """SELECT DISTINCT COALESCE(delivery_date, date) AS deliver_on
-                 FROM orders
-                WHERE COALESCE(delivery_date, date) LIKE ?
-                  AND (is_pickup IS NULL OR is_pickup = 0)""",
-            (month + "-%",),
-        ).fetchall()
-    }
+    delivery_rows = g.db.execute(
+        """SELECT COALESCE(o.delivery_date, o.date) AS deliver_on,
+                  o.client_id, c.name AS client_name,
+                  SUM(o.qty_original) AS qty_original,
+                  SUM(o.qty_matcha)   AS qty_matcha,
+                  SUM(o.qty_hojicha)  AS qty_hojicha,
+                  SUM(o.qty_other)    AS qty_other,
+                  SUM(o.qty_original+o.qty_matcha+o.qty_hojicha+o.qty_other) AS total,
+                  MAX(o.delivered)    AS delivered,
+                  MAX(o.deliverer)    AS deliverer
+             FROM orders o JOIN clients c ON c.id = o.client_id
+            WHERE COALESCE(o.delivery_date, o.date) LIKE ?
+            GROUP BY deliver_on, o.client_id, c.name
+            ORDER BY deliver_on, c.name""",
+        (month + "-%",),
+    ).fetchall()
 
-    all_dates = sorted(set(list(shifts_by_date.keys()) + list(delivery_dates)))
+    deliveries_by_date = {}
+    for r in delivery_rows:
+        d = r["deliver_on"]
+        if d not in deliveries_by_date:
+            deliveries_by_date[d] = {"by_deliverer": {}, "pcs": 0, "n_done": 0, "n_total": 0}
+        info = deliveries_by_date[d]
+        deliverer_key = r["deliverer"] or ""
+        info["by_deliverer"].setdefault(deliverer_key, []).append(dict(r))
+        info["pcs"]     += r["total"] or 0
+        info["n_total"] += 1
+        info["n_done"]  += 1 if r["delivered"] else 0
+
+    all_dates = sorted(set(list(shifts_by_date.keys()) + list(deliveries_by_date.keys())))
     days = []
     for d in all_dates:
         y, mo, dy = (int(x) for x in d.split("-"))
         wday = WEEKDAY_NAMES[date(y, mo, dy).weekday()]
         days.append({
-            "date":         d,
-            "weekday":      shifts_by_date[d]["weekday"] if d in shifts_by_date else wday,
-            "is_past":      d < today_str,
-            "is_today":     d == today_str,
-            "shift":        shifts_by_date.get(d),
-            "has_delivery": d in delivery_dates,
+            "date":     d,
+            "weekday":  shifts_by_date[d]["weekday"] if d in shifts_by_date else wday,
+            "is_past":  d < today_str,
+            "is_today": d == today_str,
+            "shift":    shifts_by_date.get(d),
+            "delivery": deliveries_by_date.get(d),
         })
 
     return render_template(
         "calendar_public.html",
         month=month, month_label=month_label(month),
         prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
-        days=days, token=token,
+        days=days, flavors=FLAVORS, token=token,
     )
 
 
