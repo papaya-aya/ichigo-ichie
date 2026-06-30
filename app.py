@@ -2750,10 +2750,6 @@ def shift_report(instance_id):
             existing_hours[r["employee_id"]] = r
 
     if request.method == "POST":
-        if existing and existing["status"] == "approved":
-            flash("This report has already been approved and cannot be changed.", "error")
-            return redirect(url_for("shift_report", instance_id=instance_id))
-
         strawberry = request.form.get("strawberry_stock", "").strip()
         anko = request.form.get("anko_stock", "").strip()
         memo = request.form.get("memo", "").strip()
@@ -2867,6 +2863,20 @@ def decide_shift_report(report_id):
         g.db.commit()
         flash("Report rejected. The manager can resubmit.", "success")
 
+    return redirect(url_for("approvals"))
+
+
+@app.route("/owner/shift-report/<int:report_id>/delete", methods=["POST"])
+@require_owner
+def delete_shift_report(report_id):
+    report = g.db.execute("SELECT * FROM shift_reports WHERE id=?", (report_id,)).fetchone()
+    if not report:
+        flash("Report not found.", "error")
+        return redirect(url_for("approvals"))
+    g.db.execute("DELETE FROM shift_report_hours WHERE report_id=?", (report_id,))
+    g.db.execute("DELETE FROM shift_reports WHERE id=?", (report_id,))
+    g.db.commit()
+    flash("Report deleted. The manager can now submit a fresh report.", "success")
     return redirect(url_for("approvals"))
 
 

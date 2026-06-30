@@ -7,6 +7,7 @@
 {% if existing and existing.status == 'approved' %}
 <div class="card" style="border-left:4px solid var(--green,#4caf50)">
   <p class="ok" style="margin:0">✓ This report was approved on {{ existing.decided_at[:10] }}. Hours have been confirmed.</p>
+  <p class="muted" style="margin:.4rem 0 0; font-size:.9rem">You can still edit and resubmit below — it will go back to pending and require re-approval.</p>
 </div>
 {% elif existing and existing.status == 'pending' %}
 <div class="card" style="border-left:4px solid var(--amber,#f59e0b)">
@@ -68,12 +69,12 @@
           <td>
             <input type="time" name="actual_start_{{ w.employee_id }}"
                    value="{{ eh.actual_start if eh else w.actual_start or (manager_early if w.is_manager else w.sched_start) }}"
-                   {% if existing and existing.status == 'approved' %}disabled{% endif %}>
+                   >
           </td>
           <td>
             <input type="time" name="actual_end_{{ w.employee_id }}"
                    value="{{ eh.actual_end if eh else w.actual_end or w.sched_end }}"
-                   {% if existing and existing.status == 'approved' %}disabled{% endif %}>
+                   >
           </td>
           <td style="text-align:right; font-variant-numeric:tabular-nums" class="muted"
               id="hrs-{{ w.employee_id }}">—</td>
@@ -91,14 +92,14 @@
         <input type="text" name="strawberry_stock"
                value="{{ existing.strawberry_stock if existing and existing.strawberry_stock is not none else '' }}"
                placeholder="e.g. 2 flats"
-               {% if existing and existing.status == 'approved' %}disabled{% endif %}>
+               >
       </label>
       <label class="field">
         🫘 Anko remaining
         <input type="text" name="anko_stock"
                value="{{ existing.anko_stock if existing and existing.anko_stock is not none else '' }}"
                placeholder="e.g. 1 bag"
-               {% if existing and existing.status == 'approved' %}disabled{% endif %}>
+               >
       </label>
     </div>
   </div>
@@ -107,12 +108,12 @@
     <h2 style="margin-top:0">Memo for next shift</h2>
     <textarea name="memo" rows="4" style="width:100%; box-sizing:border-box"
               placeholder="Anything the next manager should know…"
-              {% if existing and existing.status == 'approved' %}disabled{% endif %}>{{ existing.memo if existing else '' }}</textarea>
+              >{{ existing.memo if existing else '' }}</textarea>
   </div>
 
-  {% if not existing or existing.status != 'approved' %}
-  <button type="submit">Submit report</button>
-  {% endif %}
+  <button type="submit">
+    {% if existing and existing.status == 'approved' %}Update report (re-approval required){% else %}Submit report{% endif %}
+  </button>
 </form>
 
 <script>

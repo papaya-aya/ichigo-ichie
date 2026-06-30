@@ -216,7 +216,7 @@
         <th>🍓 Strawberry</th>
         <th>🫘 Anko</th>
         <th>Memo</th>
-        <th colspan="2"></th>
+        <th colspan="3"></th>
       </tr>
     </thead>
     <tbody>
@@ -245,6 +245,12 @@
             <button type="submit" class="btn-ghost btn-sm btn-red">Reject</button>
           </form>
         </td>
+        <td>
+          <form method="post" action="{{ url_for('delete_shift_report', report_id=r.id) }}" class="inline-form"
+                onsubmit="return confirm('Delete this shift report? The manager can resubmit.')">
+            <button type="submit" class="btn-ghost btn-sm" style="color:var(--muted)">✕ Delete</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -265,6 +271,7 @@
         <th>Memo</th>
         <th>Status</th>
         <th>Decided</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -293,6 +300,12 @@
           {% endif %}
         </td>
         <td class="muted" style="font-size:.85em">{{ r.decided_at[:10] if r.decided_at else '—' }}</td>
+        <td>
+          <form method="post" action="{{ url_for('delete_shift_report', report_id=r.id) }}" class="inline-form"
+                onsubmit="return confirm('Delete this shift report? The manager can resubmit.')">
+            <button type="submit" class="btn-ghost btn-sm" style="color:var(--muted)">✕ Delete</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
