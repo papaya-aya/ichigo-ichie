@@ -1651,14 +1651,14 @@ def orders_day(date):
                          (client_id, date, qty_original, qty_matcha, qty_hojicha,
                           qty_other, deliverer, note, delivery_date, created_at)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (client_id, date, *qtys,
+                    (int(client_id), date, *qtys,
                      request.form.get("deliverer", "").strip(),
                      request.form.get("note", "").strip(), deliver_on, database.now_iso()),
                 )
                 g.db.commit()
                 flash("Order added.", "success")
         elif action == "update":
-            order_id = request.form.get("order_id")
+            order_id = int(request.form.get("order_id"))
             qtys = [_int(request.form.get(f"qty_{s}")) for s, _ in FLAVORS]
             g.db.execute(
                 """UPDATE orders
@@ -1675,7 +1675,7 @@ def orders_day(date):
             flash("Order updated.", "success")
         elif action == "delete":
             g.db.execute("DELETE FROM orders WHERE id = ? AND date = ?",
-                         (request.form.get("order_id"), date))
+                         (int(request.form.get("order_id")), date))
             g.db.commit()
             flash("Order removed.", "success")
         return redirect(url_for("orders_day", date=date))
@@ -1692,7 +1692,7 @@ def orders_day(date):
     from datetime import timedelta as _td
     wday = date_weekday(date)
     y, mo, dy = (int(x) for x in date.split("-"))
-    prod_date = date.__class__(y, mo, dy)
+    prod_date = datetime(y, mo, dy).date()
     rec_offsets = g.db.execute(
         "SELECT client_id, delivery_offset FROM recurring_orders WHERE weekday = ?",
         (wday,),
