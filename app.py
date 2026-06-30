@@ -1313,10 +1313,16 @@ def apply_recurring_assignments():
                 end   = ra["end_time"]   or ra["tmpl_end"]
 
             existing = g.db.execute(
-                "SELECT id FROM assignments WHERE shift_instance_id=? AND employee_id=?",
+                "SELECT id, is_manager FROM assignments WHERE shift_instance_id=? AND employee_id=?",
                 (inst["instance_id"], emp_id),
             ).fetchone()
             if existing:
+                # Promote to manager if the recurring assignment says so and they aren't already.
+                if ra["is_manager"] and not existing["is_manager"]:
+                    g.db.execute(
+                        "UPDATE assignments SET is_manager=1 WHERE id=?",
+                        (existing["id"],),
+                    )
                 skipped += 1
             else:
                 g.db.execute(
