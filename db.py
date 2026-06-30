@@ -124,6 +124,29 @@ def get_db():
 
 
 # ---------------------------------------------------------------------------
+# Schema migrations
+# ---------------------------------------------------------------------------
+
+def migrate_db():
+    """Apply one-time schema migrations that ALTER existing tables."""
+    conn = get_db()
+    # 2026-06-29: inventory columns changed from INTEGER → TEXT so managers
+    # can enter free-form notes (numbers, fractions, Japanese, etc.).
+    row = conn.execute(
+        """SELECT data_type FROM information_schema.columns
+            WHERE table_name='shift_reports' AND column_name='strawberry_stock'"""
+    ).fetchone()
+    if row and row["data_type"] == "integer":
+        conn.execute(
+            """ALTER TABLE shift_reports
+                 ALTER COLUMN strawberry_stock TYPE TEXT USING strawberry_stock::TEXT,
+                 ALTER COLUMN anko_stock       TYPE TEXT USING anko_stock::TEXT"""
+        )
+        conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Schema init + seed
 # ---------------------------------------------------------------------------
 

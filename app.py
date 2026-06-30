@@ -24,6 +24,7 @@ app.config["SECRET_KEY"] = os.environ.get("SHIFTO_SECRET", "dev-secret-change-me
 
 # Initialize DB on startup (works for both local and serverless/Vercel).
 database.init_db()
+database.migrate_db()
 
 WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -49,11 +50,13 @@ def handle_any_exception(e):
     import traceback as _tb
     tb = _tb.format_exc()
     app.logger.error("Unhandled exception: %s\n%s", e, tb)
+    # Return 200 so the hosting platform does not replace the body
+    # with its own generic error page.
     return (
-        "<html><body><h2>Error (debug)</h2>"
+        "<html><body><h2>Debug — unhandled error</h2>"
         f"<pre style='white-space:pre-wrap;font-size:13px'>{e}\n\n{tb}</pre>"
         "<p><a href='/'>Home</a></p></body></html>"
-    ), 500
+    ), 200
 
 
 @app.context_processor
