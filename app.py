@@ -1268,24 +1268,53 @@ def apply_recurring_assignments():
              JOIN shift_templates t ON t.id = ra.template_id"""
     ).fetchall()
 
-    # Group recurring assignments by template_id
     by_template = {}
     for ra in ra_rows:
         by_template.setdefault(ra["template_id"], []).append(ra)
 
-    added = skipped = 0
+    # Load every availability row for this month so we can respect stated unavailability.
+    # A row existing = the employee said they can work (or if_needed) for that shift.
+    # No row + they submitted for the month = they explicitly left it unchecked = unavailable.
+    avail_rows = g.db.execute(
+        """SELECT a.employee_id, a.shift_instance_id, a.start_time, a.end_time
+             FROM availability a
+             JOIN shift_instances si ON si.id = a.shift_instance_id
+            WHERE si.date LIKE ?""",
+        (month + "-%",),
+    ).fetchall()
+    avail_map  = {(r["employee_id"], r["shift_instance_id"]): r for r in avail_rows}
+    # employees who submitted any availability this month (so we know they engaged)
+    submitted_emps = {r["employee_id"] for r in avail_rows}
+
+    added = skipped = unavailable = 0
     for inst in instances:
-        template_id = inst["id"]   # t.id from instances_for_month join
+        template_id = inst["id"]
         for ra in by_template.get(template_id, []):
             if ra["start_date"] > inst["date"]:
                 continue
             if ra["end_date"] and ra["end_date"] < inst["date"]:
                 continue
-            start = ra["start_time"] or ra["tmpl_start"]
-            end   = ra["end_time"]   or ra["tmpl_end"]
+
+            emp_id = ra["employee_id"]
+
+            # Availability takes priority over standing assignments.
+            if emp_id in submitted_emps:
+                av = avail_map.get((emp_id, inst["instance_id"]))
+                if av is None:
+                    # They submitted this month but left this shift unchecked → not available.
+                    unavailable += 1
+                    continue
+                # They're available — prefer their submitted window, fall back to standing override.
+                start = ra["start_time"] or av["start_time"]
+                end   = ra["end_time"]   or av["end_time"]
+            else:
+                # No availability submitted yet — standing assignment applies.
+                start = ra["start_time"] or ra["tmpl_start"]
+                end   = ra["end_time"]   or ra["tmpl_end"]
+
             existing = g.db.execute(
                 "SELECT id FROM assignments WHERE shift_instance_id=? AND employee_id=?",
-                (inst["instance_id"], ra["employee_id"]),
+                (inst["instance_id"], emp_id),
             ).fetchone()
             if existing:
                 skipped += 1
@@ -1294,15 +1323,15 @@ def apply_recurring_assignments():
                     """INSERT INTO assignments
                          (shift_instance_id, employee_id, start_time, end_time, is_manager)
                        VALUES (?, ?, ?, ?, ?)""",
-                    (inst["instance_id"], ra["employee_id"],
-                     start, end, ra["is_manager"]),
+                    (inst["instance_id"], emp_id, start, end, ra["is_manager"]),
                 )
                 added += 1
 
     g.db.commit()
     parts = []
-    if added:   parts.append(f"{added} assignment(s) added")
-    if skipped: parts.append(f"{skipped} already assigned (kept)")
+    if added:        parts.append(f"{added} assignment(s) added")
+    if unavailable:  parts.append(f"{unavailable} skipped (said unavailable)")
+    if skipped:      parts.append(f"{skipped} already assigned (kept)")
     flash(f"{month_label(month)}: {', '.join(parts) or 'nothing to apply'}.", "success")
     return redirect(url_for("recurring_assignments"))
 

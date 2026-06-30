@@ -10,6 +10,9 @@
   <b>Apply to month</b>
   <p class="help" style="margin:0.2rem 0 0.5rem">
     Adds shift assignments for all matching shift dates in the month.
+    If an employee has submitted availability and left a shift unchecked,
+    they are skipped for that date — their availability takes priority.
+    Employees who haven't submitted yet are assigned as normal.
     Already-assigned slots are left untouched.
   </p>
   <form method="post" action="{{ url_for('apply_recurring_assignments') }}" class="row-actions" style="margin:0">
