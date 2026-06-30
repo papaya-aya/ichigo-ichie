@@ -35,15 +35,16 @@
         <th>Client</th>
         {% for s, label in flavors %}<th style="text-align:right">{{ label }}</th>{% endfor %}
         <th style="text-align:right">Total</th>
-        <th>Deliver on</th>
-        <th>Deliverer</th>
+        <th>Pop-up?</th>
+        <th id="hdr-deliver-on">Deliver on</th>
+        <th id="hdr-deliverer">Deliverer</th>
         <th>Note</th>
         <th></th>
       </tr>
     </thead>
     <tbody>
       {% for o in orders %}
-      <tr id="row-{{ o.id }}">
+      <tr id="row-{{ o.id }}" {% if o.is_pickup %}class="row-pickup"{% endif %}>
         <td><b>{{ o.client_name }}</b></td>
         {% for s, label in flavors %}
         <td style="text-align:right">
@@ -52,12 +53,19 @@
         </td>
         {% endfor %}
         <td style="text-align:right; font-weight:600">{{ o.total }}</td>
-        <td>
-          <input form="upd-{{ o.id }}" type="date" name="delivery_date"
-                 value="{{ o.delivery_date or date }}" style="width:8.5rem">
+        <td style="text-align:center">
+          <input form="upd-{{ o.id }}" type="checkbox" name="is_pickup" value="1"
+                 {% if o.is_pickup %}checked{% endif %}
+                 onchange="toggleRowPickup(this, '{{ o.id }}')">
         </td>
-        <td>
-          <select form="upd-{{ o.id }}" name="deliverer" style="width:8rem">
+        <td id="td-deliver-on-{{ o.id }}">
+          <input form="upd-{{ o.id }}" type="date" name="delivery_date"
+                 value="{{ o.delivery_date or date }}" style="width:8.5rem"
+                 {% if o.is_pickup %}disabled{% endif %}>
+        </td>
+        <td id="td-deliverer-{{ o.id }}">
+          <select form="upd-{{ o.id }}" name="deliverer" style="width:8rem"
+                  {% if o.is_pickup %}disabled{% endif %}>
             <option value="">—</option>
             {% for e in employees %}
               <option value="{{ e.name }}" {% if o.deliverer == e.name %}selected{% endif %}>{{ e.name }}</option>
@@ -83,7 +91,7 @@
           <td style="text-align:right">{{ totals.by_flavor[s] or '—' }}</td>
         {% endfor %}
         <td style="text-align:right">{{ totals.total or '—' }}</td>
-        <td colspan="4"></td>
+        <td colspan="5"></td>
       </tr>
     </tbody>
   </table>
@@ -115,13 +123,13 @@
         <input type="number" name="qty_{{ s }}" min="0" value="0">
       </label>
       {% endfor %}
-      <label class="field" style="width:9rem">
+      <label class="field" id="add-deliver-on-field" style="width:9rem">
         Deliver on
         <input type="date" name="delivery_date" id="add-delivery-date" value="{{ date }}">
       </label>
-      <label class="field" style="width:9rem">
+      <label class="field" id="add-deliverer-field" style="width:9rem">
         Deliverer
-        <select name="deliverer">
+        <select name="deliverer" id="add-deliverer">
           <option value="">—</option>
           {% for e in employees %}
             <option value="{{ e.name }}">{{ e.name }}</option>
@@ -132,6 +140,14 @@
         Note
         <input type="text" name="note" placeholder="optional">
       </label>
+      <label class="field" style="align-self:flex-end; white-space:nowrap">
+        <span style="font-size:0.92rem">&nbsp;</span>
+        <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; padding:0.3rem 0">
+          <input type="checkbox" name="is_pickup" value="1" id="add-is-pickup"
+                 onchange="toggleAddPickup(this)">
+          Pop-up (no delivery)
+        </label>
+      </label>
       <div class="field">
         <span style="visibility:hidden; font-size:0.92rem">x</span>
         <button type="submit">Add order</button>
@@ -140,11 +156,14 @@
   </form>
   <script>
   (function () {
-    const suggestions = {{ delivery_suggestions | tojson }};
-    const sel      = document.getElementById('add-client');
-    const inp      = document.getElementById('add-delivery-date');
-    const newField = document.getElementById('new-client-field');
+    const suggestions   = {{ delivery_suggestions | tojson }};
+    const sel           = document.getElementById('add-client');
+    const inp           = document.getElementById('add-delivery-date');
+    const newField      = document.getElementById('new-client-field');
+    const deliverField  = document.getElementById('add-deliver-on-field');
+    const delivererField= document.getElementById('add-deliverer-field');
     const base = '{{ date }}';
+
     sel.addEventListener('change', function () {
       if (this.value === '__new__') {
         newField.style.display = '';
@@ -154,7 +173,27 @@
         inp.value = suggestions[this.value] || base;
       }
     });
+
+    window.toggleAddPickup = function (cb) {
+      const hide = cb.checked;
+      deliverField.style.opacity  = hide ? '0.35' : '';
+      delivererField.style.opacity = hide ? '0.35' : '';
+      deliverField.querySelector('input').disabled  = hide;
+      delivererField.querySelector('select').disabled = hide;
+    };
+
+    window.toggleRowPickup = function (cb, id) {
+      const hide = cb.checked;
+      document.getElementById('td-deliver-on-' + id).querySelector('input').disabled  = hide;
+      document.getElementById('td-deliverer-'  + id).querySelector('select').disabled = hide;
+      document.getElementById('row-' + id).classList.toggle('row-pickup', hide);
+    };
   })();
   </script>
+  <style>
+    tr.row-pickup { background: var(--pink-soft, #fef9fa); }
+    tr.row-pickup input:disabled,
+    tr.row-pickup select:disabled { opacity: 0.4; }
+  </style>
 </div>
 {% endblock %}

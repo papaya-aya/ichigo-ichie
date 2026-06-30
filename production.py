@@ -50,19 +50,22 @@ def day_totals(conn, date):
 # ---------------------------------------------------------------------------
 
 def deliveries_for_date(conn, date):
-    """Orders that ship on `date` (delivery_date, falling back to production date)."""
+    """Orders that ship on `date` (delivery_date, falling back to production date).
+    Excludes pop-up orders (is_pickup=1) since those don't need delivery."""
     return conn.execute(
         """SELECT o.*, c.name AS client_name,
                   COALESCE(o.delivery_date, o.date) AS deliver_on
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) = ?
+              AND (o.is_pickup IS NULL OR o.is_pickup = 0)
             ORDER BY o.delivered, c.name""",
         (date,),
     ).fetchall()
 
 
 def delivery_days_in_month(conn, month):
-    """One row per date in `month` that has deliveries due, with summary counts."""
+    """One row per date in `month` that has deliveries due, with summary counts.
+    Excludes pop-up orders (is_pickup=1)."""
     return conn.execute(
         """SELECT COALESCE(delivery_date, date) AS deliver_on,
                   COUNT(*) AS n,
@@ -70,6 +73,7 @@ def delivery_days_in_month(conn, month):
                   SUM(qty_original + qty_matcha + qty_hojicha + qty_other) AS pcs
              FROM orders
             WHERE COALESCE(delivery_date, date) LIKE ?
+              AND (is_pickup IS NULL OR is_pickup = 0)
             GROUP BY deliver_on
             ORDER BY deliver_on""",
         (month + "-%",),

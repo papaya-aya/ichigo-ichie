@@ -91,6 +91,9 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(date);
 CREATE INDEX IF NOT EXISTS idx_orders_delivery ON orders(delivery_date);
 
+-- Migrations (safe to re-run)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_pickup INTEGER NOT NULL DEFAULT 0;
+
 -- Extra hours not tied to a production shift (pop-ups, markets, etc.)
 CREATE TABLE IF NOT EXISTS popups (
   id           SERIAL PRIMARY KEY,

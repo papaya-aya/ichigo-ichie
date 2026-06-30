@@ -1659,16 +1659,18 @@ def orders_day(date):
             if not client_id:
                 flash("Pick a client.", "error")
             else:
+                is_pickup = 1 if request.form.get("is_pickup") else 0
                 qtys = [_int(request.form.get(f"qty_{s}")) for s, _ in FLAVORS]
                 deliver_on = request.form.get("delivery_date", "").strip() or date
                 g.db.execute(
                     """INSERT INTO orders
                          (client_id, date, qty_original, qty_matcha, qty_hojicha,
-                          qty_other, deliverer, note, delivery_date, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                          qty_other, deliverer, note, delivery_date, is_pickup, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (int(client_id), date, *qtys,
                      request.form.get("deliverer", "").strip(),
-                     request.form.get("note", "").strip(), deliver_on, database.now_iso()),
+                     request.form.get("note", "").strip(), deliver_on,
+                     is_pickup, database.now_iso()),
                 )
                 g.db.commit()
                 if new_client_name:
@@ -1677,17 +1679,18 @@ def orders_day(date):
                     flash("Order added.", "success")
         elif action == "update":
             order_id = int(request.form.get("order_id"))
+            is_pickup = 1 if request.form.get("is_pickup") else 0
             qtys = [_int(request.form.get(f"qty_{s}")) for s, _ in FLAVORS]
             g.db.execute(
                 """UPDATE orders
                       SET qty_original=?, qty_matcha=?, qty_hojicha=?, qty_other=?,
-                          deliverer=?, note=?, delivery_date=?
+                          deliverer=?, note=?, delivery_date=?, is_pickup=?
                     WHERE id=? AND date=?""",
                 (*qtys,
                  request.form.get("deliverer", "").strip(),
                  request.form.get("note", "").strip(),
                  request.form.get("delivery_date", "").strip() or date,
-                 order_id, date),
+                 is_pickup, order_id, date),
             )
             g.db.commit()
             flash("Order updated.", "success")
@@ -1777,7 +1780,7 @@ def deliveries_month():
         flash("Deliverer assignments saved.", "success")
         return redirect(url_for("deliveries_month", month=month))
 
-    # All clients per delivery date (one row per client per date)
+    # All clients per delivery date (one row per client per date); skip pop-up orders
     client_rows = g.db.execute(
         """SELECT COALESCE(o.delivery_date, o.date) AS deliver_on,
                   o.client_id, c.name AS client_name,
@@ -1786,6 +1789,7 @@ def deliveries_month():
                   MAX(o.deliverer)  AS deliverer
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
+              AND (o.is_pickup IS NULL OR o.is_pickup = 0)
             GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
         (month + "-%",),
