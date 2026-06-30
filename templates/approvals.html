@@ -29,7 +29,7 @@
       <thead>
         <tr>
           <th><input type="checkbox" onclick="toggleGroup(this,'cb-orig')"></th>
-          <th>Date</th><th>Shift</th><th>Employee</th><th>Available</th><th>Note</th><th>Status</th>
+          <th>Date</th><th>Shift</th><th>Employee</th><th>Available</th><th>Note</th><th></th><th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -65,7 +65,7 @@
       <thead>
         <tr>
           <th><input type="checkbox" onclick="toggleGroup(this,'cb-upd')"></th>
-          <th>Date</th><th>Shift</th><th>Employee</th><th>Requested change</th><th>Note</th><th>Status</th>
+          <th>Date</th><th>Shift</th><th>Employee</th><th>Requested change</th><th>Note</th><th></th><th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -180,11 +180,13 @@
 </div>
 {% endif %}
 
-{% if pending_shift_reports %}
 <div class="card" style="margin-top:1.5rem">
-  <h2 style="margin-top:0">📋 Pending shift reports</h2>
-  <p class="muted" style="margin-top:-.5rem">Approving a report confirms the actual hours worked.</p>
-  <table>
+  <h2 style="margin-top:0">📋 Shift reports</h2>
+  <p class="muted" style="margin-top:-.5rem">Submitted by managers after each shift. Approving confirms the actual hours worked.</p>
+
+  {% if pending_shift_reports %}
+  <h3 style="margin-bottom:.4rem">Pending</h3>
+  <table style="margin-bottom:1rem">
     <thead>
       <tr>
         <th>Shift</th>
@@ -199,8 +201,10 @@
       {% for r in pending_shift_reports %}
       <tr>
         <td>
-          <span class="badge badge-day">{{ weekday_names[r.weekday] }}</span>
-          {{ r.date }}<br>
+          <a href="{{ url_for('shift_detail', instance_id=r.instance_id) }}">
+            <span class="badge badge-day">{{ weekday_names[r.weekday] }}</span>
+            {{ r.date }}
+          </a><br>
           <span class="muted" style="font-size:.85em">{{ r.label }}</span>
         </td>
         <td>{{ r.submitter }}</td>
@@ -223,12 +227,12 @@
       {% endfor %}
     </tbody>
   </table>
-</div>
-{% endif %}
+  {% else %}
+  <p class="muted">No reports pending — managers submit these from their "My shifts" page after each shift.</p>
+  {% endif %}
 
-{% if decided_shift_reports %}
-<div class="card" style="margin-top:1.5rem">
-  <h2 style="margin-top:0">📋 Past shift reports</h2>
+  {% if decided_shift_reports %}
+  <h3 style="margin-bottom:.4rem; margin-top:1rem">Past reports</h3>
   <table>
     <thead>
       <tr>
@@ -267,8 +271,8 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
 </div>
-{% endif %}
 
 <script>
 function toggleGroup(master, cls) {

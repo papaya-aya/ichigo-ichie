@@ -2115,7 +2115,7 @@ def deliveries_day(date):
 def approvals():
     if request.method == "POST":
         action = request.form.get("action")
-        ids = request.form.getlist("av_id")
+        ids = [int(i) for i in request.form.getlist("av_id") if i.isdigit()]
         def _notify_employees(av_ids, decision):
             """Send a Slack message for each affected employee listing their shifts."""
             if not av_ids:
