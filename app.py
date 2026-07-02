@@ -3,7 +3,7 @@ import calendar as _calendar
 import os
 import urllib.request
 import json as _json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from flask import (
@@ -479,7 +479,9 @@ def my_shifts():
     pr = piece_rate()
     gr = gusto_rate()
 
-    # --- Upcoming confirmed shifts (assigned, today onwards) ---
+    # Show recent shifts (14 days back) so managers can still submit reports
+    # for shifts that just ended, plus all upcoming shifts.
+    lookback = (today_date - timedelta(days=14)).isoformat()
     upcoming_rows = g.db.execute(
         """SELECT a.start_time, a.end_time, a.actual_start, a.actual_end, a.is_manager,
                   si.id AS instance_id, si.date, t.label, t.weekday,
@@ -491,7 +493,7 @@ def my_shifts():
              LEFT JOIN shift_reports sr ON sr.shift_instance_id = si.id
             WHERE a.employee_id = ? AND si.date >= ?
             ORDER BY si.date""",
-        (emp_id, today_date.isoformat()),
+        (emp_id, lookback),
     ).fetchall()
     upcoming = []
     for r in upcoming_rows:
@@ -2723,18 +2725,21 @@ def _send_slack(message: str):
 @app.route("/my-shift/<int:instance_id>/report", methods=["GET", "POST"])
 @require_login
 def shift_report(instance_id):
-    emp_id = session.get("employee_id")
-    if not emp_id:
-        return redirect(url_for("owner_dashboard"))
+    is_owner = session.get("owner", False)
+    emp_id   = session.get("employee_id")
 
-    # Must be the assigned manager for this shift
-    manager_row = g.db.execute(
-        "SELECT * FROM assignments WHERE shift_instance_id=? AND employee_id=? AND is_manager=1",
-        (instance_id, emp_id),
-    ).fetchone()
-    if not manager_row:
-        flash("Only the assigned manager can submit a shift report.", "error")
-        return redirect(url_for("my_shifts"))
+    if not is_owner and not emp_id:
+        return redirect(url_for("login"))
+
+    if not is_owner:
+        # Employee path: must be the assigned manager for this shift
+        manager_row = g.db.execute(
+            "SELECT * FROM assignments WHERE shift_instance_id=? AND employee_id=? AND is_manager=1",
+            (instance_id, emp_id),
+        ).fetchone()
+        if not manager_row:
+            flash("Only the assigned manager can submit a shift report.", "error")
+            return redirect(url_for("my_shifts"))
 
     inst = g.db.execute(
         """SELECT si.id AS instance_id, si.date, t.label, t.start_time, t.end_time, t.weekday
@@ -2821,8 +2826,8 @@ def shift_report(instance_id):
             return redirect(url_for("shift_report", instance_id=instance_id))
 
         # Send inventory + memo to Slack immediately (no approval needed)
-        weekday_name = WEEKDAY_NAMES[inst["weekday"]]
-        submitter_name = session.get("employee_name", "Manager")
+        weekday_name   = WEEKDAY_NAMES[inst["weekday"]]
+        submitter_name = "Owner" if is_owner else session.get("employee_name", "Manager")
         lines = [
             f"📋 *Shift Report — {weekday_name} {inst['date']} · {inst['label']}*",
             f"_Submitted by {submitter_name}_",
@@ -2837,6 +2842,10 @@ def shift_report(instance_id):
         if strawberry or anko or memo:
             _send_slack("\n".join(lines))
 
+        if is_owner:
+            flash("Report saved. You can approve it from the Approvals page.", "success")
+            return redirect(url_for("shift_detail", instance_id=instance_id))
+
         flash("Report submitted — inventory & memo sent to Slack. The owner will confirm hours.", "success")
         return redirect(url_for("my_shifts"))
 
@@ -2846,6 +2855,7 @@ def shift_report(instance_id):
         inst=inst, weekday=WEEKDAY_NAMES[inst["weekday"]],
         workers=workers, existing=existing, existing_hours=existing_hours,
         manager_early=manager_early,
+        is_owner_form=is_owner,
     )
 
 

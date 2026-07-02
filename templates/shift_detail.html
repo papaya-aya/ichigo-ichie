@@ -160,7 +160,8 @@
 <div class="card">
   <h2 style="margin-top:0">📋 Shift report</h2>
   {% if not shift_report %}
-    <p class="muted">No report submitted yet. The assigned manager submits it from their "My Shifts" page.</p>
+    <p class="muted">No report submitted yet.</p>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('shift_report', instance_id=inst.instance_id) }}">📋 Write report</a>
   {% elif shift_report.status == 'pending' %}
     <p>⏳ Report submitted by <b>{{ shift_report.submitter }}</b> on {{ shift_report.submitted_at[:10] }} — awaiting approval.
       <a href="{{ url_for('approvals') }}">Review on Approvals page →</a></p>

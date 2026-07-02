@@ -151,7 +151,7 @@ CREATE INDEX IF NOT EXISTS idx_strawberry_date ON strawberry_purchases(date);
 CREATE TABLE IF NOT EXISTS shift_reports (
   id                SERIAL PRIMARY KEY,
   shift_instance_id INTEGER NOT NULL REFERENCES shift_instances(id),
-  submitted_by      INTEGER NOT NULL REFERENCES employees(id),
+  submitted_by      INTEGER REFERENCES employees(id),
   status            TEXT    NOT NULL DEFAULT 'pending',
   strawberry_stock  TEXT,
   anko_stock        TEXT,

@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
+{% if is_owner_form %}
+<p><a href="{{ url_for('shift_detail', instance_id=inst.instance_id) }}">← Back to shift</a></p>
+{% else %}
 <p><a href="{{ url_for('my_shifts') }}">← Back to my shifts</a></p>
+{% endif %}
 <h1>📋 Shift report — {{ weekday }} {{ inst.date }}</h1>
 <p class="subtitle">{{ inst.label }} · {{ inst.start_time }}–{{ inst.end_time }}</p>
 

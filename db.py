@@ -143,6 +143,18 @@ def migrate_db():
                  ALTER COLUMN anko_stock       TYPE TEXT USING anko_stock::TEXT"""
         )
         conn.commit()
+
+    # 2026-07-01: make submitted_by nullable so the owner can write reports
+    # without an employee ID.
+    null_row = conn.execute(
+        """SELECT is_nullable FROM information_schema.columns
+            WHERE table_name='shift_reports' AND column_name='submitted_by'"""
+    ).fetchone()
+    if null_row and null_row["is_nullable"] == "NO":
+        conn.execute(
+            "ALTER TABLE shift_reports ALTER COLUMN submitted_by DROP NOT NULL"
+        )
+        conn.commit()
     conn.close()
 
 
