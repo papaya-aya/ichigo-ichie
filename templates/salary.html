@@ -123,7 +123,7 @@
     <span class="pill">{{ date_from }} → {{ date_to }}</span>
   </h2>
   <p class="help">Enter the <b>Gusto hours</b> column into Gusto at ${{ gusto_rate }}/hr.
-    Transport is included; strawberry purchases are deducted.</p>
+    Transport and strawberry purchase reimbursements are included.</p>
   <table>
     <thead>
       <tr>
@@ -147,8 +147,8 @@
           {% if emp.total_transport %}${{ "%.2f"|format(emp.total_transport) }}
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
-        <td style="text-align:right; color:var(--red)">
-          {% if emp.total_strawberry_cost %}-${{ "%.2f"|format(emp.total_strawberry_cost) }}
+        <td style="text-align:right" class="{{ 'ok' if emp.total_strawberry_cost else '' }}">
+          {% if emp.total_strawberry_cost %}+${{ "%.2f"|format(emp.total_strawberry_cost) }}
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         <td style="text-align:right"><b>${{ "%.2f"|format(emp.net_pay) }}</b></td>
@@ -164,8 +164,8 @@
         <td style="text-align:right"><b>{{ employees|sum(attribute='total_hours') }} hrs</b></td>
         <td style="text-align:right"><b>${{ "%.2f"|format(grand_pay) }}</b></td>
         <td style="text-align:right"><b>{% if grand_transport %}${{ "%.2f"|format(grand_transport) }}{% else %}—{% endif %}</b></td>
-        <td style="text-align:right; color:var(--red)"><b>{% if grand_strawberry %}-${{ "%.2f"|format(grand_strawberry) }}{% else %}—{% endif %}</b></td>
-        <td style="text-align:right"><b>${{ "%.2f"|format(grand_pay + grand_transport - grand_strawberry) }}</b></td>
+        <td style="text-align:right" class="{{ 'ok' if grand_strawberry else '' }}"><b>{% if grand_strawberry %}+${{ "%.2f"|format(grand_strawberry) }}{% else %}—{% endif %}</b></td>
+        <td style="text-align:right"><b>${{ "%.2f"|format(grand_pay + grand_transport + grand_strawberry) }}</b></td>
         <td style="text-align:right; background:#fef3f3"><b>{{ grand_gusto }}</b></td>
       </tr>
     </tfoot>
@@ -281,13 +281,13 @@
   {% if emp.strawberry_purchases %}
   <table style="margin-bottom:0.6rem">
     <thead>
-      <tr><th>Date</th><th style="text-align:right">Deduction</th></tr>
+      <tr><th>Date</th><th style="text-align:right">Reimbursement</th></tr>
     </thead>
     <tbody>
       {% for sp in emp.strawberry_purchases %}
       <tr>
         <td>🍓 {{ sp.date }}</td>
-        <td style="text-align:right; color:var(--red)"><b>-${{ "%.2f"|format(sp.cost) }}</b></td>
+        <td style="text-align:right" class="ok"><b>+${{ "%.2f"|format(sp.cost) }}</b></td>
       </tr>
       {% endfor %}
     </tbody>

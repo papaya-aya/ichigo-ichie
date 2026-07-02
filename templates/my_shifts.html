@@ -144,8 +144,8 @@
       {% endif %}
       {% if total_strawberry %}
       <tr>
-        <td class="muted">🍓 Strawberry purchases</td>
-        <td style="color:var(--red)">-${{ "%.2f"|format(total_strawberry) }}</td>
+        <td class="muted">🍓 Strawberry reimbursement</td>
+        <td class="ok">+${{ "%.2f"|format(total_strawberry) }}</td>
       </tr>
       {% endif %}
       <tr style="border-top: 2px solid var(--pink-line)">
@@ -271,7 +271,7 @@
       <tr>
         <td>{{ sp.date }}</td>
         <td>🍓 Strawberr{{ 'y' if sp.quantity == 1 else 'ies' }} × {{ sp.quantity }}</td>
-        <td style="text-align:right; color:var(--red)">-${{ "%.2f"|format(sp.cost) }}</td>
+        <td style="text-align:right" class="ok">+${{ "%.2f"|format(sp.cost) }}</td>
       </tr>
       {% endfor %}
     </tbody>
