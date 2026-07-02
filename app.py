@@ -2763,11 +2763,24 @@ def shift_report(instance_id):
         "SELECT * FROM shift_reports WHERE shift_instance_id=?", (instance_id,)
     ).fetchone()
     existing_hours = {}
+    extra_existing = []   # workers saved to this report but not in assignments
+    assigned_ids   = {w["employee_id"] for w in workers}
     if existing:
         for r in g.db.execute(
-            "SELECT * FROM shift_report_hours WHERE report_id=?", (existing["id"],)
+            """SELECT srh.employee_id, srh.actual_start, srh.actual_end, e.name
+                 FROM shift_report_hours srh
+                 JOIN employees e ON e.id = srh.employee_id
+                WHERE srh.report_id = ?""",
+            (existing["id"],)
         ).fetchall():
             existing_hours[r["employee_id"]] = r
+            if r["employee_id"] not in assigned_ids:
+                extra_existing.append(r)
+
+    # All active employees for the "add person" dropdown
+    all_employees = g.db.execute(
+        "SELECT id, name FROM employees WHERE active=1 ORDER BY name"
+    ).fetchall()
 
     if request.method == "POST":
         strawberry = request.form.get("strawberry_stock", "").strip()
@@ -2803,6 +2816,7 @@ def shift_report(instance_id):
 
             # Replace hours: delete stale rows then insert fresh ones.
             g.db.execute("DELETE FROM shift_report_hours WHERE report_id=?", (report_id,))
+            saved_ids = set()
             for w in workers:
                 wid   = w["employee_id"]
                 start = request.form.get(f"actual_start_{wid}", "").strip()
@@ -2814,6 +2828,23 @@ def shift_report(instance_id):
                            VALUES (?, ?, ?, ?)""",
                         (report_id, wid, start, end),
                     )
+                    saved_ids.add(wid)
+            # Extra people added manually (not in the original assignment)
+            for emp_str, start, end in zip(
+                request.form.getlist("extra_emp"),
+                request.form.getlist("extra_start"),
+                request.form.getlist("extra_end"),
+            ):
+                if emp_str and start and end:
+                    eid = int(emp_str)
+                    if eid not in saved_ids:
+                        g.db.execute(
+                            """INSERT INTO shift_report_hours
+                                 (report_id, employee_id, actual_start, actual_end)
+                               VALUES (?, ?, ?, ?)""",
+                            (report_id, eid, start, end),
+                        )
+                        saved_ids.add(eid)
             g.db.commit()
         except Exception as _e:
             import traceback as _tb
@@ -2856,6 +2887,8 @@ def shift_report(instance_id):
         workers=workers, existing=existing, existing_hours=existing_hours,
         manager_early=manager_early,
         is_owner_form=is_owner,
+        all_employees=all_employees,
+        extra_existing=extra_existing,
     )
 
 

@@ -59,12 +59,13 @@
           <th>Actual start</th>
           <th>Actual end</th>
           <th style="text-align:right">Hours</th>
+          <th></th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="hours-body">
         {% for w in workers %}
         {% set eh = existing_hours.get(w.employee_id) %}
-        <tr>
+        <tr data-wid="{{ w.employee_id }}">
           <td>
             {{ w.name }}
             {% if w.is_manager %}<span class="pill">👑</span>{% endif %}
@@ -72,21 +73,71 @@
           <td class="muted">{{ w.sched_start }}–{{ w.sched_end }}</td>
           <td>
             <input type="time" name="actual_start_{{ w.employee_id }}"
-                   value="{{ eh.actual_start if eh else w.actual_start or (manager_early if w.is_manager else w.sched_start) }}"
-                   >
+                   value="{{ eh.actual_start if eh else w.actual_start or (manager_early if w.is_manager else w.sched_start) }}">
           </td>
           <td>
             <input type="time" name="actual_end_{{ w.employee_id }}"
-                   value="{{ eh.actual_end if eh else w.actual_end or w.sched_end }}"
-                   >
+                   value="{{ eh.actual_end if eh else w.actual_end or w.sched_end }}">
           </td>
-          <td style="text-align:right; font-variant-numeric:tabular-nums" class="muted"
+          <td style="text-align:right; font-variant-numeric:tabular-nums" class="muted hrs-cell"
               id="hrs-{{ w.employee_id }}">—</td>
+          <td>
+            <button type="button" class="remove-row btn-ghost btn-sm"
+                    style="color:var(--red)" title="Remove from report">✕</button>
+          </td>
+        </tr>
+        {% endfor %}
+        {% for w in extra_existing %}
+        <tr>
+          <td>
+            {{ w.name }} <span class="muted" style="font-size:.8rem">(added)</span>
+            <select name="extra_emp" style="display:none">
+              {% for e in all_employees %}
+              <option value="{{ e.id }}"{{ ' selected' if e.id == w.employee_id else '' }}>{{ e.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td class="muted">—</td>
+          <td><input type="time" name="extra_start" value="{{ w.actual_start }}"></td>
+          <td><input type="time" name="extra_end"   value="{{ w.actual_end }}"></td>
+          <td style="text-align:right; font-variant-numeric:tabular-nums" class="muted hrs-cell">—</td>
+          <td>
+            <button type="button" class="remove-row btn-ghost btn-sm"
+                    style="color:var(--red)" title="Remove from report">✕</button>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="6" style="padding-top:.4rem">
+            <button type="button" id="add-person-btn" class="btn btn-ghost btn-sm"
+                    onclick="addExtraPerson()">＋ Add person</button>
+          </td>
+        </tr>
+      </tfoot>
     </table>
   </div>
+
+  <template id="extra-row-tpl">
+    <tr>
+      <td colspan="2">
+        <select name="extra_emp" style="width:100%; min-width:9rem">
+          <option value="">Select employee…</option>
+          {% for e in all_employees %}
+          <option value="{{ e.id }}">{{ e.name }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td><input type="time" name="extra_start"></td>
+      <td><input type="time" name="extra_end"></td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums" class="muted hrs-cell">—</td>
+      <td>
+        <button type="button" class="remove-row btn-ghost btn-sm"
+                style="color:var(--red)" title="Remove from report">✕</button>
+      </td>
+    </tr>
+  </template>
 
   <div class="card">
     <h2 style="margin-top:0">End-of-day inventory</h2>
@@ -128,15 +179,42 @@ function calcHrs(s, e) {
   const m = (eh*60+em)-(sh*60+sm);
   return m > 0 ? (m/60).toFixed(2) : null;
 }
+
+// Live hours display for all rows (event delegation)
+document.getElementById('hours-body').addEventListener('change', function(ev) {
+  const tr = ev.target.closest('tr');
+  if (!tr) return;
+  const times = [...tr.querySelectorAll('input[type="time"]')];
+  const cell  = tr.querySelector('.hrs-cell');
+  if (times.length >= 2 && cell) {
+    const h = calcHrs(times[0].value, times[1].value);
+    cell.textContent = h ? h + ' hr' : '—';
+  }
+});
+
+// Remove a row
+document.getElementById('hours-body').addEventListener('click', function(ev) {
+  const btn = ev.target.closest('.remove-row');
+  if (btn) btn.closest('tr').remove();
+});
+
+// Add a new extra-person row from the <template>
+function addExtraPerson() {
+  const tpl   = document.getElementById('extra-row-tpl');
+  const clone = tpl.content.cloneNode(true);
+  document.getElementById('hours-body').appendChild(clone);
+}
+
+// Initial hours display for assigned workers
 {% for w in workers %}
 (function(){
   const s = document.querySelector('[name="actual_start_{{ w.employee_id }}"]');
   const e = document.querySelector('[name="actual_end_{{ w.employee_id }}"]');
   const cell = document.getElementById('hrs-{{ w.employee_id }}');
-  function upd(){ const h = calcHrs(s.value, e.value); cell.textContent = h ? h+' hr' : '—'; }
-  s && s.addEventListener('change', upd);
-  e && e.addEventListener('change', upd);
-  upd();
+  if (s && e && cell) {
+    const h = calcHrs(s.value, e.value);
+    cell.textContent = h ? h+' hr' : '—';
+  }
 })();
 {% endfor %}
 </script>
