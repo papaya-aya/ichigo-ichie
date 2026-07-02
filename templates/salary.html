@@ -16,7 +16,7 @@
 {# ── Add strawberry purchase ─────────────────────────────────────────────── #}
 <div class="card">
   <h2 style="margin-top:0">🍓 Strawberry purchases</h2>
-  <p class="help">Record when an employee buys a strawberry. ${{ strawberry_price }} deducted from their pay. Each entry = 1 strawberry.</p>
+  <p class="help">Record when an employee buys a strawberry for production. ${{ strawberry_price }} reimbursed to their pay. Each entry = 1 strawberry.</p>
   <form method="post" action="{{ url_for('add_strawberry_purchase') }}"
         style="display:flex; flex-wrap:wrap; gap:0.55rem; align-items:flex-end; margin-bottom:{% if not employees %}0{% else %}1rem{% endif %}">
     <input type="hidden" name="date_from" value="{{ date_from }}">
@@ -41,13 +41,13 @@
   {% for emp in employees %}{% for sp in emp.strawberry_purchases %}{% set _ = all_purchases.append((emp.name, sp)) %}{% endfor %}{% endfor %}
   {% if all_purchases %}
   <table>
-    <thead><tr><th>Employee</th><th>Date</th><th style="text-align:right">Cost</th><th></th></tr></thead>
+    <thead><tr><th>Employee</th><th>Date</th><th style="text-align:right">Reimbursement</th><th></th></tr></thead>
     <tbody>
       {% for emp_name, sp in all_purchases|sort(attribute='1.date') %}
       <tr>
         <td>{{ emp_name }}</td>
         <td>{{ sp.date }}</td>
-        <td style="text-align:right; color:var(--red)">-${{ "%.2f"|format(sp.cost) }}</td>
+        <td style="text-align:right" class="ok">+${{ "%.2f"|format(sp.cost) }}</td>
         <td>
           <form method="post"
                 action="{{ url_for('delete_strawberry_purchase', purchase_id=sp.id) }}"
