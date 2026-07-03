@@ -48,6 +48,8 @@
           <td>
             <select name="deliverer_{{ o.client_id }}" style="width:9rem">
               <option value="">—</option>
+              <option value="pick-up" {% if o.deliverer == 'pick-up' %}selected{% endif %}>🛍️ Pick-up</option>
+              <option value="pop-up"  {% if o.deliverer == 'pop-up'  %}selected{% endif %}>🎪 Pop-up</option>
               {% for e in employees %}
                 <option value="{{ e.name }}"
                   {% if o.deliverer == e.name %}selected{% endif %}>{{ e.name }}</option>
