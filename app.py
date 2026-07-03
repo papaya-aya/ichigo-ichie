@@ -2177,12 +2177,55 @@ def deliveries_month():
 
     rows = sorted(rows_by_date.values(), key=lambda x: x["date"])
 
+    # Pick-up / pop-up orders for the month (excluded from main delivery list)
+    pickup_rows = g.db.execute(
+        """SELECT COALESCE(o.delivery_date, o.date) AS pickup_on,
+                  o.client_id, c.name AS client_name,
+                  SUM(o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) AS total,
+                  MAX(o.delivered) AS picked_up
+             FROM orders o JOIN clients c ON c.id = o.client_id
+            WHERE COALESCE(o.delivery_date, o.date) LIKE ?
+              AND o.is_pickup = 1
+            GROUP BY pickup_on, o.client_id, c.name
+            ORDER BY pickup_on, c.name""",
+        (month + "-%",),
+    ).fetchall()
+    pickup_by_date = {}
+    for r in pickup_rows:
+        d = r["pickup_on"]
+        if d not in pickup_by_date:
+            pickup_by_date[d] = {
+                "date":    d,
+                "weekday": WEEKDAY_NAMES[date_weekday(d)],
+                "clients": [],
+            }
+        pickup_by_date[d]["clients"].append(dict(r))
+    pickup_dates = sorted(pickup_by_date.values(), key=lambda x: x["date"])
+
     return render_template(
         "deliveries_month.html",
         month=month, month_label=month_label(month),
         prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
         rows=rows, employees=employees,
+        pickup_dates=pickup_dates,
     )
+
+
+@app.route("/owner/pickup/toggle", methods=["POST"])
+@require_owner
+def toggle_pickup_done():
+    client_id = request.form.get("client_id", "")
+    pickup_on = request.form.get("pickup_on", "")
+    done      = int(request.form.get("done", "1"))
+    month     = request.form.get("month", "")
+    if client_id.isdigit() and pickup_on:
+        g.db.execute(
+            """UPDATE orders SET delivered=?
+                WHERE client_id=? AND COALESCE(delivery_date, date)=? AND is_pickup=1""",
+            (done, int(client_id), pickup_on),
+        )
+        g.db.commit()
+    return redirect(url_for("deliveries_month", month=month))
 
 
 @app.route("/owner/deliveries/<date>", methods=["GET", "POST"])

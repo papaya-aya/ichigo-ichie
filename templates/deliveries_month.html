@@ -134,4 +134,65 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 {% endif %}
+
+{% if pickup_dates %}
+<div class="card" style="margin-top:1.5rem">
+  <h2 style="margin-top:0">🛍️ Pick-ups / Pop-ups</h2>
+  <p class="muted" style="margin-top:-.4rem; font-size:.9rem">Orders flagged as pick-up or pop-up — client collects in person.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Client</th>
+        <th style="text-align:right">Pcs</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for day in pickup_dates %}
+      <tr style="background:var(--pink-soft); font-weight:600">
+        <td colspan="5" style="padding:.35rem .6rem">
+          <span class="badge badge-day">{{ day.weekday }}</span> {{ day.date }}
+          <span class="muted" style="font-weight:400; font-size:.82rem">
+            — {{ day.clients|length }} client{{ 's' if day.clients|length != 1 }}
+            · {{ day.clients|sum(attribute='total') }} pcs
+          </span>
+        </td>
+      </tr>
+      {% for c in day.clients %}
+      <tr class="{{ 'muted' if c.picked_up }}">
+        <td></td>
+        <td>
+          {{ c.client_name }}
+          {% if c.picked_up %}<span class="ok" style="font-size:.8rem">✓</span>{% endif %}
+        </td>
+        <td style="text-align:right">{{ c.total }}</td>
+        <td>
+          {% if c.picked_up %}
+            <span class="ok" style="font-size:.82rem">picked up</span>
+          {% else %}
+            <span class="muted" style="font-size:.82rem">pending</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('toggle_pickup_done') }}" class="inline-form">
+            <input type="hidden" name="client_id" value="{{ c.client_id }}">
+            <input type="hidden" name="pickup_on" value="{{ day.date }}">
+            <input type="hidden" name="done"      value="{{ '0' if c.picked_up else '1' }}">
+            <input type="hidden" name="month"     value="{{ month }}">
+            <button type="submit" class="btn-ghost btn-sm {{ '' if c.picked_up else 'btn-green' }}">
+              {% if c.picked_up %}Unmark{% else %}✓ Done{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      <tr><td colspan="5" style="padding:.15rem; border:none"></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {% endblock %}
