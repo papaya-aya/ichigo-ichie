@@ -51,6 +51,8 @@
               <select name="dlv_{{ row.date }}_all" style="width:100%; font-size:.85em"
                       onchange="syncDateDeliverer(this, '{{ row.date }}')">
                 <option value="">— unassigned —</option>
+                <option value="pick-up" {% if row.auto_deliverer == 'pick-up' %}selected{% endif %}>🛍️ Pick-up</option>
+                <option value="pop-up"  {% if row.auto_deliverer == 'pop-up'  %}selected{% endif %}>🎪 Pop-up</option>
                 {% for e in employees %}
                   <option value="{{ e.name }}"
                     {% if row.auto_deliverer == e.name %}selected{% endif %}>
@@ -94,6 +96,8 @@
             <select name="dlv_{{ row.date }}_{{ client.client_id }}"
                     class="dlv-{{ row.date }}" style="width:100%">
               <option value="">— unassigned —</option>
+              <option value="pick-up" {% if client.deliverer == 'pick-up' %}selected{% endif %}>🛍️ Pick-up</option>
+              <option value="pop-up"  {% if client.deliverer == 'pop-up'  %}selected{% endif %}>🎪 Pop-up</option>
               {% for e in employees %}
                 <option value="{{ e.name }}"
                   {% if client.deliverer == e.name %}selected{% endif %}>
