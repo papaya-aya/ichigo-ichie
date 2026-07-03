@@ -128,13 +128,6 @@ function syncDateDeliverer(sel, dateKey) {
   const val = sel.value;
   document.querySelectorAll('.dlv-' + dateKey).forEach(s => { s.value = val; });
 }
-// On page load, sync any pre-selected date-level value to client rows
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('select[name^="dlv_"][name$="_all"]').forEach(sel => {
-    const dateKey = sel.name.replace('dlv_', '').replace('_all', '');
-    if (sel.value) syncDateDeliverer(sel, dateKey);
-  });
-});
 </script>
 
 {% endif %}
