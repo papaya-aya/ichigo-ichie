@@ -106,18 +106,32 @@ function sendToCommand(clientId, name, email, pcs, unitPrice, amount, from, to) 
     ' for ' + pcs + ' daifuku at $' + unitPrice + ' each, totaling $' + amount + '.' +
     emailPart;
 
-  navigator.clipboard.writeText(prompt).then(function() {
-    const btn = document.getElementById('btn-' + clientId);
-    btn.textContent = 'Prompt copied! Opening Mercury…';
-    btn.disabled = true;
-    setTimeout(function() {
-      window.open('https://app.mercury.com/command', '_blank');
-      setTimeout(function() {
-        btn.textContent = 'Send to Mercury Command';
-        btn.disabled = false;
-      }, 2000);
-    }, 300);
-  });
+  const btn = document.getElementById('btn-' + clientId);
+
+  // Open Mercury right away — don't wait for clipboard
+  window.open('https://app.mercury.com/command', '_blank');
+
+  // Try modern clipboard API, fall back to execCommand
+  function fallbackCopy() {
+    const ta = document.createElement('textarea');
+    ta.value = prompt;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(prompt).catch(fallbackCopy);
+  } else {
+    fallbackCopy();
+  }
+
+  btn.textContent = 'Prompt copied! Paste into Mercury Command.';
+  setTimeout(function() { btn.textContent = 'Send to Mercury Command'; }, 3000);
 }
 </script>
 {% endblock %}
