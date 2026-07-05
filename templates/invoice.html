@@ -59,17 +59,14 @@
           </td>
           <td>
             {% if r.total_pcs and r.unit_price %}
-            <button type="button" class="btn btn-ghost btn-sm" id="btn-{{ r.client_id }}"
-                    onclick="sendToCommand(
-                      {{ r.client_id }},
-                      {{ r.name|tojson }},
-                      {{ r.contact_email|tojson }},
-                      {{ r.total_pcs }},
-                      {{ '%.2f'|format(r.unit_price) }},
-                      {{ '%.2f'|format(r.total_amount) }},
-                      {{ date_from|tojson }},
-                      {{ date_to|tojson }}
-                    )">
+            <button type="button" class="btn btn-ghost btn-sm mercury-cmd-btn"
+                    data-name="{{ r.name|e }}"
+                    data-email="{{ r.contact_email|e }}"
+                    data-pcs="{{ r.total_pcs }}"
+                    data-price="{{ '%.2f'|format(r.unit_price) }}"
+                    data-amount="{{ '%.2f'|format(r.total_amount) }}"
+                    data-from="{{ date_from }}"
+                    data-to="{{ date_to }}">
               Send to Mercury Command
             </button>
             {% else %}
@@ -99,27 +96,34 @@
 </form>
 
 <script>
-function sendToCommand(clientId, name, email, pcs, unitPrice, amount, from, to) {
+document.addEventListener('click', function(ev) {
+  const btn = ev.target.closest('.mercury-cmd-btn');
+  if (!btn) return;
+
+  const name   = btn.dataset.name;
+  const email  = btn.dataset.email;
+  const pcs    = btn.dataset.pcs;
+  const price  = btn.dataset.price;
+  const amount = btn.dataset.amount;
+  const from   = btn.dataset.from;
+  const to     = btn.dataset.to;
+
   const emailPart = email ? ' Send to ' + email + '.' : '';
   const prompt =
     'Create an invoice for ' + name + ' for the period ' + from + ' to ' + to +
-    ' for ' + pcs + ' daifuku at $' + unitPrice + ' each, totaling $' + amount + '.' +
+    ' for ' + pcs + ' daifuku at $' + price + ' each, totaling $' + amount + '.' +
     emailPart;
 
-  const btn = document.getElementById('btn-' + clientId);
-
-  // Open Mercury right away — don't wait for clipboard
+  // Open Mercury right away
   window.open('https://app.mercury.com/command', '_blank');
 
-  // Try modern clipboard API, fall back to execCommand
+  // Copy prompt — try Clipboard API, fall back to execCommand
   function fallbackCopy() {
     const ta = document.createElement('textarea');
     ta.value = prompt;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
+    ta.style.cssText = 'position:fixed;opacity:0';
     document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
+    ta.focus(); ta.select();
     try { document.execCommand('copy'); } catch(e) {}
     document.body.removeChild(ta);
   }
@@ -132,6 +136,6 @@ function sendToCommand(clientId, name, email, pcs, unitPrice, amount, from, to) 
 
   btn.textContent = 'Prompt copied! Paste into Mercury Command.';
   setTimeout(function() { btn.textContent = 'Send to Mercury Command'; }, 3000);
-}
+});
 </script>
 {% endblock %}
