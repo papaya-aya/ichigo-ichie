@@ -40,10 +40,10 @@
             <b>{{ r.name }}</b>
           </td>
           <td>
-            <input type="email" name="email_{{ r.client_id }}"
+            <input type="text" name="email_{{ r.client_id }}"
                    value="{{ r.contact_email }}"
-                   placeholder="billing@client.com"
-                   style="width:13rem; font-size:.85em">
+                   placeholder="a@co.com, b@co.com"
+                   style="width:16rem; font-size:.85em">
           </td>
           <td style="text-align:right">
             {% if r.total_pcs %}{{ r.total_pcs }}{% else %}<span class="muted">—</span>{% endif %}
