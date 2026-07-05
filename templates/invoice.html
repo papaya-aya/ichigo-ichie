@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Invoice</h1>
-<p class="subtitle">Set each client's unit price, then send invoices to Mercury.</p>
+<p class="subtitle">Set each client's unit price, then open Mercury to create the invoice.</p>
 
 {# ── Date range picker ───────────────────────────────────────────────────── #}
 <form method="get" class="card row-actions" style="margin-bottom:1.2rem; flex-wrap:wrap; gap:0.6rem; align-items:flex-end">
@@ -53,20 +53,24 @@
                    value="{{ '%.2f'|format(r.unit_price) }}"
                    min="0" step="0.01" style="width:6rem; text-align:right">
           </td>
-          <td style="text-align:right; font-weight:{% if r.total_amount %}600{% else %}400{% endif %}">
-            {% if r.total_amount %}
-              ${{ '%.2f'|format(r.total_amount) }}
-            {% else %}
-              <span class="muted">—</span>
-            {% endif %}
+          <td style="text-align:right; font-weight:{{ '600' if r.total_amount else '400' }}">
+            {% if r.total_amount %}${{ '%.2f'|format(r.total_amount) }}
+            {% else %}<span class="muted">—</span>{% endif %}
           </td>
           <td>
             {% if r.total_pcs and r.unit_price %}
             <button type="button" class="btn btn-ghost btn-sm"
-                    onclick="openMercury({{ r.client_id }}, '{{ r.name|replace("'","\\'")|e }}',
-                                         {{ r.total_amount }}, '{{ r.contact_email }}',
-                                         '{{ date_from }}', '{{ date_to }}')">
-              Send to Mercury
+                    onclick="openMercuryModal(
+                      {{ r.client_id }},
+                      {{ r.name|tojson }},
+                      {{ r.contact_email|tojson }},
+                      {{ r.total_pcs }},
+                      {{ '%.2f'|format(r.unit_price) }},
+                      {{ '%.2f'|format(r.total_amount) }},
+                      {{ date_from|tojson }},
+                      {{ date_to|tojson }}
+                    )">
+              Create in Mercury →
             </button>
             {% else %}
             <span class="muted" style="font-size:.82rem">Set price first</span>
@@ -94,82 +98,96 @@
   </div>
 </form>
 
-{# ── Mercury invoice dialog ───────────────────────────────────────────────── #}
+{# ── Mercury helper modal ─────────────────────────────────────────────────── #}
 <div id="mercury-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
      z-index:1000; align-items:center; justify-content:center">
-  <div style="background:var(--card-bg,#fff); border-radius:.75rem; padding:1.5rem;
-              max-width:28rem; width:92%; box-shadow:0 8px 32px rgba(0,0,0,.18)">
-    <h2 style="margin-top:0">Send invoice to Mercury</h2>
-    <form id="mercury-form" method="post"
-          action="{{ url_for('invoice', **{'from': date_from, 'to': date_to}) }}">
-      <input type="hidden" name="action"    value="send_mercury">
-      <input type="hidden" name="client_id" id="m-client-id">
-      <input type="hidden" name="amount"    id="m-amount">
+  <div style="background:var(--card-bg,#fff); border-radius:.75rem; padding:1.8rem;
+              max-width:30rem; width:92%; box-shadow:0 8px 32px rgba(0,0,0,.2)">
 
-      <p id="m-summary" style="margin:.4rem 0 1rem; font-size:.95rem"></p>
+    <h2 style="margin-top:0" id="m-title">Create invoice in Mercury</h2>
+    <p class="muted" style="margin-top:-.4rem; font-size:.9rem">
+      Copy each field below, then click <b>Open Mercury</b> to fill in their invoice form.
+    </p>
 
-      <label class="field" style="margin-bottom:.7rem">
-        Due date
-        <input type="date" name="due_date" id="m-due-date" value="{{ today }}" required>
-      </label>
+    <div style="display:flex; flex-direction:column; gap:.7rem; margin-bottom:1.2rem">
 
-      <label class="field" style="margin-bottom:1rem">
-        Invoice memo / description
-        <input type="text" name="description" id="m-description"
-               placeholder="Daifuku orders {{ date_from }} – {{ date_to }}"
-               style="width:100%; box-sizing:border-box">
-      </label>
-
-      <div class="row-actions">
-        <button type="submit" class="btn">Send to Mercury</button>
-        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <div class="field" style="margin:0">
+        <span style="font-size:.85rem; color:var(--muted)">Client / recipient</span>
+        <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem">
+          <input type="text" id="m-client" readonly
+                 style="flex:1; background:var(--input-bg,#f9f9f9); font-weight:600">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="copyField('m-client', this)">Copy</button>
+        </div>
       </div>
-    </form>
+
+      <div class="field" style="margin:0">
+        <span style="font-size:.85rem; color:var(--muted)">Contact email</span>
+        <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem">
+          <input type="text" id="m-email" readonly
+                 style="flex:1; background:var(--input-bg,#f9f9f9)">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="copyField('m-email', this)">Copy</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin:0">
+        <span style="font-size:.85rem; color:var(--muted)">Line item description</span>
+        <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem">
+          <input type="text" id="m-description" readonly
+                 style="flex:1; background:var(--input-bg,#f9f9f9)">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="copyField('m-description', this)">Copy</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin:0">
+        <span style="font-size:.85rem; color:var(--muted)">Amount</span>
+        <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem">
+          <input type="text" id="m-amount" readonly
+                 style="flex:1; background:var(--input-bg,#f9f9f9); font-weight:700; font-size:1.05rem">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="copyField('m-amount', this)">Copy</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap">
+      <a id="m-mercury-link" href="https://app.mercury.com/invoices/new"
+         target="_blank" rel="noopener" class="btn"
+         style="text-decoration:none">
+        Open Mercury →
+      </a>
+      <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
+    </div>
   </div>
 </div>
 
-{# ── Mercury API key setting ──────────────────────────────────────────────── #}
-<div class="card" style="margin-top:1.5rem">
-  <h2 style="margin-top:0">Mercury API key</h2>
-  {% if mercury_key %}
-    <p class="ok" style="margin:0 0 .6rem">✓ API key is set.</p>
-  {% else %}
-    <p class="muted" style="margin:0 0 .6rem">No API key set. Add your Mercury API key to enable invoice sending.</p>
-  {% endif %}
-  <form method="post" action="{{ url_for('invoice', **{'from': date_from, 'to': date_to}) }}"
-        style="display:flex; gap:.5rem; align-items:flex-end; flex-wrap:wrap">
-    <input type="hidden" name="action" value="save_mercury_key">
-    <label class="field" style="flex:1; min-width:18rem">
-      Mercury API key
-      <input type="password" name="mercury_api_key"
-             value="{{ mercury_key }}"
-             placeholder="Paste your Mercury API key"
-             autocomplete="off">
-    </label>
-    <button type="submit">Save key</button>
-  </form>
-  <p class="help" style="margin-top:.5rem">
-    Find your API key in Mercury → Settings → API.
-    The invoice endpoint used is <code>POST https://api.mercury.com/api/v1/invoices</code>.
-  </p>
-</div>
-
 <script>
-function openMercury(clientId, clientName, amount, email, from, to) {
-  document.getElementById('m-client-id').value  = clientId;
-  document.getElementById('m-amount').value     = amount;
+function openMercuryModal(clientId, name, email, pcs, unitPrice, amount, from, to) {
+  document.getElementById('m-title').textContent = 'Create invoice — ' + name;
+  document.getElementById('m-client').value      = name;
+  document.getElementById('m-email').value       = email || '(not set — add in the table above)';
   document.getElementById('m-description').value =
-    'Daifuku orders ' + from + ' – ' + to;
-  document.getElementById('m-summary').textContent =
-    clientName + ' · $' + amount.toFixed(2) + (email ? ' → ' + email : '');
+    pcs + ' pcs × $' + unitPrice + ' — daifuku orders ' + from + ' to ' + to;
+  document.getElementById('m-amount').value = '$' + amount;
+
   const modal = document.getElementById('mercury-modal');
   modal.style.display = 'flex';
 }
+
 function closeModal() {
   document.getElementById('mercury-modal').style.display = 'none';
 }
+
 document.getElementById('mercury-modal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
+
+function copyField(id, btn) {
+  const val = document.getElementById(id).value.replace(/^\$/, '');
+  navigator.clipboard.writeText(val).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+}
 </script>
 {% endblock %}
