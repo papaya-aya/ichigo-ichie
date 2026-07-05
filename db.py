@@ -182,6 +182,7 @@ def init_db():
     _seed_setting(conn, "gusto_rate",            "20.00")
     _seed_setting(conn, "strawberry_price",      "10.00")
     _seed_setting(conn, "delivery_transport",    "6.00")
+    _seed_setting(conn, "mercury_api_key",       "")
 
     # Seed shift templates
     if conn.execute("SELECT COUNT(*) AS n FROM shift_templates").fetchone()["n"] == 0:

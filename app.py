@@ -5,6 +5,7 @@ import urllib.request
 import json as _json
 from datetime import date, datetime, timedelta
 from functools import wraps
+import requests as _requests
 
 from flask import (
     Flask, abort, flash, g, redirect, render_template, request, session, url_for
@@ -2994,6 +2995,139 @@ def delete_shift_report(report_id):
     g.db.commit()
     flash("Report deleted. The manager can now submit a fresh report.", "success")
     return redirect(url_for("approvals"))
+
+
+@app.route("/owner/invoice", methods=["GET", "POST"])
+@require_owner
+def invoice():
+    today = date.today()
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+
+        if action == "save_mercury_key":
+            key = request.form.get("mercury_api_key", "").strip()
+            database.set_setting(g.db, "mercury_api_key", key)
+            g.db.commit()
+            flash("Mercury API key saved.", "success")
+            return redirect(url_for("invoice",
+                                    **{k: v for k, v in request.args.items()}))
+
+        elif action == "save_prices":
+            date_from = request.form.get("date_from", "")
+            date_to   = request.form.get("date_to",   "")
+            for cid in request.form.getlist("client_id"):
+                try:
+                    price = float(request.form.get(f"price_{cid}", "0") or 0)
+                except ValueError:
+                    price = 0.0
+                email = request.form.get(f"email_{cid}", "").strip()
+                g.db.execute(
+                    "UPDATE clients SET unit_price=?, contact_email=? WHERE id=?",
+                    (price, email, int(cid)),
+                )
+            g.db.commit()
+            flash("Prices updated.", "success")
+            return redirect(url_for("invoice", **{"from": date_from, "to": date_to}))
+
+        elif action == "send_mercury":
+            mercury_key = database.get_setting(g.db, "mercury_api_key", "")
+            if not mercury_key:
+                flash("Mercury API key not set — add it in the Settings section.", "error")
+                return redirect(url_for("invoice",
+                                        **{k: v for k, v in request.args.items()}))
+            client_id     = int(request.form.get("client_id", 0))
+            amount_str    = request.form.get("amount", "0")
+            description   = request.form.get("description", "")
+            due_date      = request.form.get("due_date", today.isoformat())
+            try:
+                amount_cents = int(round(float(amount_str) * 100))
+            except (ValueError, TypeError):
+                amount_cents = 0
+            client = g.db.execute(
+                "SELECT * FROM clients WHERE id=?", (client_id,)
+            ).fetchone()
+            if not client or not (client["contact_email"] or "").strip():
+                flash("No contact email for this client — add one in the Prices section.", "error")
+                return redirect(url_for("invoice",
+                                        **{k: v for k, v in request.args.items()}))
+            try:
+                resp = _requests.post(
+                    "https://api.mercury.com/api/v1/invoices",
+                    headers={
+                        "Authorization": f"Bearer {mercury_key}",
+                        "Content-Type":  "application/json",
+                    },
+                    json={
+                        "recipientName":  client["name"],
+                        "recipientEmail": client["contact_email"],
+                        "lineItems": [{
+                            "description": description,
+                            "amount":      amount_cents,
+                            "quantity":    1,
+                        }],
+                        "dueDate": due_date,
+                    },
+                    timeout=15,
+                )
+                if resp.ok:
+                    data = resp.json()
+                    inv_url = data.get("url") or data.get("invoiceUrl") or data.get("paymentUrl") or ""
+                    msg = f"Invoice created in Mercury for {client['name']}."
+                    if inv_url:
+                        msg += f" <a href='{inv_url}' target='_blank'>View →</a>"
+                    flash(msg, "success")
+                else:
+                    flash(f"Mercury error {resp.status_code}: {resp.text[:300]}", "error")
+            except Exception as exc:
+                flash(f"Could not reach Mercury: {exc}", "error")
+            return redirect(url_for("invoice",
+                                    **{k: v for k, v in request.args.items()}))
+
+    # --- GET ---
+    date_from = request.args.get("from") or today.strftime("%Y-%m-01")
+    date_to   = request.args.get("to")   or today.isoformat()
+
+    clients = g.db.execute(
+        "SELECT id, name, unit_price, contact_email FROM clients WHERE active=1 ORDER BY name"
+    ).fetchall()
+
+    order_rows = g.db.execute(
+        """SELECT client_id,
+                  SUM(qty_original + qty_matcha + qty_hojicha + qty_other) AS total_pcs
+             FROM orders
+            WHERE COALESCE(delivery_date, date) BETWEEN ? AND ?
+              AND (is_pickup IS NULL OR is_pickup = 0)
+            GROUP BY client_id""",
+        (date_from, date_to),
+    ).fetchall()
+    pcs_by_client = {r["client_id"]: (r["total_pcs"] or 0) for r in order_rows}
+
+    invoice_rows = []
+    for c in clients:
+        pcs   = pcs_by_client.get(c["id"], 0)
+        price = float(c["unit_price"] or 0)
+        invoice_rows.append({
+            "client_id":     c["id"],
+            "name":          c["name"],
+            "contact_email": c["contact_email"] or "",
+            "unit_price":    price,
+            "total_pcs":     pcs,
+            "total_amount":  round(pcs * price, 2),
+        })
+
+    grand_total = sum(r["total_amount"] for r in invoice_rows)
+    mercury_key = database.get_setting(g.db, "mercury_api_key", "")
+
+    return render_template(
+        "invoice.html",
+        date_from=date_from,
+        date_to=date_to,
+        invoice_rows=invoice_rows,
+        grand_total=grand_total,
+        mercury_key=mercury_key,
+        today=today.isoformat(),
+    )
 
 
 if __name__ == "__main__":
