@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Invoice</h1>
-<p class="subtitle">Set each client's unit price, then open Mercury to create the invoice.</p>
+<p class="subtitle">Set each client's unit price, then send the invoice prompt to Mercury Command.</p>
 
 {# ── Date range picker ───────────────────────────────────────────────────── #}
 <form method="get" class="card row-actions" style="margin-bottom:1.2rem; flex-wrap:wrap; gap:0.6rem; align-items:flex-end">
@@ -59,8 +59,8 @@
           </td>
           <td>
             {% if r.total_pcs and r.unit_price %}
-            <button type="button" class="btn btn-ghost btn-sm"
-                    onclick="openMercuryModal(
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-{{ r.client_id }}"
+                    onclick="sendToCommand(
                       {{ r.client_id }},
                       {{ r.name|tojson }},
                       {{ r.contact_email|tojson }},
@@ -70,7 +70,7 @@
                       {{ date_from|tojson }},
                       {{ date_to|tojson }}
                     )">
-              Create in Mercury →
+              Send to Mercury Command
             </button>
             {% else %}
             <span class="muted" style="font-size:.82rem">Set price first</span>
@@ -98,95 +98,25 @@
   </div>
 </form>
 
-{# ── Mercury helper modal ─────────────────────────────────────────────────── #}
-<div id="mercury-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
-     z-index:1000; align-items:center; justify-content:center">
-  <div style="background:var(--card-bg,#fff); border-radius:.75rem; padding:1.8rem;
-              max-width:30rem; width:92%; box-shadow:0 8px 32px rgba(0,0,0,.2)">
-
-    <h2 style="margin-top:0" id="m-title">Create invoice in Mercury</h2>
-    <p class="muted" style="margin-top:-.4rem; font-size:.9rem">
-      Copy each field below, then click <b>Open Mercury</b> to fill in their invoice form.
-    </p>
-
-    <div style="display:flex; flex-direction:column; gap:.7rem; margin-bottom:1.2rem">
-
-      <div class="field" style="margin:0">
-        <span style="font-size:.85rem; color:var(--muted)">Client / recipient</span>
-        <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem">
-          <input type="text" id="m-client" readonly
-                 style="flex:1; background:var(--input-bg,#f9f9f9); font-weight:600">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="copyField('m-client', this)">Copy</button>
-        </div>
-      </div>
-
-      <div class="field" style="margin:0">
-        <span style="font-size:.85rem; color:var(--muted)">Contact email</span>
-        <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem">
-          <input type="text" id="m-email" readonly
-                 style="flex:1; background:var(--input-bg,#f9f9f9)">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="copyField('m-email', this)">Copy</button>
-        </div>
-      </div>
-
-      <div class="field" style="margin:0">
-        <span style="font-size:.85rem; color:var(--muted)">Line item description</span>
-        <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem">
-          <input type="text" id="m-description" readonly
-                 style="flex:1; background:var(--input-bg,#f9f9f9)">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="copyField('m-description', this)">Copy</button>
-        </div>
-      </div>
-
-      <div class="field" style="margin:0">
-        <span style="font-size:.85rem; color:var(--muted)">Amount</span>
-        <div style="display:flex; gap:.4rem; align-items:center; margin-top:.2rem">
-          <input type="text" id="m-amount" readonly
-                 style="flex:1; background:var(--input-bg,#f9f9f9); font-weight:700; font-size:1.05rem">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="copyField('m-amount', this)">Copy</button>
-        </div>
-      </div>
-
-    </div>
-
-    <div style="display:flex; gap:.5rem; flex-wrap:wrap">
-      <a id="m-mercury-link" href="https://app.mercury.com/invoices/new"
-         target="_blank" rel="noopener" class="btn"
-         style="text-decoration:none">
-        Open Mercury →
-      </a>
-      <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
-    </div>
-  </div>
-</div>
-
 <script>
-function openMercuryModal(clientId, name, email, pcs, unitPrice, amount, from, to) {
-  document.getElementById('m-title').textContent = 'Create invoice — ' + name;
-  document.getElementById('m-client').value      = name;
-  document.getElementById('m-email').value       = email || '(not set — add in the table above)';
-  document.getElementById('m-description').value =
-    pcs + ' pcs × $' + unitPrice + ' — daifuku orders ' + from + ' to ' + to;
-  document.getElementById('m-amount').value = '$' + amount;
+function sendToCommand(clientId, name, email, pcs, unitPrice, amount, from, to) {
+  const emailPart = email ? ' Send to ' + email + '.' : '';
+  const prompt =
+    'Create an invoice for ' + name + ' for the period ' + from + ' to ' + to +
+    ' for ' + pcs + ' daifuku at $' + unitPrice + ' each, totaling $' + amount + '.' +
+    emailPart;
 
-  const modal = document.getElementById('mercury-modal');
-  modal.style.display = 'flex';
-}
-
-function closeModal() {
-  document.getElementById('mercury-modal').style.display = 'none';
-}
-
-document.getElementById('mercury-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
-
-function copyField(id, btn) {
-  const val = document.getElementById(id).value.replace(/^\$/, '');
-  navigator.clipboard.writeText(val).then(() => {
-    const orig = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 1500);
+  navigator.clipboard.writeText(prompt).then(function() {
+    const btn = document.getElementById('btn-' + clientId);
+    btn.textContent = 'Prompt copied! Opening Mercury…';
+    btn.disabled = true;
+    setTimeout(function() {
+      window.open('https://app.mercury.com/command', '_blank');
+      setTimeout(function() {
+        btn.textContent = 'Send to Mercury Command';
+        btn.disabled = false;
+      }, 2000);
+    }, 300);
   });
 }
 </script>
