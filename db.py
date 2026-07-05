@@ -155,6 +155,11 @@ def migrate_db():
             "ALTER TABLE shift_reports ALTER COLUMN submitted_by DROP NOT NULL"
         )
         conn.commit()
+
+    # 2026-07-05: rename clients to match Mercury system names.
+    conn.execute("UPDATE clients SET name='Blue Willow Teaspot' WHERE name='BWT'")
+    conn.execute("UPDATE clients SET name='Asha Tea' WHERE name='Asha'")
+    conn.commit()
     conn.close()
 
 
