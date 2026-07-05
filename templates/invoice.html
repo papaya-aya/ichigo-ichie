@@ -111,7 +111,8 @@ document.addEventListener('click', function(ev) {
   const emailPart = email ? ' Send to ' + email + '.' : '';
   const prompt =
     'Create an invoice for ' + name + ' for the period ' + from + ' to ' + to +
-    ' for ' + pcs + ' daifuku at $' + price + ' each, totaling $' + amount + '.' +
+    ' for ' + pcs + ' daifuku at $' + price + ' each, totaling $' + amount +
+    '. Enable payment by credit card.' +
     emailPart;
 
   // Open Mercury right away
