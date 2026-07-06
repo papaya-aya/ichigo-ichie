@@ -26,7 +26,8 @@
         <tr>
           <th>Client</th>
           <th>Contact email</th>
-          <th style="text-align:right">Pieces</th>
+          <th style="text-align:right">Ordered</th>
+          <th style="text-align:right">Sold <span class="muted" style="font-weight:400; font-size:.8em">(consignment)</span></th>
           <th style="text-align:right">Unit price ($/pc)</th>
           <th style="text-align:right">Amount</th>
           <th></th>
@@ -34,7 +35,13 @@
       </thead>
       <tbody>
         {% for r in invoice_rows %}
-        <tr>
+        <tr data-cid="{{ r.client_id }}"
+            data-ordered="{{ r.total_pcs }}"
+            data-price="{{ '%.2f'|format(r.unit_price) }}"
+            data-name="{{ r.name|e }}"
+            data-email="{{ r.contact_email|e }}"
+            data-from="{{ date_from }}"
+            data-to="{{ date_to }}">
           <td>
             <input type="hidden" name="client_id" value="{{ r.client_id }}">
             <b>{{ r.name }}</b>
@@ -45,28 +52,29 @@
                    placeholder="a@co.com, b@co.com"
                    style="width:16rem; font-size:.85em">
           </td>
+          <td style="text-align:right; color:var(--muted)">
+            {% if r.total_pcs %}{{ r.total_pcs }}{% else %}—{% endif %}
+          </td>
           <td style="text-align:right">
-            {% if r.total_pcs %}{{ r.total_pcs }}{% else %}<span class="muted">—</span>{% endif %}
+            <input type="number" class="sold-input"
+                   min="0" step="1" placeholder="—"
+                   style="width:5rem; text-align:right"
+                   oninput="recalcRow(this.closest('tr'))">
           </td>
           <td style="text-align:right">
             <input type="number" name="price_{{ r.client_id }}"
                    value="{{ '%.2f'|format(r.unit_price) }}"
-                   min="0" step="0.01" style="width:6rem; text-align:right">
+                   min="0" step="0.01" style="width:6rem; text-align:right"
+                   oninput="recalcRow(this.closest('tr'))">
           </td>
-          <td style="text-align:right; font-weight:{{ '600' if r.total_amount else '400' }}">
+          <td style="text-align:right; font-weight:{{ '600' if r.total_amount else '400' }}"
+              class="amount-cell">
             {% if r.total_amount %}${{ '%.2f'|format(r.total_amount) }}
             {% else %}<span class="muted">—</span>{% endif %}
           </td>
           <td>
-            {% if r.total_pcs and r.unit_price %}
-            <button type="button" class="btn btn-ghost btn-sm mercury-cmd-btn"
-                    data-name="{{ r.name|e }}"
-                    data-email="{{ r.contact_email|e }}"
-                    data-pcs="{{ r.total_pcs }}"
-                    data-price="{{ '%.2f'|format(r.unit_price) }}"
-                    data-amount="{{ '%.2f'|format(r.total_amount) }}"
-                    data-from="{{ date_from }}"
-                    data-to="{{ date_to }}">
+            {% if r.unit_price %}
+            <button type="button" class="btn btn-ghost btn-sm mercury-cmd-btn">
               Send to Mercury Command
             </button>
             {% else %}
@@ -82,7 +90,8 @@
           <td></td>
           <td style="text-align:right"><b>{{ invoice_rows|sum(attribute='total_pcs') }}</b></td>
           <td></td>
-          <td style="text-align:right"><b>${{ '%.2f'|format(grand_total) }}</b></td>
+          <td></td>
+          <td style="text-align:right" id="grand-total"><b>${{ '%.2f'|format(grand_total) }}</b></td>
           <td></td>
         </tr>
       </tfoot>
@@ -91,34 +100,67 @@
     <div class="row-actions" style="margin-top:.8rem">
       <button type="submit">Save prices &amp; emails</button>
     </div>
-    <p class="help">Prices and emails are saved per client and persist across periods.</p>
+    <p class="help">Prices and emails are saved per client and persist across periods.
+      Leave <b>Sold</b> blank to invoice for the full ordered quantity.</p>
   </div>
 </form>
 
 <script>
+function recalcRow(tr) {
+  const ordered  = parseFloat(tr.dataset.ordered) || 0;
+  const soldInput = tr.querySelector('.sold-input');
+  const priceInput = tr.querySelector('input[name^="price_"]');
+  const amountCell = tr.querySelector('.amount-cell');
+
+  const sold  = soldInput.value !== '' ? parseFloat(soldInput.value) : ordered;
+  const price = parseFloat(priceInput.value) || 0;
+  const amount = sold * price;
+
+  amountCell.style.fontWeight = amount ? '600' : '400';
+  amountCell.innerHTML = amount ? '$' + amount.toFixed(2) : '<span class="muted">—</span>';
+
+  // Update grand total
+  let grand = 0;
+  document.querySelectorAll('tbody tr[data-cid]').forEach(function(row) {
+    const s = row.querySelector('.sold-input');
+    const p = row.querySelector('input[name^="price_"]');
+    const o = parseFloat(row.dataset.ordered) || 0;
+    const qty = (s && s.value !== '') ? parseFloat(s.value) : o;
+    grand += qty * (parseFloat(p && p.value) || 0);
+  });
+  document.getElementById('grand-total').innerHTML = '<b>$' + grand.toFixed(2) + '</b>';
+}
+
 document.addEventListener('click', function(ev) {
   const btn = ev.target.closest('.mercury-cmd-btn');
   if (!btn) return;
 
-  const name   = btn.dataset.name;
-  const email  = btn.dataset.email;
-  const pcs    = btn.dataset.pcs;
-  const price  = btn.dataset.price;
-  const amount = btn.dataset.amount;
-  const from   = btn.dataset.from;
-  const to     = btn.dataset.to;
+  const tr      = btn.closest('tr');
+  const name    = tr.dataset.name;
+  const email   = tr.dataset.email;
+  const ordered = parseFloat(tr.dataset.ordered) || 0;
+  const from    = tr.dataset.from;
+  const to      = tr.dataset.to;
+
+  const soldInput  = tr.querySelector('.sold-input');
+  const priceInput = tr.querySelector('input[name^="price_"]');
+  const pcs   = (soldInput && soldInput.value !== '') ? parseFloat(soldInput.value) : ordered;
+  const price = parseFloat(priceInput && priceInput.value) || 0;
+  const amount = (pcs * price).toFixed(2);
+
+  if (!pcs || !price) {
+    alert('Set a unit price (and sold quantity if consignment) before sending.');
+    return;
+  }
 
   const emailPart = email ? ' Send to ' + email + '.' : '';
   const prompt =
     'Create an invoice for ' + name + ' for the period ' + from + ' to ' + to +
-    ' for ' + pcs + ' daifuku at $' + price + ' each, totaling $' + amount +
-    '. Enable payment by credit card.' +
-    emailPart;
+    ' for ' + pcs + ' daifuku at $' + price.toFixed(2) + ' each, totaling $' + amount +
+    '. Enable payment by credit card.' + emailPart;
 
-  // Open Mercury right away
   window.open('https://app.mercury.com/command', '_blank');
 
-  // Copy prompt — try Clipboard API, fall back to execCommand
   function fallbackCopy() {
     const ta = document.createElement('textarea');
     ta.value = prompt;
