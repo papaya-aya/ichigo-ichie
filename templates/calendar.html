@@ -129,10 +129,17 @@ function copyPubLink() {
         <div class="shift-people">
           {% if day.shift.people %}
             {% for p in day.shift.people %}
+              {% set late  = p.start != day.shift.inst.start_time %}
+              {% set early = p.end   != day.shift.inst.end_time %}
+              {% if late and early %}{% set time_note = p.start ~ '–' ~ p.end %}
+              {% elif early %}{% set time_note = 'until ' ~ p.end %}
+              {% elif late  %}{% set time_note = 'from '  ~ p.start %}
+              {% else %}{% set time_note = '' %}{% endif %}
+              {% set label %}{{ p.name }}{% if p.is_manager %} 👑{% endif %}{% if time_note %} <span style="font-weight:400;font-size:.78em;opacity:.75">({{ time_note }})</span>{% endif %}{% endset %}
               {% if current_emp_id and p.employee_id == current_emp_id %}
-                <span class="pill shift-me">{{ p.name }}{% if p.is_manager %} 👑{% endif %}</span>
+                <span class="pill shift-me">{{ label }}</span>
               {% else %}
-                <span class="pill shift-other">{{ p.name }}{% if p.is_manager %} 👑{% endif %}</span>
+                <span class="pill shift-other">{{ label }}</span>
               {% endif %}
             {% endfor %}
           {% else %}
