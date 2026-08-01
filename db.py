@@ -170,7 +170,8 @@ def migrate_db():
         conn.execute(
             """DELETE FROM orders
                 WHERE client_id = (SELECT id FROM clients WHERE name = 'Teance')
-                  AND COALESCE(delivery_date, date) LIKE '2026-08-%'"""
+                  AND COALESCE(delivery_date, orders.date) LIKE ?""",
+            ("2026-08-%",),
         )
         conn.execute(
             "INSERT INTO settings (key, value) VALUES ('cleanup_teance_aug_2026', '1')"
