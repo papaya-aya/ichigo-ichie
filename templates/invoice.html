@@ -153,11 +153,14 @@ document.addEventListener('click', function(ev) {
     return;
   }
 
+  const today = new Date().toISOString().slice(0, 10);
   const emailPart = email ? ' Send to ' + email + '.' : '';
   const prompt =
     'Create an invoice for ' + name + ' for the period ' + from + ' to ' + to +
     ' for ' + pcs + ' daifuku at $' + price.toFixed(2) + ' each, totaling $' + amount +
-    '. Enable payment by credit card.' + emailPart;
+    '. Use today (' + today + ') as the invoice date. Payment terms: Net 15.' +
+    ' Send from the checking account. Enable payment by credit card.' +
+    ' Enable reminders.' + emailPart;
 
   window.open('https://app.mercury.com/command', '_blank');
 
