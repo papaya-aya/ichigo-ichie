@@ -162,6 +162,22 @@ def migrate_db():
     # 2026-07-31: Shoji self-picks up — no driver needed.
     conn.execute("UPDATE clients SET default_deliverer='pick-up' WHERE name='Shoji'")
     conn.commit()
+
+    # 2026-07-31: remove Teance from all August 2026 deliveries (one-time).
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='cleanup_teance_aug_2026'"
+    ).fetchone():
+        conn.execute(
+            """DELETE FROM orders
+                WHERE client_id = (SELECT id FROM clients WHERE name = 'Teance')
+                  AND COALESCE(delivery_date, date) LIKE '2026-08-%'"""
+        )
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('cleanup_teance_aug_2026', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     conn.close()
 
 
