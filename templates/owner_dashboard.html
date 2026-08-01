@@ -67,6 +67,11 @@
     <div class="shift-actions">
       <a class="btn btn-ghost btn-sm" href="{{ url_for('shift_detail', instance_id=row.inst.instance_id) }}">Staff</a>
       <a class="btn btn-ghost btn-sm" href="{{ url_for('orders_day', date=row.inst.date) }}">Orders</a>
+      <form method="post" action="{{ url_for('delete_shift_instance', instance_id=row.inst.instance_id) }}" class="inline-form"
+            onsubmit="return confirm('Delete the {{ row.weekday }} {{ row.inst.date }} shift? This removes all assignments and availability for this day.')">
+        <input type="hidden" name="month" value="{{ dash_month }}">
+        <button type="submit" class="btn-ghost btn-sm" style="color:var(--red,#e53935);border-color:var(--red,#e53935)">Delete</button>
+      </form>
     </div>
   </div>
   {% endfor %}

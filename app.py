@@ -2293,6 +2293,20 @@ def deliveries_day(date):
     )
 
 
+@app.route("/owner/deliveries/<string:del_date>/client/<int:client_id>/delete", methods=["POST"])
+@require_owner
+def delete_client_delivery(del_date, client_id):
+    g.db.execute(
+        """DELETE FROM orders
+            WHERE client_id=? AND COALESCE(delivery_date, date)=?
+              AND (is_pickup IS NULL OR is_pickup=0)""",
+        (client_id, del_date),
+    )
+    g.db.commit()
+    flash("Delivery removed.", "success")
+    return redirect(url_for("deliveries_day", date=del_date))
+
+
 # ---------------------------------------------------------------------------
 # Owner — approvals
 # ---------------------------------------------------------------------------
@@ -2482,6 +2496,28 @@ def fix_assignment_conflicts():
     g.db.commit()
     flash("Conflicting assignments removed.", "success")
     return redirect(url_for("approvals"))
+
+
+# ---------------------------------------------------------------------------
+@app.route("/owner/shift/<int:instance_id>/delete", methods=["POST"])
+@require_owner
+def delete_shift_instance(instance_id):
+    """Delete a shift instance and all its dependent rows (assignments, availability, reports)."""
+    report_rows = g.db.execute(
+        "SELECT id FROM shift_reports WHERE shift_instance_id=?", (instance_id,)
+    ).fetchall()
+    if report_rows:
+        ids = [r["id"] for r in report_rows]
+        ph  = ",".join("?" * len(ids))
+        g.db.execute(f"DELETE FROM shift_report_hours WHERE report_id IN ({ph})", ids)
+        g.db.execute(f"DELETE FROM shift_reports WHERE id IN ({ph})", ids)
+    g.db.execute("DELETE FROM assignments WHERE shift_instance_id=?", (instance_id,))
+    g.db.execute("DELETE FROM availability WHERE shift_instance_id=?", (instance_id,))
+    g.db.execute("DELETE FROM shift_instances WHERE id=?", (instance_id,))
+    g.db.commit()
+    flash("Shift deleted.", "success")
+    month = request.form.get("month", "")
+    return redirect(url_for("owner_dashboard", month=month) if month else url_for("owner_dashboard"))
 
 
 # ---------------------------------------------------------------------------
