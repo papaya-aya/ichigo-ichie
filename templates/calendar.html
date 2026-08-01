@@ -149,8 +149,8 @@ function copyPubLink() {
 
         {% if is_owner %}
         <div class="shift-actions">
-          <a class="btn btn-sm" href="{{ url_for('shift_detail', instance_id=day.shift.inst.instance_id) }}" title="Assign staff">👥 Staff</a>
-          <a class="btn btn-ghost btn-sm" href="{{ url_for('orders_day', date=day.date) }}" title="Edit orders">📋 Orders</a>
+          <a class="btn btn-sm" href="{{ url_for('shift_detail', instance_id=day.shift.inst.instance_id, back=month) }}" title="Assign staff">👥 Staff</a>
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('orders_day', date=day.date, back=month) }}" title="Edit orders">📋 Orders</a>
           <form method="post" action="{{ url_for('delete_shift_instance', instance_id=day.shift.inst.instance_id) }}" class="inline-form"
                 onsubmit="return confirm('Delete the {{ day.weekday }} {{ day.date }} shift? This removes all assignments and availability for this day.')">
             <input type="hidden" name="month" value="{{ month }}">

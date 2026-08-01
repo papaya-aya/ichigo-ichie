@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
+{% if back %}
+<p><a href="{{ url_for('calendar_view', month=back) }}">← Back to calendar</a></p>
+{% else %}
 <p><a href="{{ url_for('owner_schedule', month=inst.date[:7]) }}">← Back to schedule</a></p>
+{% endif %}
 <h1>{{ weekday }} {{ inst.date }} · {{ inst.label }}</h1>
 <p class="subtitle">Shift hours {{ inst.start_time }}–{{ inst.end_time }} ·
   target {{ inst.min_people }}–{{ inst.max_people }} people</p>
@@ -8,7 +12,7 @@
 <div class="card">
   <h2 style="margin-top:0">Production &amp; demand
     <span class="pill">{{ totals.total }} pcs ordered</span>
-    <a class="btn btn-ghost btn-sm" href="{{ url_for('orders_day', date=inst.date) }}" style="float:right">Edit orders</a>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('orders_day', date=inst.date, back=back) }}" style="float:right">Edit orders</a>
   </h2>
 
   {% if totals.total %}
@@ -79,11 +83,13 @@
 
   <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.6rem">
     <form method="post" class="inline-form">
+      <input type="hidden" name="back" value="{{ back }}">
       <button type="submit" name="action" value="auto"
               title="Picks the optimal subset using the scheduler algorithm">⚡ Smart auto-assign</button>
     </form>
     {% if candidates %}
     <form method="post" class="inline-form">
+      <input type="hidden" name="back" value="{{ back }}">
       <button type="submit" name="action" value="add_all" class="btn-ghost"
               title="Adds every person with approved availability to the shift">✓ Assign all available ({{ candidates|length }})</button>
     </form>
@@ -92,6 +98,7 @@
 </div>
 
 <form method="post">
+  <input type="hidden" name="back" value="{{ back }}">
   <div class="card">
     <h2 style="margin-top:0">People with approved availability</h2>
     {% if not candidates %}

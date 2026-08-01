@@ -2006,8 +2006,11 @@ def orders_day(date):
                          (int(request.form.get("order_id")), date))
             g.db.commit()
             flash("Order removed.", "success")
-        return redirect(url_for("orders_day", date=date))
+        back = request.form.get("back", "")
+        dest = url_for("orders_day", date=date, back=back) if back else url_for("orders_day", date=date)
+        return redirect(dest)
 
+    back = request.args.get("back", "")
     orders = production.orders_for_date(g.db, date)
     order_rows = [{**dict(o), "total": production.order_total(o)} for o in orders]
     clients = g.db.execute(
@@ -2038,6 +2041,7 @@ def orders_day(date):
         totals=totals, flavors=FLAVORS,
         weekday=WEEKDAY_NAMES[wday],
         delivery_suggestions=delivery_suggestions,
+        back=back,
     )
 
 
@@ -2677,8 +2681,11 @@ def shift_detail(instance_id):
             if not errors:
                 flash("Assignment saved.", "success")
 
-        return redirect(url_for("shift_detail", instance_id=instance_id))
+        back = request.form.get("back", "")
+        dest = url_for("shift_detail", instance_id=instance_id, back=back) if back else url_for("shift_detail", instance_id=instance_id)
+        return redirect(dest)
 
+    back = request.args.get("back", "")
     assigned = {a["employee_id"]: a for a in assigned_people(instance_id)}
     cov = coverage(inst, [dict(a) for a in assigned.values()])
 
@@ -2736,6 +2743,7 @@ def shift_detail(instance_id):
         shift_report=shift_report,
         totals=totals, orders=orders, staff=staff, flavors=FLAVORS,
         strawberry_price=STRAWBERRY_PRICE,
+        back=back,
     )
 
 

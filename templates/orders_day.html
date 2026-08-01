@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
+{% if back %}
+<p><a href="{{ url_for('calendar_view', month=back) }}">← Back to calendar</a></p>
+{% else %}
 <p><a href="{{ url_for('orders_month', month=date[:7]) }}">← Back to orders</a></p>
+{% endif %}
 <h1>Orders · {{ weekday }} {{ date }}</h1>
 {% if inst %}
   <p class="subtitle">{{ inst.label }} · shift {{ inst.start_time }}–{{ inst.end_time }} ·
-    <a href="{{ url_for('shift_detail', instance_id=inst.instance_id) }}">go to staffing →</a></p>
+    <a href="{{ url_for('shift_detail', instance_id=inst.instance_id, back=back) }}">go to staffing →</a></p>
 {% else %}
   <p class="subtitle">No production shift on this date.</p>
 {% endif %}
@@ -21,11 +25,13 @@
   <form id="upd-{{ o.id }}" method="post">
     <input type="hidden" name="action" value="update">
     <input type="hidden" name="order_id" value="{{ o.id }}">
+    <input type="hidden" name="back" value="{{ back }}">
   </form>
   <form id="del-{{ o.id }}" method="post"
         onsubmit="return confirm('Remove this order?');">
     <input type="hidden" name="action" value="delete">
     <input type="hidden" name="order_id" value="{{ o.id }}">
+    <input type="hidden" name="back" value="{{ back }}">
   </form>
   {% endfor %}
 
@@ -104,6 +110,7 @@
   <h2 style="margin-top:0">Add an order</h2>
   <form method="post">
     <input type="hidden" name="action" value="add">
+    <input type="hidden" name="back" value="{{ back }}">
     <div style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:flex-end">
       <label class="field" style="min-width:9rem">
         Client
