@@ -22,6 +22,10 @@
       {% endfor %}
     </tbody>
   </table>
+  <form method="post" action="{{ url_for('fix_assignment_conflicts') }}" style="margin-top:.7rem"
+        onsubmit="return confirm('Remove all {{ assignment_conflicts|length }} conflicting assignment(s)? This cannot be undone.')">
+    <button type="submit" class="btn-red">Remove all conflicting assignments</button>
+  </form>
 </div>
 {% endif %}
 

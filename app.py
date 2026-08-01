@@ -2420,7 +2420,8 @@ def approvals():
     # (has ≥1 row for any shift that month), but has no row for this specific shift.
     assignment_conflicts = g.db.execute(
         """SELECT e.name AS emp_name, si.date, t.label, t.weekday,
-                  a.start_time AS assigned_start, a.end_time AS assigned_end
+                  a.start_time AS assigned_start, a.end_time AS assigned_end,
+                  a.shift_instance_id, a.employee_id
              FROM assignments a
              JOIN shift_instances si ON si.id = a.shift_instance_id
              JOIN shift_templates t  ON t.id  = si.template_id
@@ -2450,6 +2451,36 @@ def approvals():
         decided_shift_reports=decided_shift_reports,
         assignment_conflicts=assignment_conflicts,
     )
+
+
+@app.route("/owner/conflicts/fix", methods=["POST"])
+@require_owner
+def fix_assignment_conflicts():
+    """Delete all upcoming assignments where the employee has no availability for that shift."""
+    g.db.execute(
+        """DELETE FROM assignments
+            WHERE (shift_instance_id, employee_id) IN (
+              SELECT a.shift_instance_id, a.employee_id
+                FROM assignments a
+                JOIN shift_instances si ON si.id = a.shift_instance_id
+               WHERE si.date >= ?
+                 AND NOT EXISTS (
+                   SELECT 1 FROM availability av
+                    WHERE av.shift_instance_id = a.shift_instance_id
+                      AND av.employee_id = a.employee_id
+                 )
+                 AND EXISTS (
+                   SELECT 1 FROM availability av2
+                     JOIN shift_instances si2 ON si2.id = av2.shift_instance_id
+                    WHERE av2.employee_id = a.employee_id
+                      AND LEFT(si2.date, 7) = LEFT(si.date, 7)
+                 )
+            )""",
+        (date.today().isoformat(),),
+    )
+    g.db.commit()
+    flash("Conflicting assignments removed.", "success")
+    return redirect(url_for("approvals"))
 
 
 # ---------------------------------------------------------------------------
