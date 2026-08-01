@@ -53,7 +53,7 @@ def deliveries_for_date(conn, date):
     """Orders that ship on `date` (delivery_date, falling back to production date).
     Excludes pop-up orders (is_pickup=1) since those don't need delivery."""
     return conn.execute(
-        """SELECT o.*, c.name AS client_name,
+        """SELECT o.*, c.name AS client_name, c.default_deliverer,
                   COALESCE(o.delivery_date, o.date) AS deliver_on
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) = ?

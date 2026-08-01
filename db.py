@@ -159,6 +159,8 @@ def migrate_db():
     # 2026-07-05: rename clients to match Mercury system names.
     conn.execute("UPDATE clients SET name='Blue Willow Teaspot' WHERE name='BWT'")
     conn.execute("UPDATE clients SET name='Asha Tea' WHERE name='Asha'")
+    # 2026-07-31: Shoji self-picks up — no driver needed.
+    conn.execute("UPDATE clients SET default_deliverer='pick-up' WHERE name='Shoji'")
     conn.commit()
     conn.close()
 

@@ -106,9 +106,10 @@ CREATE TABLE IF NOT EXISTS recurring_assignments (
 );
 
 -- Migrations (safe to re-run)
-ALTER TABLE orders   ADD COLUMN IF NOT EXISTS is_pickup      INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE clients  ADD COLUMN IF NOT EXISTS unit_price     NUMERIC NOT NULL DEFAULT 0;
-ALTER TABLE clients  ADD COLUMN IF NOT EXISTS contact_email  TEXT    NOT NULL DEFAULT '';
+ALTER TABLE orders   ADD COLUMN IF NOT EXISTS is_pickup         INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE clients  ADD COLUMN IF NOT EXISTS unit_price        NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE clients  ADD COLUMN IF NOT EXISTS contact_email     TEXT    NOT NULL DEFAULT '';
+ALTER TABLE clients  ADD COLUMN IF NOT EXISTS default_deliverer TEXT    NOT NULL DEFAULT '';
 
 -- Extra hours not tied to a production shift (pop-ups, markets, etc.)
 CREATE TABLE IF NOT EXISTS popups (

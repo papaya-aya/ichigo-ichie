@@ -2083,6 +2083,7 @@ def deliveries_month():
     client_rows = g.db.execute(
         """SELECT COALESCE(o.delivery_date, o.date) AS deliver_on,
                   o.client_id, c.name AS client_name,
+                  MAX(c.default_deliverer) AS default_deliverer,
                   SUM(o.qty_original+o.qty_matcha+o.qty_hojicha+o.qty_other) AS total,
                   MAX(o.delivered)  AS delivered,
                   MAX(o.deliverer)  AS deliverer
@@ -2150,9 +2151,9 @@ def deliveries_month():
     for r in client_rows:
         d = r["deliver_on"]
         available = can_deliver_map.get(d, [])
-        # Auto-assign: use first available person if no deliverer saved yet
+        # Auto-assign: saved > client default > first available person
         saved_deliverer = r["deliverer"] or ""
-        auto_deliverer = saved_deliverer or (available[0] if available else "")
+        auto_deliverer = saved_deliverer or r.get("default_deliverer") or (available[0] if available else "")
         if d not in rows_by_date:
             rows_by_date[d] = {
                 "date":           d,
@@ -2261,7 +2262,7 @@ def deliveries_day(date):
                 "client_name": o["client_name"],
                 "deliver_on":  o["deliver_on"],
                 "delivered":   0,
-                "deliverer":   o["deliverer"] or "",
+                "deliverer":   o["deliverer"] or o.get("default_deliverer") or "",
                 "qty_original": 0, "qty_matcha": 0,
                 "qty_hojicha":  0, "qty_other":  0,
                 "total": 0,
