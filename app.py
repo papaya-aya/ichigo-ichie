@@ -725,9 +725,13 @@ def calendar_view():
                   MAX(o.deliverer)    AS deliverer
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
+              AND (o.is_pickup IS NULL OR o.is_pickup = 0)
+              AND COALESCE(o.delivery_date, o.date) NOT IN (
+                    SELECT date FROM delivery_blackout WHERE date LIKE ?
+              )
             GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
-        (month + "-%",),
+        (month + "-%", month + "-%"),
     ).fetchall()
 
     deliveries_by_date = {}
@@ -804,9 +808,13 @@ def public_calendar(token):
                   MAX(o.deliverer)    AS deliverer
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
+              AND (o.is_pickup IS NULL OR o.is_pickup = 0)
+              AND COALESCE(o.delivery_date, o.date) NOT IN (
+                    SELECT date FROM delivery_blackout WHERE date LIKE ?
+              )
             GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
-        (month + "-%",),
+        (month + "-%", month + "-%"),
     ).fetchall()
 
     deliveries_by_date = {}
