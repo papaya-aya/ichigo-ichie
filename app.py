@@ -3125,6 +3125,24 @@ def invoice():
     ).fetchall()
     pcs_by_client = {r["client_id"]: (r["total_pcs"] or 0) for r in order_rows}
 
+    # Per-date breakdown per client for the memo section of the invoice
+    breakdown_rows = g.db.execute(
+        """SELECT client_id,
+                  COALESCE(delivery_date, date) AS deliver_on,
+                  SUM(qty_original + qty_matcha + qty_hojicha + qty_other) AS pcs
+             FROM orders
+            WHERE COALESCE(delivery_date, date) BETWEEN ? AND ?
+              AND (is_pickup IS NULL OR is_pickup = 0)
+            GROUP BY client_id, deliver_on
+            ORDER BY client_id, deliver_on""",
+        (date_from, date_to),
+    ).fetchall()
+    breakdown_by_client = {}
+    for r in breakdown_rows:
+        breakdown_by_client.setdefault(r["client_id"], []).append(
+            {"date": r["deliver_on"], "pcs": int(r["pcs"] or 0)}
+        )
+
     invoice_rows = []
     for c in clients:
         pcs   = pcs_by_client.get(c["id"], 0)
@@ -3136,6 +3154,7 @@ def invoice():
             "unit_price":    price,
             "total_pcs":     pcs,
             "total_amount":  round(pcs * price, 2),
+            "deliveries":    breakdown_by_client.get(c["id"], []),
         })
 
     grand_total = sum(r["total_amount"] for r in invoice_rows)

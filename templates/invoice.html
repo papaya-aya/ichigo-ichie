@@ -41,7 +41,8 @@
             data-name="{{ r.name|e }}"
             data-email="{{ r.contact_email|e }}"
             data-from="{{ date_from }}"
-            data-to="{{ date_to }}">
+            data-to="{{ date_to }}"
+            data-deliveries="{{ r.deliveries | tojson | e }}">
           <td>
             <input type="hidden" name="client_id" value="{{ r.client_id }}">
             <b>{{ r.name }}</b>
@@ -155,12 +156,17 @@ document.addEventListener('click', function(ev) {
 
   const today = new Date().toISOString().slice(0, 10);
   const emailPart = email ? ' Send to ' + email + '.' : '';
+  const deliveries = JSON.parse(tr.dataset.deliveries || '[]');
+  const memoPart = deliveries.length
+    ? ' In the memo field include a delivery breakdown: ' +
+      deliveries.map(function(d) { return d.date + ': ' + d.pcs + ' pcs'; }).join(', ') + '.'
+    : '';
   const prompt =
     'Create an invoice for ' + name + ' for the period ' + from + ' to ' + to +
     ' for ' + pcs + ' daifuku at $' + price.toFixed(2) + ' each, totaling $' + amount +
     '. Use today (' + today + ') as the invoice date. Payment terms: Net 15.' +
     ' Send from the checking account. Enable payment by credit card.' +
-    ' Enable reminders.' + emailPart;
+    ' Enable reminders.' + memoPart + emailPart;
 
   window.open('https://app.mercury.com/command', '_blank');
 
