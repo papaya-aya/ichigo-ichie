@@ -42,7 +42,7 @@
             data-email="{{ r.contact_email|e }}"
             data-from="{{ date_from }}"
             data-to="{{ date_to }}"
-            data-deliveries="{{ r.deliveries | tojson | e }}">
+            data-deliveries='{{ r.deliveries | tojson }}'>
           <td>
             <input type="hidden" name="client_id" value="{{ r.client_id }}">
             <b>{{ r.name }}</b>
