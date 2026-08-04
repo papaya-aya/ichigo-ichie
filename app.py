@@ -2108,21 +2108,24 @@ def deliveries_month():
     ).fetchall()
 
     # Step 1: who said can_deliver on each production shift (keyed by shift date)
+    # Only approved availability counts — pending/rejected employees are not working the shift.
     can_deliver_shift_rows = g.db.execute(
         """SELECT DISTINCT si.date AS shift_date, e.name AS emp_name
              FROM availability av
              JOIN employees e ON e.id = av.employee_id
              JOIN shift_instances si ON si.id = av.shift_instance_id
-            WHERE av.can_deliver = 1 AND si.date LIKE ?
+            WHERE av.can_deliver = 1 AND av.status = 'approved' AND si.date LIKE ?
             ORDER BY si.date, e.name""",
         (month + "-%",),
     ).fetchall()
 
     # Step 2: map each shift date to its delivery date(s) via existing orders
+    # Exclude pick-up orders — they never generate deliveries.
     shift_to_deliver = {}
     for r in g.db.execute(
         """SELECT DISTINCT date AS shift_date, COALESCE(delivery_date, date) AS deliver_on
-             FROM orders WHERE date LIKE ?""",
+             FROM orders WHERE date LIKE ?
+               AND (is_pickup IS NULL OR is_pickup = 0)""",
         (month + "-%",),
     ).fetchall():
         shift_to_deliver.setdefault(r["shift_date"], set()).add(r["deliver_on"])
