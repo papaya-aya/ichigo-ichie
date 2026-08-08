@@ -163,6 +163,42 @@ def migrate_db():
     conn.execute("UPDATE clients SET default_deliverer='pick-up' WHERE name='Shoji'")
     conn.commit()
 
+    # 2026-08-07: move Asha Tea's remaining August deliveries to Thursdays (one-time).
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='asha_thursdays_aug_2026'"
+    ).fetchone():
+        from datetime import date as _date, timedelta as _td
+        asha = conn.execute(
+            "SELECT id FROM clients WHERE name='Asha Tea'"
+        ).fetchone()
+        if asha:
+            orders = conn.execute(
+                """SELECT id, COALESCE(delivery_date, date) AS deliver_on
+                     FROM orders
+                    WHERE client_id = ?
+                      AND COALESCE(delivery_date, date) > '2026-08-07'
+                      AND COALESCE(delivery_date, date) <= '2026-08-31'
+                      AND (is_pickup IS NULL OR is_pickup = 0)
+                      AND (delivered IS NULL OR delivered = 0)""",
+                (asha["id"],),
+            ).fetchall()
+            for o in orders:
+                d = _date.fromisoformat(o["deliver_on"])
+                monday = d - _td(days=d.weekday())
+                thursday = monday + _td(days=3)
+                # Last Thursday in August is Aug 27; cap anything that spills into Sep
+                if thursday.month > 8:
+                    thursday = _date(2026, 8, 27)
+                conn.execute(
+                    "UPDATE orders SET delivery_date = ? WHERE id = ?",
+                    (thursday.isoformat(), o["id"]),
+                )
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('asha_thursdays_aug_2026', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     # 2026-07-31: remove Teance from all August 2026 deliveries (one-time).
     if not conn.execute(
         "SELECT 1 FROM settings WHERE key='cleanup_teance_aug_2026'"
