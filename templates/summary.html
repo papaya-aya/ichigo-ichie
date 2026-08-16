@@ -61,7 +61,11 @@
         <td style="text-align:right">{{ r.pcs or '—' }}</td>
         <td style="text-align:right">
           {% if r.is_consignment %}<span class="muted">—</span>
-          {% else %}${{ '%.2f'|format(r.unit_price) }}{% endif %}
+          {% else %}
+            <input type="number" name="price_{{ r.client_id }}"
+                   value="{{ '%.2f'|format(r.unit_price) }}"
+                   min="0" step="0.01" style="width:5.5rem; text-align:right">
+          {% endif %}
         </td>
         <td style="text-align:right">
           {% if r.is_consignment %}
@@ -87,12 +91,14 @@
   </table>
 
   <div class="row-actions" style="margin-top:.8rem">
-    <button type="submit">Save consignment sales</button>
+    <button type="submit">Save prices &amp; consignment sales</button>
   </div>
-  <p class="help">Consignment clients are billed on the sales they report, not on
-    quantity delivered. Enter their reported figure — Ichigo Ichie keeps 80%.
-    Everyone else is priced at their unit price from the
-    <a href="{{ url_for('invoice') }}">Invoice</a> page.</p>
+  <p class="help">Rates are the <b>net revenue to Ichigo Ichie per piece</b> — splits
+    and pop-up waste already applied (e.g. Iyasare $5.20 = 65% of $8.00, pop-up
+    $6.48 = $7.20 less 10% waste). Saving here also updates the
+    <a href="{{ url_for('invoice') }}">Invoice</a> page.
+    Consignment clients are billed on the sales they report, not on quantity
+    delivered — enter their reported figure and Ichigo Ichie keeps 80%.</p>
   {% else %}
     <p class="muted">No orders recorded for {{ month_label }}.</p>
   {% endif %}
@@ -189,6 +195,20 @@
     <b>Uncategorised</b> if you want to record it now and label it later.</p>
 
   {% if other_revenue or other_costs %}
+  {# Forms declared outside the table — a form cannot be nested inside another #}
+  {% for r in other_revenue + other_costs %}
+  <form id="delitem-{{ r.id }}" method="post"
+        action="{{ url_for('monthly_summary', month=month) }}"
+        onsubmit="return confirm('Remove “{{ r.label }}”?')">
+    <input type="hidden" name="action" value="delete_item">
+    <input type="hidden" name="item_id" value="{{ r.id }}">
+  </form>
+  {% endfor %}
+  <form id="items-form" method="post"
+        action="{{ url_for('monthly_summary', month=month) }}">
+    <input type="hidden" name="action" value="update_items">
+  </form>
+
   <table>
     <thead>
       <tr><th>Type</th><th>Category</th><th>Item</th>
@@ -196,25 +216,30 @@
     </thead>
     <tbody>
       {% for r in other_revenue + other_costs %}
-      <tr>
+      <tr {% if r.category == 'Uncategorised' %}class="row-uncat"{% endif %}>
         <td>{% if r.kind == 'revenue' %}<span class="pill pill-rev">revenue</span>
             {% else %}<span class="pill pill-cost">cost</span>{% endif %}</td>
-        <td>{% if r.category == 'Uncategorised' %}
-              <span class="pill pill-warn">Uncategorised</span>
-            {% else %}{{ r.category }}{% endif %}</td>
-        <td><b>{{ r.label }}</b></td>
-        <td style="text-align:right; font-weight:600">
-          {% if r.kind != 'revenue' %}−{% endif %}${{ '%.2f'|format(r.amount) }}</td>
-        <td class="muted" style="font-size:.82rem">{{ r.note }}</td>
         <td>
-          <form method="post" action="{{ url_for('monthly_summary', month=month) }}"
-                class="inline-form"
-                onsubmit="return confirm('Remove “{{ r.label }}”?')">
-            <input type="hidden" name="action" value="delete_item">
-            <input type="hidden" name="item_id" value="{{ r.id }}">
-            <button type="submit" class="btn-ghost btn-sm"
-                    style="color:var(--red,#e53935);border-color:var(--red,#e53935)">✕</button>
-          </form>
+          <input form="items-form" type="hidden" name="item_id" value="{{ r.id }}">
+          <select form="items-form" name="cat_{{ r.id }}" style="width:10rem">
+            {% for c in (revenue_categories if r.kind == 'revenue' else cost_categories) %}
+              <option value="{{ c }}" {% if c == r.category %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td><b>{{ r.label }}</b></td>
+        <td style="text-align:right">
+          <input form="items-form" type="number" name="amt_{{ r.id }}"
+                 value="{{ '%.2f'|format(r.amount) }}" min="0" step="0.01"
+                 style="width:6rem; text-align:right">
+        </td>
+        <td>
+          <input form="items-form" type="text" name="note_{{ r.id }}"
+                 value="{{ r.note }}" placeholder="—" style="width:9rem; font-size:.85em">
+        </td>
+        <td>
+          <button form="delitem-{{ r.id }}" type="submit" class="btn-ghost btn-sm"
+                  style="color:var(--red,#e53935);border-color:var(--red,#e53935)">✕</button>
         </td>
       </tr>
       {% endfor %}
@@ -232,6 +257,10 @@
       </tr>
     </tfoot>
   </table>
+
+  <div class="row-actions" style="margin-top:.8rem">
+    <button form="items-form" type="submit">Save categories &amp; amounts</button>
+  </div>
   {% else %}
     <p class="muted">Nothing recorded for {{ month_label }} yet.</p>
   {% endif %}
@@ -329,5 +358,6 @@
 .pill-rev {background:#e8f5ec;color:#2d6a40;font-size:.72rem}
 .pill-cost{background:#fdecec;color:#a33;font-size:.72rem}
 .pill-warn{background:#fff3cd;color:#8a6d00;font-size:.72rem}
+tr.row-uncat{background:#fffbf0}
 </style>
 {% endblock %}

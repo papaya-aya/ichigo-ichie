@@ -1809,24 +1809,53 @@ def monthly_summary():
             g.db.commit()
             flash("Item removed.", "success")
 
-        else:
-            for key, val in request.form.items():
-                if not key.startswith("cons_"):
-                    continue
+        elif action == "update_items":
+            changed = 0
+            for raw_id in request.form.getlist("item_id"):
                 try:
-                    cid = int(key[5:])
-                    amount = float(val or 0)
+                    iid = int(raw_id)
+                    amount = float(request.form.get(f"amt_{iid}") or 0)
                 except ValueError:
                     continue
                 g.db.execute(
-                    """INSERT INTO consignment_sales (client_id, month, amount)
-                            VALUES (?, ?, ?)
-                       ON CONFLICT (client_id, month)
-                         DO UPDATE SET amount = EXCLUDED.amount""",
-                    (cid, month, amount),
+                    """UPDATE summary_items
+                          SET category = ?, amount = ?, note = ?
+                        WHERE id = ? AND month = ?""",
+                    (request.form.get(f"cat_{iid}", "").strip() or "Uncategorised",
+                     amount,
+                     request.form.get(f"note_{iid}", "").strip(),
+                     iid, month),
                 )
+                changed += 1
             g.db.commit()
-            flash(f"{month_label(month)}: consignment sales saved.", "success")
+            flash(f"Updated {changed} item(s).", "success")
+
+        else:
+            for key, val in request.form.items():
+                if key.startswith("cons_"):
+                    try:
+                        cid, amount = int(key[5:]), float(val or 0)
+                    except ValueError:
+                        continue
+                    g.db.execute(
+                        """INSERT INTO consignment_sales (client_id, month, amount)
+                                VALUES (?, ?, ?)
+                           ON CONFLICT (client_id, month)
+                             DO UPDATE SET amount = EXCLUDED.amount""",
+                        (cid, month, amount),
+                    )
+                elif key.startswith("price_"):
+                    try:
+                        cid, price = int(key[6:]), float(val or 0)
+                    except ValueError:
+                        continue
+                    g.db.execute(
+                        "UPDATE clients SET unit_price = ? WHERE id = ?",
+                        (price, cid),
+                    )
+            g.db.commit()
+            flash(f"{month_label(month)}: prices and consignment sales saved.",
+                  "success")
 
         return redirect(url_for("monthly_summary", month=month))
 
