@@ -121,6 +121,20 @@ CREATE TABLE IF NOT EXISTS consignment_sales (
   UNIQUE(client_id, month)
 );
 
+-- Revenue or cost that does not come from orders or payroll — anything the
+-- owner needs to categorise by hand (ingredients, rent, one-off income, an
+-- unrecognised bank deposit, etc.).
+CREATE TABLE IF NOT EXISTS summary_items (
+  id         SERIAL PRIMARY KEY,
+  month      TEXT    NOT NULL,         -- 'YYYY-MM'
+  kind       TEXT    NOT NULL,         -- 'revenue' | 'cost'
+  category   TEXT    NOT NULL DEFAULT 'Uncategorised',
+  label      TEXT    NOT NULL DEFAULT '',
+  amount     NUMERIC NOT NULL DEFAULT 0,
+  note       TEXT    NOT NULL DEFAULT '',
+  created_at TEXT    NOT NULL
+);
+
 -- Extra hours not tied to a production shift (pop-ups, markets, etc.)
 CREATE TABLE IF NOT EXISTS popups (
   id           SERIAL PRIMARY KEY,

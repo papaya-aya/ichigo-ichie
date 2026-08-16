@@ -28,6 +28,13 @@
   </div>
 </div>
 
+{% if uncategorised %}
+<div class="card" style="border-color:#e0a800; background:#fffbf0">
+  <b>{{ uncategorised }} item{{ 's' if uncategorised != 1 }} still marked “Uncategorised.”</b>
+  <span class="muted">Give them a category below so the totals break down properly.</span>
+</div>
+{% endif %}
+
 {# ── Sales ────────────────────────────────────────────────────────────── #}
 <form method="post" action="{{ url_for('monthly_summary', month=month) }}">
 <div class="card">
@@ -142,24 +149,140 @@
   {% endif %}
 </div>
 
+{# ── Other items ──────────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Other revenue &amp; costs</h2>
+  <p class="muted" style="margin-top:-.4rem; font-size:.88rem">
+    Anything that doesn't come from orders or payroll — ingredients, kitchen rent,
+    a one-off sale, or a bank deposit you can't place. Leave the category as
+    <b>Uncategorised</b> if you want to record it now and label it later.</p>
+
+  {% if other_revenue or other_costs %}
+  <table>
+    <thead>
+      <tr><th>Type</th><th>Category</th><th>Item</th>
+          <th style="text-align:right">Amount</th><th>Note</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in other_revenue + other_costs %}
+      <tr>
+        <td>{% if r.kind == 'revenue' %}<span class="pill pill-rev">revenue</span>
+            {% else %}<span class="pill pill-cost">cost</span>{% endif %}</td>
+        <td>{% if r.category == 'Uncategorised' %}
+              <span class="pill pill-warn">Uncategorised</span>
+            {% else %}{{ r.category }}{% endif %}</td>
+        <td><b>{{ r.label }}</b></td>
+        <td style="text-align:right; font-weight:600">
+          {% if r.kind != 'revenue' %}−{% endif %}${{ '%.2f'|format(r.amount) }}</td>
+        <td class="muted" style="font-size:.82rem">{{ r.note }}</td>
+        <td>
+          <form method="post" action="{{ url_for('monthly_summary', month=month) }}"
+                class="inline-form"
+                onsubmit="return confirm('Remove “{{ r.label }}”?')">
+            <input type="hidden" name="action" value="delete_item">
+            <input type="hidden" name="item_id" value="{{ r.id }}">
+            <button type="submit" class="btn-ghost btn-sm"
+                    style="color:var(--red,#e53935);border-color:var(--red,#e53935)">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid var(--pink-line)">
+        <td colspan="3"><b>Other revenue</b></td>
+        <td style="text-align:right"><b>${{ '%.2f'|format(other_rev_total) }}</b></td>
+        <td colspan="2"></td>
+      </tr>
+      <tr>
+        <td colspan="3"><b>Other costs</b></td>
+        <td style="text-align:right"><b>−${{ '%.2f'|format(other_cost_total) }}</b></td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+  {% else %}
+    <p class="muted">Nothing recorded for {{ month_label }} yet.</p>
+  {% endif %}
+
+  <h3 style="margin-bottom:.4rem">Add an item</h3>
+  <form method="post" action="{{ url_for('monthly_summary', month=month) }}">
+    <input type="hidden" name="action" value="add_item">
+    <div style="display:flex; flex-wrap:wrap; gap:.6rem; align-items:flex-end">
+      <label class="field" style="width:8rem">
+        Type
+        <select name="kind" id="item-kind" onchange="syncCats()">
+          <option value="cost">Cost</option>
+          <option value="revenue">Revenue</option>
+        </select>
+      </label>
+      <label class="field" style="width:11rem">
+        Category
+        <select name="category" id="item-category"></select>
+      </label>
+      <label class="field" style="min-width:11rem">
+        Item
+        <input type="text" name="label" placeholder="e.g. Berkeley Bowl" required>
+      </label>
+      <label class="field" style="width:8rem">
+        Amount ($)
+        <input type="number" name="amount" min="0" step="0.01"
+               placeholder="0.00" style="text-align:right" required>
+      </label>
+      <label class="field" style="min-width:10rem">
+        Note
+        <input type="text" name="note" placeholder="optional">
+      </label>
+      <div class="field">
+        <span style="visibility:hidden; font-size:.92rem">x</span>
+        <button type="submit">Add</button>
+      </div>
+    </div>
+  </form>
+  <script>
+    const COST_CATS = {{ cost_categories | tojson }};
+    const REV_CATS  = {{ revenue_categories | tojson }};
+    function syncCats() {
+      const kind = document.getElementById('item-kind').value;
+      const sel  = document.getElementById('item-category');
+      sel.innerHTML = '';
+      (kind === 'revenue' ? REV_CATS : COST_CATS).forEach(function (c) {
+        const o = document.createElement('option');
+        o.value = c; o.textContent = c;
+        sel.appendChild(o);
+      });
+    }
+    syncCats();
+  </script>
+</div>
+
 {# ── Bottom line ──────────────────────────────────────────────────────── #}
 <div class="card">
   <h2 style="margin-top:0">Bottom line</h2>
   <table>
     <tbody>
-      <tr><td>Sales</td>
-          <td style="text-align:right">${{ '%.2f'|format(total_sales) }}</td></tr>
-      <tr><td>Labour cost (incl. tax)</td>
+      <tr><td>Sales from orders</td>
+          <td style="text-align:right">${{ '%.2f'|format(order_sales) }}</td></tr>
+      {% if other_rev_total %}
+      <tr><td>Other revenue</td>
+          <td style="text-align:right">${{ '%.2f'|format(other_rev_total) }}</td></tr>
+      {% endif %}
+      <tr><td>Labour cost (incl. {{ '%.2f'|format(tax_rate * 100) }}% tax)</td>
           <td style="text-align:right">−${{ '%.2f'|format(labour_total) }}</td></tr>
+      {% if other_cost_total %}
+      <tr><td>Other costs</td>
+          <td style="text-align:right">−${{ '%.2f'|format(other_cost_total) }}</td></tr>
+      {% endif %}
       <tr style="border-top:2px solid var(--pink-line); font-weight:700">
         <td>Net</td>
         <td style="text-align:right" class="{{ 'ok' if net >= 0 else 'bad' }}">
           ${{ '%.2f'|format(net) }}</td></tr>
     </tbody>
   </table>
-  <p class="help">Labour is the only cost tracked in the app — ingredients, kitchen
-    rent and card spend are not included, so this is a gross margin over labour,
-    not a full profit figure.</p>
+  {% if not other_cost_total %}
+  <p class="help">Only labour is counted so far — add ingredients, kitchen rent and
+    card spend above to turn this into a full profit figure.</p>
+  {% endif %}
 </div>
 
 <style>
@@ -172,5 +295,8 @@
 .sum-good{border-color:#c3e6cc;background:#f5fbf7}
 .sum-bad{border-color:#f0c2c2;background:#fdf6f6}
 .pill-cons{background:#fff3e0;color:#8a5a00;font-size:.72rem}
+.pill-rev {background:#e8f5ec;color:#2d6a40;font-size:.72rem}
+.pill-cost{background:#fdecec;color:#a33;font-size:.72rem}
+.pill-warn{background:#fff3cd;color:#8a6d00;font-size:.72rem}
 </style>
 {% endblock %}

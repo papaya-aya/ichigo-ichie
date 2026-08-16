@@ -157,6 +157,17 @@ PAYROLL_TAX_RATE = 0.1125
 # Consignment clients report gross sales; Ichigo Ichie keeps this share.
 CONSIGNMENT_SHARE = 0.80
 
+# Categories offered for hand-entered summary items. "Uncategorised" is the
+# fallback so an item can be recorded now and labelled later.
+COST_CATEGORIES = [
+    "Ingredients", "Packaging", "Kitchen rent", "Equipment", "Insurance",
+    "Software & fees", "Transport", "Marketing", "Tax", "Uncategorised",
+]
+REVENUE_CATEGORIES = [
+    "Wholesale", "Consignment", "Pop-up / market", "Catering",
+    "Other income", "Uncategorised",
+]
+
 def assigned_people(instance_id):
     return g.db.execute(
         """SELECT a.employee_id, e.name, a.start_time AS start, a.end_time AS end,
@@ -1746,23 +1757,58 @@ def monthly_summary():
     month = request.values.get("month") or date.today().isoformat()[:7]
 
     if request.method == "POST":
-        for key, val in request.form.items():
-            if not key.startswith("cons_"):
-                continue
+        action = request.form.get("action", "consignment")
+
+        if action == "add_item":
             try:
-                cid = int(key[5:])
-                amount = float(val or 0)
+                amount = float(request.form.get("amount") or 0)
             except ValueError:
-                continue
+                amount = 0.0
+            label = request.form.get("label", "").strip()
+            if label and amount:
+                g.db.execute(
+                    """INSERT INTO summary_items
+                         (month, kind, category, label, amount, note, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (month,
+                     request.form.get("kind", "cost"),
+                     request.form.get("category", "").strip() or "Uncategorised",
+                     label, amount,
+                     request.form.get("note", "").strip(),
+                     database.now_iso()),
+                )
+                g.db.commit()
+                flash(f"Added “{label}” to {month_label(month)}.", "success")
+            else:
+                flash("Give the item a name and a non-zero amount.", "error")
+
+        elif action == "delete_item":
             g.db.execute(
-                """INSERT INTO consignment_sales (client_id, month, amount)
-                        VALUES (?, ?, ?)
-                   ON CONFLICT (client_id, month)
-                     DO UPDATE SET amount = EXCLUDED.amount""",
-                (cid, month, amount),
+                "DELETE FROM summary_items WHERE id = ? AND month = ?",
+                (request.form.get("item_id"), month),
             )
-        g.db.commit()
-        flash(f"{month_label(month)}: consignment sales saved.", "success")
+            g.db.commit()
+            flash("Item removed.", "success")
+
+        else:
+            for key, val in request.form.items():
+                if not key.startswith("cons_"):
+                    continue
+                try:
+                    cid = int(key[5:])
+                    amount = float(val or 0)
+                except ValueError:
+                    continue
+                g.db.execute(
+                    """INSERT INTO consignment_sales (client_id, month, amount)
+                            VALUES (?, ?, ?)
+                       ON CONFLICT (client_id, month)
+                         DO UPDATE SET amount = EXCLUDED.amount""",
+                    (cid, month, amount),
+                )
+            g.db.commit()
+            flash(f"{month_label(month)}: consignment sales saved.", "success")
+
         return redirect(url_for("monthly_summary", month=month))
 
     year, mon = (int(x) for x in month.split("-"))
@@ -1818,19 +1864,39 @@ def monthly_summary():
     labour_tax   = round(labour_base * PAYROLL_TAX_RATE, 2)
     labour_total = round(labour_base + labour_tax, 2)
 
-    total_sales = round(total_sales, 2)
-    net         = round(total_sales - labour_total, 2)
+    # ---- hand-entered items (anything not from orders or payroll) ----
+    items = g.db.execute(
+        """SELECT id, kind, category, label, amount, note
+             FROM summary_items WHERE month = ?
+            ORDER BY kind, category, label""",
+        (month,),
+    ).fetchall()
+    other_revenue = [r for r in items if r["kind"] == "revenue"]
+    other_costs   = [r for r in items if r["kind"] != "revenue"]
+    other_rev_total  = round(sum(float(r["amount"] or 0) for r in other_revenue), 2)
+    other_cost_total = round(sum(float(r["amount"] or 0) for r in other_costs), 2)
+    uncategorised = sum(1 for r in items if r["category"] == "Uncategorised")
+
+    order_sales = round(total_sales, 2)
+    total_sales = round(order_sales + other_rev_total, 2)
+    total_costs = round(labour_total + other_cost_total, 2)
+    net         = round(total_sales - total_costs, 2)
 
     return render_template(
         "summary.html",
         month=month, month_label=month_label(month),
         prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
         date_from=date_from, date_to=date_to,
-        sales_rows=sales_rows, total_sales=total_sales,
+        sales_rows=sales_rows, order_sales=order_sales,
+        total_sales=total_sales, total_costs=total_costs,
         total_pcs=sum(r["pcs"] for r in sales_rows),
         employees=sal["employees"],
         labour_base=labour_base, labour_tax=labour_tax,
         labour_total=labour_total, tax_rate=PAYROLL_TAX_RATE,
+        other_revenue=other_revenue, other_costs=other_costs,
+        other_rev_total=other_rev_total, other_cost_total=other_cost_total,
+        uncategorised=uncategorised,
+        cost_categories=COST_CATEGORIES, revenue_categories=REVENUE_CATEGORIES,
         net=net,
         margin=round(100 * net / total_sales, 1) if total_sales else 0.0,
     )
