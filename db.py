@@ -161,6 +161,12 @@ def migrate_db():
     conn.execute("UPDATE clients SET name='Asha Tea' WHERE name='Asha'")
     # 2026-07-31: Shoji self-picks up — no driver needed.
     conn.execute("UPDATE clients SET default_deliverer='pick-up' WHERE name='Shoji'")
+    # 2026-08-11: Asha Tea and Thao sell on consignment — sales are reported
+    # monthly by the client rather than derived from delivered quantity.
+    conn.execute(
+        "UPDATE clients SET is_consignment=1"
+        " WHERE name IN ('Asha Tea', 'Asha', 'Thao', 'Teance')"
+    )
     conn.commit()
 
     # 2026-08-07: move Asha Tea's remaining August deliveries to Thursdays (one-time).

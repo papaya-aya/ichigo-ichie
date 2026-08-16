@@ -151,6 +151,12 @@ def delivery_transport_amount():
 
 STRAWBERRY_PRICE = 10.0  # fallback constant; runtime uses strawberry_price()
 
+# Employer payroll tax loaded on top of wages for the monthly summary.
+PAYROLL_TAX_RATE = 0.1125
+
+# Consignment clients report gross sales; Ichigo Ichie keeps this share.
+CONSIGNMENT_SHARE = 0.80
+
 def assigned_people(instance_id):
     return g.db.execute(
         """SELECT a.employee_id, e.name, a.start_time AS start, a.end_time AS end,
@@ -1491,13 +1497,8 @@ def apply_recurring_assignments():
 # Salary report + popup entries
 # ---------------------------------------------------------------------------
 
-@app.route("/owner/salary")
-@require_owner
-def salary_report():
-    today = date.today()
-    date_from = request.values.get("from") or today.replace(day=1).isoformat()
-    date_to   = request.values.get("to")   or today.isoformat()
-
+def _compute_salary(date_from, date_to):
+    """Per-employee pay for a period. Shared by the Salary page and the Summary page."""
     pr   = piece_rate()
     gr   = gusto_rate()
     sp_p = strawberry_price()
@@ -1692,9 +1693,6 @@ def salary_report():
 
     # finalize per-employee totals
     emp_list = []
-    all_employees = g.db.execute(
-        "SELECT id, name FROM employees WHERE active=1 ORDER BY name"
-    ).fetchall()
     for emp in sorted(employees_data.values(), key=lambda e: e["name"]):
         emp.setdefault("delivery_transports", [])
         emp.setdefault("strawberry_purchases", [])
@@ -1708,21 +1706,133 @@ def salary_report():
         emp["gusto_hours"] = round(emp["net_pay"] / gr, 2) if gr else 0.0
         emp_list.append(emp)
 
-    grand_pay        = round(sum(e["total_pay"]             for e in emp_list), 2)
-    grand_transport  = round(sum(e["total_transport"]       for e in emp_list), 2)
-    grand_strawberry = round(sum(e["total_strawberry_cost"] for e in emp_list), 2)
-    grand_gusto      = round(sum(e["gusto_hours"]           for e in emp_list), 2)
+    return {
+        "employees":        emp_list,
+        "piece_rate":       pr,
+        "gusto_rate":       gr,
+        "strawberry_price": sp_p,
+        "delivery_transport": dt_p,
+        "grand_pay":        round(sum(e["total_pay"]             for e in emp_list), 2),
+        "grand_transport":  round(sum(e["total_transport"]       for e in emp_list), 2),
+        "grand_strawberry": round(sum(e["total_strawberry_cost"] for e in emp_list), 2),
+        "grand_gusto":      round(sum(e["gusto_hours"]           for e in emp_list), 2),
+        "grand_net":        round(sum(e["net_pay"]               for e in emp_list), 2),
+    }
+
+
+@app.route("/owner/salary")
+@require_owner
+def salary_report():
+    today = date.today()
+    date_from = request.values.get("from") or today.replace(day=1).isoformat()
+    date_to   = request.values.get("to")   or today.isoformat()
+
+    all_employees = g.db.execute(
+        "SELECT id, name FROM employees WHERE active=1 ORDER BY name"
+    ).fetchall()
 
     return render_template(
         "salary.html",
         date_from=date_from, date_to=date_to,
-        employees=emp_list,
         all_employees=all_employees,
-        piece_rate=pr, gusto_rate=gr,
-        strawberry_price=sp_p, delivery_transport=dt_p,
-        grand_pay=grand_pay, grand_transport=grand_transport,
-        grand_strawberry=grand_strawberry,
-        grand_gusto=grand_gusto,
+        **_compute_salary(date_from, date_to),
+    )
+
+
+@app.route("/owner/summary", methods=["GET", "POST"])
+@require_owner
+def monthly_summary():
+    """Sales vs labour cost for one month."""
+    month = request.values.get("month") or date.today().isoformat()[:7]
+
+    if request.method == "POST":
+        for key, val in request.form.items():
+            if not key.startswith("cons_"):
+                continue
+            try:
+                cid = int(key[5:])
+                amount = float(val or 0)
+            except ValueError:
+                continue
+            g.db.execute(
+                """INSERT INTO consignment_sales (client_id, month, amount)
+                        VALUES (?, ?, ?)
+                   ON CONFLICT (client_id, month)
+                     DO UPDATE SET amount = EXCLUDED.amount""",
+                (cid, month, amount),
+            )
+        g.db.commit()
+        flash(f"{month_label(month)}: consignment sales saved.", "success")
+        return redirect(url_for("monthly_summary", month=month))
+
+    year, mon = (int(x) for x in month.split("-"))
+    date_from = f"{month}-01"
+    date_to   = f"{month}-{_calendar.monthrange(year, mon)[1]:02d}"
+
+    # ---- sales ----
+    order_rows = g.db.execute(
+        """SELECT c.id AS client_id, c.name, c.unit_price, c.is_consignment,
+                  SUM(o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) AS pcs
+             FROM orders o JOIN clients c ON c.id = o.client_id
+            WHERE COALESCE(o.delivery_date, o.date) BETWEEN ? AND ?
+            GROUP BY c.id, c.name, c.unit_price, c.is_consignment
+            ORDER BY c.name""",
+        (date_from, date_to),
+    ).fetchall()
+
+    entered = {
+        r["client_id"]: float(r["amount"] or 0)
+        for r in g.db.execute(
+            "SELECT client_id, amount FROM consignment_sales WHERE month = ?",
+            (month,),
+        ).fetchall()
+    }
+
+    sales_rows, total_sales = [], 0.0
+    for r in order_rows:
+        pcs   = int(r["pcs"] or 0)
+        price = float(r["unit_price"] or 0)
+        if r["is_consignment"]:
+            gross   = entered.get(r["client_id"], 0.0)
+            revenue = round(gross * CONSIGNMENT_SHARE, 2)
+            basis   = f"{int(CONSIGNMENT_SHARE * 100)}% of reported sales"
+        else:
+            gross   = None
+            revenue = round(pcs * price, 2)
+            basis   = f"{pcs} pcs x ${price:.2f}"
+        total_sales += revenue
+        sales_rows.append({
+            "client_id":      r["client_id"],
+            "name":           r["name"],
+            "pcs":            pcs,
+            "unit_price":     price,
+            "is_consignment": bool(r["is_consignment"]),
+            "gross":          gross,
+            "revenue":        revenue,
+            "basis":          basis,
+        })
+
+    # ---- labour ----
+    sal          = _compute_salary(date_from, date_to)
+    labour_base  = sal["grand_net"]
+    labour_tax   = round(labour_base * PAYROLL_TAX_RATE, 2)
+    labour_total = round(labour_base + labour_tax, 2)
+
+    total_sales = round(total_sales, 2)
+    net         = round(total_sales - labour_total, 2)
+
+    return render_template(
+        "summary.html",
+        month=month, month_label=month_label(month),
+        prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
+        date_from=date_from, date_to=date_to,
+        sales_rows=sales_rows, total_sales=total_sales,
+        total_pcs=sum(r["pcs"] for r in sales_rows),
+        employees=sal["employees"],
+        labour_base=labour_base, labour_tax=labour_tax,
+        labour_total=labour_total, tax_rate=PAYROLL_TAX_RATE,
+        net=net,
+        margin=round(100 * net / total_sales, 1) if total_sales else 0.0,
     )
 
 

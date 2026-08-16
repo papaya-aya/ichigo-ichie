@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% from "_monthnav.html" import monthnav %}
+{% block title %}Summary · Ichigo Ichie{% endblock %}
+{% block content %}
+
+<h1>Monthly summary</h1>
+<p class="subtitle">Sales against labour cost for one month.
+  Consignment clients bill on what they actually sold — enter those figures below.</p>
+
+{{ monthnav('monthly_summary', prev_month, next_month, month_label) }}
+
+{# ── Headline ─────────────────────────────────────────────────────────── #}
+<div class="sum-cards">
+  <div class="sum-card">
+    <span class="sum-label">Sales</span>
+    <span class="sum-value">${{ '%.2f'|format(total_sales) }}</span>
+    <span class="sum-note">{{ total_pcs }} pcs</span>
+  </div>
+  <div class="sum-card">
+    <span class="sum-label">Labour cost</span>
+    <span class="sum-value">${{ '%.2f'|format(labour_total) }}</span>
+    <span class="sum-note">incl. {{ '%.2f'|format(tax_rate * 100) }}% tax</span>
+  </div>
+  <div class="sum-card {{ 'sum-good' if net >= 0 else 'sum-bad' }}">
+    <span class="sum-label">Net</span>
+    <span class="sum-value">${{ '%.2f'|format(net) }}</span>
+    <span class="sum-note">{{ margin }}% margin</span>
+  </div>
+</div>
+
+{# ── Sales ────────────────────────────────────────────────────────────── #}
+<form method="post" action="{{ url_for('monthly_summary', month=month) }}">
+<div class="card">
+  <h2 style="margin-top:0">Sales <span class="pill">{{ month_label }}</span></h2>
+
+  {% if sales_rows %}
+  <table>
+    <thead>
+      <tr>
+        <th>Client</th>
+        <th style="text-align:right">Pieces</th>
+        <th style="text-align:right">Rate</th>
+        <th style="text-align:right">Reported sales</th>
+        <th style="text-align:right">Revenue</th>
+        <th>Basis</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in sales_rows %}
+      <tr>
+        <td><b>{{ r.name }}</b>
+          {% if r.is_consignment %}<span class="pill pill-cons">consignment</span>{% endif %}
+        </td>
+        <td style="text-align:right">{{ r.pcs or '—' }}</td>
+        <td style="text-align:right">
+          {% if r.is_consignment %}<span class="muted">—</span>
+          {% else %}${{ '%.2f'|format(r.unit_price) }}{% endif %}
+        </td>
+        <td style="text-align:right">
+          {% if r.is_consignment %}
+            <input type="number" name="cons_{{ r.client_id }}" min="0" step="0.01"
+                   value="{{ '%.2f'|format(r.gross) if r.gross else '' }}"
+                   placeholder="0.00" style="width:7rem; text-align:right">
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td style="text-align:right; font-weight:600">${{ '%.2f'|format(r.revenue) }}</td>
+        <td class="muted" style="font-size:.82rem">{{ r.basis }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid var(--pink-line)">
+        <td><b>Total</b></td>
+        <td style="text-align:right"><b>{{ total_pcs }}</b></td>
+        <td></td><td></td>
+        <td style="text-align:right"><b>${{ '%.2f'|format(total_sales) }}</b></td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="row-actions" style="margin-top:.8rem">
+    <button type="submit">Save consignment sales</button>
+  </div>
+  <p class="help">Consignment clients are billed on the sales they report, not on
+    quantity delivered. Enter their reported figure — Ichigo Ichie keeps 80%.
+    Everyone else is priced at their unit price from the
+    <a href="{{ url_for('invoice') }}">Invoice</a> page.</p>
+  {% else %}
+    <p class="muted">No orders recorded for {{ month_label }}.</p>
+  {% endif %}
+</div>
+</form>
+
+{# ── Labour ───────────────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Labour cost</h2>
+
+  {% if employees %}
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th style="text-align:right">Hours</th>
+        <th style="text-align:right">Wages</th>
+        <th style="text-align:right">Transport</th>
+        <th style="text-align:right">Strawberries</th>
+        <th style="text-align:right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in employees %}
+      <tr>
+        <td>{{ e.name }}</td>
+        <td style="text-align:right">{{ '%.2f'|format(e.total_hours) }}</td>
+        <td style="text-align:right">${{ '%.2f'|format(e.total_pay) }}</td>
+        <td style="text-align:right">${{ '%.2f'|format(e.total_transport) }}</td>
+        <td style="text-align:right">${{ '%.2f'|format(e.total_strawberry_cost) }}</td>
+        <td style="text-align:right; font-weight:600">${{ '%.2f'|format(e.net_pay) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid var(--pink-line)">
+        <td colspan="5"><b>Subtotal</b></td>
+        <td style="text-align:right"><b>${{ '%.2f'|format(labour_base) }}</b></td>
+      </tr>
+      <tr>
+        <td colspan="5" class="muted">Employer payroll tax ({{ '%.2f'|format(tax_rate * 100) }}%)</td>
+        <td style="text-align:right">${{ '%.2f'|format(labour_tax) }}</td>
+      </tr>
+      <tr style="border-top:2px solid var(--pink-line)">
+        <td colspan="5"><b>Total labour cost</b></td>
+        <td style="text-align:right"><b>${{ '%.2f'|format(labour_total) }}</b></td>
+      </tr>
+    </tfoot>
+  </table>
+  <p class="help">Same figures as the <a href="{{ url_for('salary_report', **{'from': date_from, 'to': date_to}) }}">Salary</a>
+    page for {{ date_from }} → {{ date_to }}, plus employer payroll tax.</p>
+  {% else %}
+    <p class="muted">No labour recorded for {{ month_label }}.</p>
+  {% endif %}
+</div>
+
+{# ── Bottom line ──────────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Bottom line</h2>
+  <table>
+    <tbody>
+      <tr><td>Sales</td>
+          <td style="text-align:right">${{ '%.2f'|format(total_sales) }}</td></tr>
+      <tr><td>Labour cost (incl. tax)</td>
+          <td style="text-align:right">−${{ '%.2f'|format(labour_total) }}</td></tr>
+      <tr style="border-top:2px solid var(--pink-line); font-weight:700">
+        <td>Net</td>
+        <td style="text-align:right" class="{{ 'ok' if net >= 0 else 'bad' }}">
+          ${{ '%.2f'|format(net) }}</td></tr>
+    </tbody>
+  </table>
+  <p class="help">Labour is the only cost tracked in the app — ingredients, kitchen
+    rent and card spend are not included, so this is a gross margin over labour,
+    not a full profit figure.</p>
+</div>
+
+<style>
+.sum-cards{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1rem}
+.sum-card{flex:1;min-width:9rem;background:var(--card);border:1px solid var(--pink-line);
+  border-radius:var(--radius);padding:.8rem 1rem;display:flex;flex-direction:column;gap:.15rem}
+.sum-label{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.sum-value{font-size:1.5rem;font-weight:700;line-height:1.15}
+.sum-note{font-size:.78rem;color:var(--muted)}
+.sum-good{border-color:#c3e6cc;background:#f5fbf7}
+.sum-bad{border-color:#f0c2c2;background:#fdf6f6}
+.pill-cons{background:#fff3e0;color:#8a5a00;font-size:.72rem}
+</style>
+{% endblock %}

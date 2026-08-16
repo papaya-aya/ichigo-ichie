@@ -110,6 +110,16 @@ ALTER TABLE orders   ADD COLUMN IF NOT EXISTS is_pickup         INTEGER NOT NULL
 ALTER TABLE clients  ADD COLUMN IF NOT EXISTS unit_price        NUMERIC NOT NULL DEFAULT 0;
 ALTER TABLE clients  ADD COLUMN IF NOT EXISTS contact_email     TEXT    NOT NULL DEFAULT '';
 ALTER TABLE clients  ADD COLUMN IF NOT EXISTS default_deliverer TEXT    NOT NULL DEFAULT '';
+ALTER TABLE clients  ADD COLUMN IF NOT EXISTS is_consignment    INTEGER NOT NULL DEFAULT 0;
+
+-- Actual sales reported by consignment clients, entered per month by the owner.
+CREATE TABLE IF NOT EXISTS consignment_sales (
+  id        SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  month     TEXT    NOT NULL,          -- 'YYYY-MM'
+  amount    NUMERIC NOT NULL DEFAULT 0,
+  UNIQUE(client_id, month)
+);
 
 -- Extra hours not tied to a production shift (pop-ups, markets, etc.)
 CREATE TABLE IF NOT EXISTS popups (
