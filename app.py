@@ -1589,6 +1589,8 @@ def _compute_salary(date_from, date_to):
         })
         employees_data[eid]["total_hours"] += hrs
         employees_data[eid]["total_pay"]   += pay
+        employees_data[eid]["pay_production"] = \
+            employees_data[eid].get("pay_production", 0.0) + pay
 
     # --- popup entries for the period ---
     popup_rows = g.db.execute(
@@ -1626,6 +1628,10 @@ def _compute_salary(date_from, date_to):
         employees_data[eid]["total_hours"]     += p["hours"]
         employees_data[eid]["total_pay"]       += pay
         employees_data[eid]["total_transport"] += p["transport"]
+        employees_data[eid]["pay_popup"] = \
+            employees_data[eid].get("pay_popup", 0.0) + pay
+        employees_data[eid]["transport_popup"] = \
+            employees_data[eid].get("transport_popup", 0.0) + p["transport"]
 
     # all popup entries flat list (for the add form — needed for delete too)
     all_popups = [dict(p) for p in popup_rows]
@@ -1701,6 +1707,8 @@ def _compute_salary(date_from, date_to):
             "amount":   round(amount, 2),
         })
         employees_data[eid]["total_transport"] += amount
+        employees_data[eid]["transport_delivery"] = \
+            employees_data[eid].get("transport_delivery", 0.0) + amount
 
     # finalize per-employee totals
     emp_list = []
@@ -1711,6 +1719,11 @@ def _compute_salary(date_from, date_to):
         emp["total_pay"]            = round(emp["total_pay"],   2)
         emp["total_transport"]      = round(emp["total_transport"], 2)
         emp["total_strawberry_cost"]= round(emp.get("total_strawberry_cost", 0.0), 2)
+        # four labour buckets: production / pop-up / procurement / delivery
+        emp["pay_production"]     = round(emp.get("pay_production", 0.0), 2)
+        emp["pay_popup"]          = round(emp.get("pay_popup", 0.0), 2)
+        emp["transport_popup"]    = round(emp.get("transport_popup", 0.0), 2)
+        emp["transport_delivery"] = round(emp.get("transport_delivery", 0.0), 2)
         # Gusto hours: (wage pay + transport + strawberry purchases) / gusto_rate
         net = emp["total_pay"] + emp["total_transport"] + emp["total_strawberry_cost"]
         emp["net_pay"]     = round(max(net, 0.0), 2)
@@ -1728,6 +1741,12 @@ def _compute_salary(date_from, date_to):
         "grand_strawberry": round(sum(e["total_strawberry_cost"] for e in emp_list), 2),
         "grand_gusto":      round(sum(e["gusto_hours"]           for e in emp_list), 2),
         "grand_net":        round(sum(e["net_pay"]               for e in emp_list), 2),
+        # labour split by activity
+        "grand_production":  round(sum(e["pay_production"]     for e in emp_list), 2),
+        "grand_popup_wage":  round(sum(e["pay_popup"]          for e in emp_list), 2),
+        "grand_popup_trans": round(sum(e["transport_popup"]    for e in emp_list), 2),
+        "grand_delivery":    round(sum(e["transport_delivery"] for e in emp_list), 2),
+        "grand_procurement": round(sum(e["total_strawberry_cost"] for e in emp_list), 2),
     }
 
 
@@ -1858,11 +1877,28 @@ def monthly_summary():
             "basis":          basis,
         })
 
-    # ---- labour ----
-    sal          = _compute_salary(date_from, date_to)
-    labour_base  = sal["grand_net"]
-    labour_tax   = round(labour_base * PAYROLL_TAX_RATE, 2)
-    labour_total = round(labour_base + labour_tax, 2)
+    # ---- labour, split by activity ----
+    sal = _compute_salary(date_from, date_to)
+    popup_total = round(sal["grand_popup_wage"] + sal["grand_popup_trans"], 2)
+    labour_split = [
+        {"name": "Production",
+         "amount": sal["grand_production"], "taxable": True,
+         "note": "shift wages"},
+        {"name": "Pop-up hourly wage",
+         "amount": popup_total, "taxable": True,
+         "note": "pop-up hours" + (" + transport" if sal["grand_popup_trans"] else "")},
+        {"name": "Procurement",
+         "amount": sal["grand_procurement"], "taxable": False,
+         "note": "strawberry purchases (reimbursement)"},
+        {"name": "Delivery",
+         "amount": sal["grand_delivery"], "taxable": False,
+         "note": "delivery transport (reimbursement)"},
+    ]
+    # Employer payroll tax applies to wages only — reimbursements are not taxed.
+    taxable_wages = round(sal["grand_production"] + sal["grand_popup_wage"], 2)
+    labour_base   = sal["grand_net"]
+    labour_tax    = round(taxable_wages * PAYROLL_TAX_RATE, 2)
+    labour_total  = round(labour_base + labour_tax, 2)
 
     # ---- hand-entered items (anything not from orders or payroll) ----
     items = g.db.execute(
@@ -1893,6 +1929,7 @@ def monthly_summary():
         employees=sal["employees"],
         labour_base=labour_base, labour_tax=labour_tax,
         labour_total=labour_total, tax_rate=PAYROLL_TAX_RATE,
+        labour_split=labour_split, taxable_wages=taxable_wages,
         other_revenue=other_revenue, other_costs=other_costs,
         other_rev_total=other_rev_total, other_cost_total=other_cost_total,
         uncategorised=uncategorised,

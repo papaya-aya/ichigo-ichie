@@ -49,6 +49,60 @@ SEED_CLIENTS = [
 
 DEFAULT_TARGET_PRODUCTIVITY = "6.5"
 
+# Non-labour costs for Feb–Aug 2026, categorised from the Mercury and Amex
+# exports (Gusto excluded — payroll is computed from shifts, not seeded here).
+NON_LABOUR_COSTS_2026 = [
+    ("2026-02", "Software & fees", "Relay Financial", 90.77),
+    ("2026-02", "Insurance", "Next Insurance", 36.42),
+    ("2026-02", "Software & fees", "INTUIT *", 19.00),
+    ("2026-02", "Uncategorised", "VENMO", 1.00),
+    ("2026-02", "Uncategorised", "INTUIT INC", 0.08),
+    ("2026-03", "Kitchen rent", "PASSIONE PIZZA L", 1575.00),
+    ("2026-03", "Insurance", "AmTrust Financial", 719.90),
+    ("2026-03", "Uncategorised", "Berkeley Building Permit", 519.00),
+    ("2026-03", "Ingredients", "Amex — Groceries", 330.18),
+    ("2026-03", "Uncategorised", "Amex — Internet Purchase", 114.06),
+    ("2026-03", "Ingredients", "Tokyo Fish Market", 75.00),
+    ("2026-03", "Insurance", "Next Insurance", 36.42),
+    ("2026-03", "Software & fees", "OPC Utilities Service Fee", 21.59),
+    ("2026-03", "Software & fees", "INTUIT *", 19.00),
+    ("2026-03", "Uncategorised", "Amex — Office Supplies", 12.82),
+    ("2026-04", "Kitchen rent", "PASSIONE PIZZA L", 1575.00),
+    ("2026-04", "Ingredients", "Kinokuniya", 1040.00),
+    ("2026-04", "Ingredients", "Amex — Groceries", 1007.45),
+    ("2026-04", "Uncategorised", "Amex — Internet Purchase", 109.97),
+    ("2026-04", "Uncategorised", "Amex — Office Supplies", 80.41),
+    ("2026-04", "Uncategorised", "VENMO", 69.78),
+    ("2026-04", "Insurance", "Next Insurance", 36.42),
+    ("2026-04", "Software & fees", "INTUIT *", 19.00),
+    ("2026-05", "Kitchen rent", "PASSIONE PIZZA L", 1880.00),
+    ("2026-05", "Ingredients", "Amex — Groceries", 862.42),
+    ("2026-05", "Uncategorised", "Amex — Office Supplies", 175.38),
+    ("2026-05", "Software & fees", "INTUIT *", 38.00),
+    ("2026-05", "Insurance", "Next Insurance", 36.42),
+    ("2026-05", "Uncategorised", "Amex — Restaurant", 8.92),
+    ("2026-05", "Uncategorised", "Amex — Mail Order", 8.30),
+    ("2026-06", "Ingredients", "Amex — Groceries", 489.14),
+    ("2026-06", "Uncategorised", "Amex — Internet Purchase", 118.83),
+    ("2026-06", "Software & fees", "INTUIT *", 38.00),
+    ("2026-06", "Insurance", "Next Insurance", 36.42),
+    ("2026-06", "Uncategorised", "Amex — Mail Order", 8.30),
+    ("2026-07", "Kitchen rent", "PASSIONE PIZZA L", 1550.00),
+    ("2026-07", "Ingredients", "Amex — Groceries", 646.81),
+    ("2026-07", "Uncategorised", "Venmo", 101.90),
+    ("2026-07", "Ingredients", "Amex — Wholesale Stores", 38.35),
+    ("2026-07", "Software & fees", "QuickBooks", 38.00),
+    ("2026-07", "Insurance", "Next Insurance", 36.42),
+    ("2026-07", "Uncategorised", "Amex — Mail Order", 8.30),
+    ("2026-08", "Ingredients", "Amex — Groceries", 277.24),
+    ("2026-08", "Uncategorised", "Amex — Education", 116.95),
+    ("2026-08", "Uncategorised", "Amex — Internet Purchase", 116.08),
+    ("2026-08", "Insurance", "Next Insurance", 36.38),
+    ("2026-08", "Uncategorised", "Sakurako Yanagisawa", 20.96),
+    ("2026-08", "Uncategorised", "Amex — Mail Order", 16.60),
+]
+
+
 
 # ---------------------------------------------------------------------------
 # sqlite3-compatible wrapper around psycopg2
@@ -201,6 +255,25 @@ def migrate_db():
                 )
         conn.execute(
             "INSERT INTO settings (key, value) VALUES ('asha_thursdays_aug_2026', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
+    # 2026-08-16: seed non-labour costs for Feb–Aug 2026 from the Mercury and
+    # Amex exports, so the monthly summary shows a full cost picture (one-time;
+    # the owner can edit or delete any of these from the Summary page).
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='seed_non_labour_2026'"
+    ).fetchone():
+        for month, category, label, amount in NON_LABOUR_COSTS_2026:
+            conn.execute(
+                """INSERT INTO summary_items
+                     (month, kind, category, label, amount, note, created_at)
+                   VALUES (?, 'cost', ?, ?, ?, 'imported from Mercury/Amex', ?)""",
+                (month, category, label, amount, now_iso()),
+            )
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('seed_non_labour_2026', '1')"
             " ON CONFLICT (key) DO NOTHING"
         )
         conn.commit()

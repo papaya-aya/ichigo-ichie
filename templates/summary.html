@@ -132,18 +132,49 @@
         <td colspan="5"><b>Subtotal</b></td>
         <td style="text-align:right"><b>${{ '%.2f'|format(labour_base) }}</b></td>
       </tr>
+    </tfoot>
+  </table>
+
+  <h3 style="margin-bottom:.4rem">By activity</h3>
+  <table>
+    <thead>
+      <tr><th>Activity</th><th style="text-align:right">Amount</th>
+          <th style="text-align:right">Share</th><th>Basis</th></tr>
+    </thead>
+    <tbody>
+      {% for b in labour_split %}
       <tr>
-        <td colspan="5" class="muted">Employer payroll tax ({{ '%.2f'|format(tax_rate * 100) }}%)</td>
+        <td><b>{{ b.name }}</b></td>
+        <td style="text-align:right; font-weight:600">${{ '%.2f'|format(b.amount) }}</td>
+        <td style="text-align:right" class="muted">
+          {{ ((100 * b.amount / labour_base) | round(1)) if labour_base else 0 }}%</td>
+        <td class="muted" style="font-size:.82rem">{{ b.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid var(--pink-line)">
+        <td><b>Subtotal</b></td>
+        <td style="text-align:right"><b>${{ '%.2f'|format(labour_base) }}</b></td>
+        <td colspan="2"></td>
+      </tr>
+      <tr>
+        <td class="muted">Employer payroll tax ({{ '%.2f'|format(tax_rate * 100) }}% of wages)</td>
         <td style="text-align:right">${{ '%.2f'|format(labour_tax) }}</td>
+        <td colspan="2" class="muted" style="font-size:.82rem">
+          on ${{ '%.2f'|format(taxable_wages) }} of production + pop-up wages</td>
       </tr>
       <tr style="border-top:2px solid var(--pink-line)">
-        <td colspan="5"><b>Total labour cost</b></td>
+        <td><b>Total labour cost</b></td>
         <td style="text-align:right"><b>${{ '%.2f'|format(labour_total) }}</b></td>
+        <td colspan="2"></td>
       </tr>
     </tfoot>
   </table>
-  <p class="help">Same figures as the <a href="{{ url_for('salary_report', **{'from': date_from, 'to': date_to}) }}">Salary</a>
-    page for {{ date_from }} → {{ date_to }}, plus employer payroll tax.</p>
+  <p class="help">Per-employee figures match the
+    <a href="{{ url_for('salary_report', **{'from': date_from, 'to': date_to}) }}">Salary</a>
+    page for {{ date_from }} → {{ date_to }}. Payroll tax is charged on wages only —
+    procurement and delivery are expense reimbursements, which are not taxed.</p>
   {% else %}
     <p class="muted">No labour recorded for {{ month_label }}.</p>
   {% endif %}
