@@ -121,6 +121,17 @@ CREATE TABLE IF NOT EXISTS consignment_sales (
   UNIQUE(client_id, month)
 );
 
+-- Actual result of a single pop-up, when it differs from the default
+-- "everything made, less waste". Either figure may be given: an exact dollar
+-- amount wins, otherwise pieces sold are multiplied by the pop-up rate.
+CREATE TABLE IF NOT EXISTS popup_sales (
+  id       SERIAL PRIMARY KEY,
+  order_id INTEGER NOT NULL REFERENCES orders(id),
+  pcs_sold NUMERIC,                    -- NULL = not recorded
+  amount   NUMERIC,                    -- NULL = not recorded
+  UNIQUE(order_id)
+);
+
 -- Revenue or cost that does not come from orders or payroll — anything the
 -- owner needs to categorise by hand (ingredients, rent, one-off income, an
 -- unrecognised bank deposit, etc.).

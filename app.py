@@ -217,6 +217,14 @@ def pickup_rate():
         return 6.50
 
 
+def popup_waste():
+    """Share of a pop-up batch assumed unsold, when actuals aren't recorded."""
+    try:
+        return float(database.get_setting(g.db, "popup_waste", "0.10"))
+    except (TypeError, ValueError):
+        return 0.10
+
+
 def gusto_rate():
     try:
         return float(database.get_setting(g.db, "gusto_rate", "20.00"))
@@ -1825,6 +1833,38 @@ def monthly_summary():
             g.db.commit()
             flash("Item removed.", "success")
 
+        elif action == "save_popups":
+            def _num(raw):
+                raw = (raw or "").strip()
+                if raw == "":
+                    return None
+                try:
+                    return float(raw)
+                except ValueError:
+                    return None
+
+            for raw_id in request.form.getlist("order_id"):
+                try:
+                    oid = int(raw_id)
+                except ValueError:
+                    continue
+                sold   = _num(request.form.get(f"psold_{oid}"))
+                amount = _num(request.form.get(f"pamt_{oid}"))
+                if sold is None and amount is None:
+                    g.db.execute(
+                        "DELETE FROM popup_sales WHERE order_id = ?", (oid,))
+                else:
+                    g.db.execute(
+                        """INSERT INTO popup_sales (order_id, pcs_sold, amount)
+                                VALUES (?, ?, ?)
+                           ON CONFLICT (order_id) DO UPDATE
+                             SET pcs_sold = EXCLUDED.pcs_sold,
+                                 amount   = EXCLUDED.amount""",
+                        (oid, sold, amount),
+                    )
+            g.db.commit()
+            flash("Pop-up sales saved.", "success")
+
         elif action == "update_items":
             changed = 0
             for raw_id in request.form.getlist("item_id"):
@@ -1854,6 +1894,12 @@ def monthly_summary():
                             g.db, setting, f"{float(request.form[setting]):.2f}")
                     except (TypeError, ValueError):
                         pass
+            if "popup_waste_pct" in request.form:
+                try:
+                    pct = float(request.form["popup_waste_pct"])
+                    database.set_setting(g.db, "popup_waste", f"{pct / 100:.4f}")
+                except (TypeError, ValueError):
+                    pass
             for key, val in request.form.items():
                 if key.startswith("cons_"):
                     try:
@@ -1912,6 +1958,50 @@ def monthly_summary():
     }
 
     pop_rate, pick_rate = popup_rate(), pickup_rate()
+    waste = popup_waste()
+
+    # ---- pop-ups, one row per event, with optional recorded actuals ----
+    popup_rows, popup_rev_by_client = [], {}
+    for p in g.db.execute(
+        """SELECT o.id, COALESCE(o.delivery_date, o.date) AS on_date,
+                  o.client_id, o.note, c.name AS client_name,
+                  (o.qty_original + o.qty_matcha
+                   + o.qty_hojicha + o.qty_other) AS pcs,
+                  ps.pcs_sold, ps.amount
+             FROM orders o
+             JOIN clients c ON c.id = o.client_id
+             LEFT JOIN popup_sales ps ON ps.order_id = o.id
+            WHERE o.is_pickup = 1
+              AND COALESCE(o.delivery_date, o.date) BETWEEN ? AND ?
+            ORDER BY on_date, c.name""",
+        (date_from, date_to),
+    ).fetchall():
+        made = int(p["pcs"] or 0)
+        if p["amount"] is not None:
+            revenue = round(float(p["amount"]), 2)
+            basis   = "exact amount entered"
+        elif p["pcs_sold"] is not None:
+            sold    = float(p["pcs_sold"])
+            revenue = round(sold * pop_rate, 2)
+            basis   = f"{sold:g} sold x ${pop_rate:.2f}"
+        else:
+            revenue = round(made * pop_rate * (1 - waste), 2)
+            basis   = (f"{made} made x ${pop_rate:.2f} "
+                       f"less {waste * 100:g}% waste")
+        popup_rows.append({
+            "order_id":   p["id"],
+            "date":       p["on_date"],
+            "client_name": p["client_name"],
+            "note":       p["note"] or "",
+            "pcs":        made,
+            "pcs_sold":   p["pcs_sold"],
+            "amount":     p["amount"],
+            "recorded":   p["amount"] is not None or p["pcs_sold"] is not None,
+            "revenue":    revenue,
+            "basis":      basis,
+        })
+        popup_rev_by_client[p["client_id"]] = round(
+            popup_rev_by_client.get(p["client_id"], 0.0) + revenue, 2)
 
     sales_rows, total_sales = [], 0.0
     for r in order_rows:
@@ -1920,8 +2010,7 @@ def monthly_summary():
         price     = float(r["unit_price"] or 0)
         is_pickup_client = (r["default_deliverer"] or "").lower() == "pick-up"
 
-        # Pop-up pieces always earn the pop-up rate, whoever they belong to.
-        popup_rev = round(popup_pcs * pop_rate, 2)
+        popup_rev = popup_rev_by_client.get(r["client_id"], 0.0)
 
         if r["is_consignment"]:
             gross     = entered.get(r["client_id"], 0.0)
@@ -1935,7 +2024,7 @@ def monthly_summary():
             basis = (f"{other_pcs} pcs x ${other_rate:.2f}"
                      + (" (pick-up)" if is_pickup_client else ""))
         if popup_pcs:
-            basis += f" · {popup_pcs} pop-up x ${pop_rate:.2f}"
+            basis += f" · {popup_pcs} pop-up pcs (see below)"
 
         revenue = round(popup_rev + other_rev, 2)
         total_sales += revenue
@@ -1997,8 +2086,10 @@ def monthly_summary():
         prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
         date_from=date_from, date_to=date_to,
         sales_rows=sales_rows, order_sales=order_sales,
-        popup_rate=pop_rate, pickup_rate=pick_rate,
+        popup_rate=pop_rate, pickup_rate=pick_rate, popup_waste=waste,
         popup_pcs=sum(r["popup_pcs"] for r in sales_rows),
+        popup_rows=popup_rows,
+        popup_sales_total=round(sum(r["revenue"] for r in popup_rows), 2),
         total_sales=total_sales, total_costs=total_costs,
         total_pcs=sum(r["pcs"] for r in sales_rows),
         employees=sal["employees"],

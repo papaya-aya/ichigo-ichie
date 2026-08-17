@@ -108,6 +108,12 @@
       <input type="number" name="pickup_rate" value="{{ '%.2f'|format(pickup_rate) }}"
              min="0" step="0.01" style="text-align:right">
     </label>
+    <label class="field" style="width:9rem">
+      Pop-up waste %
+      <input type="number" name="popup_waste_pct"
+             value="{{ '%g'|format(popup_waste * 100) }}"
+             min="0" max="100" step="0.5" style="text-align:right">
+    </label>
     <div class="field">
       <span style="visibility:hidden; font-size:.92rem">x</span>
       <button type="submit">Save prices &amp; consignment sales</button>
@@ -125,6 +131,77 @@
   {% endif %}
 </div>
 </form>
+
+{# ── Pop-ups ──────────────────────────────────────────────────────────── #}
+{% if popup_rows %}
+<form method="post" action="{{ url_for('monthly_summary', month=month) }}">
+  <input type="hidden" name="action" value="save_popups">
+<div class="card">
+  <h2 style="margin-top:0">Pop-ups
+    <span class="pill">{{ popup_rows|length }} event{{ 's' if popup_rows|length != 1 }}</span>
+    <span class="pill">${{ '%.2f'|format(popup_sales_total) }}</span>
+  </h2>
+  <p class="muted" style="margin-top:-.4rem; font-size:.88rem">
+    By default a pop-up earns everything made less {{ '%g'|format(popup_waste * 100) }}%
+    waste. If a pop-up sold unusually well or badly, record what actually happened —
+    either the pieces sold or an exact dollar amount. An exact amount always wins.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Client</th>
+        <th style="text-align:right">Made</th>
+        <th style="text-align:right">Pieces sold</th>
+        <th style="text-align:right">Exact amount</th>
+        <th style="text-align:right">Revenue</th>
+        <th>Basis</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in popup_rows %}
+      <tr {% if not p.recorded %}class="row-default"{% endif %}>
+        <td>
+          <input type="hidden" name="order_id" value="{{ p.order_id }}">
+          {{ p.date }}
+        </td>
+        <td><b>{{ p.client_name }}</b>
+          {% if p.note %}<br><span class="muted" style="font-size:.75rem">{{ p.note }}</span>{% endif %}
+        </td>
+        <td style="text-align:right">{{ p.pcs }}</td>
+        <td style="text-align:right">
+          <input type="number" name="psold_{{ p.order_id }}"
+                 value="{{ '%g'|format(p.pcs_sold) if p.pcs_sold is not none else '' }}"
+                 min="0" step="1" placeholder="—"
+                 style="width:5.5rem; text-align:right">
+        </td>
+        <td style="text-align:right">
+          <input type="number" name="pamt_{{ p.order_id }}"
+                 value="{{ '%.2f'|format(p.amount) if p.amount is not none else '' }}"
+                 min="0" step="0.01" placeholder="—"
+                 style="width:6.5rem; text-align:right">
+        </td>
+        <td style="text-align:right; font-weight:600">${{ '%.2f'|format(p.revenue) }}</td>
+        <td class="muted" style="font-size:.8rem">{{ p.basis }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid var(--pink-line)">
+        <td colspan="5"><b>Total pop-up revenue</b></td>
+        <td style="text-align:right"><b>${{ '%.2f'|format(popup_sales_total) }}</b></td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="row-actions" style="margin-top:.8rem">
+    <button type="submit">Save pop-up sales</button>
+  </div>
+  <p class="help">Clear both fields to fall back to the default. Tinted rows are
+    still on the default; rows with a white background have recorded actuals.</p>
+</div>
+</form>
+{% endif %}
 
 {# ── Labour ───────────────────────────────────────────────────────────── #}
 <div class="card">
@@ -381,5 +458,6 @@
 .pill-warn{background:#fff3cd;color:#8a6d00;font-size:.72rem}
 tr.row-uncat{background:#fffbf0}
 .pill-chan{background:#eef2ff;color:#3949ab;font-size:.72rem}
+tr.row-default{background:#fafafa}
 </style>
 {% endblock %}
