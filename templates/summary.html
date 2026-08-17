@@ -58,9 +58,15 @@
         <td><b>{{ r.name }}</b>
           {% if r.is_consignment %}<span class="pill pill-cons">consignment</span>{% endif %}
         </td>
-        <td style="text-align:right">{{ r.pcs or '—' }}</td>
+        <td style="text-align:right">
+          {{ r.pcs or '—' }}
+          {% if r.popup_pcs %}<br><span class="muted" style="font-size:.75rem">
+            {{ r.popup_pcs }} pop-up</span>{% endif %}
+        </td>
         <td style="text-align:right">
           {% if r.is_consignment %}<span class="muted">—</span>
+          {% elif r.is_pickup %}
+            <span class="pill pill-chan">pick-up ${{ '%.2f'|format(r.other_rate) }}</span>
           {% else %}
             <input type="number" name="price_{{ r.client_id }}"
                    value="{{ '%.2f'|format(r.unit_price) }}"
@@ -90,15 +96,30 @@
     </tfoot>
   </table>
 
-  <div class="row-actions" style="margin-top:.8rem">
-    <button type="submit">Save prices &amp; consignment sales</button>
+  <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end;
+              margin-top:.9rem; padding-top:.8rem; border-top:1px solid var(--pink-line)">
+    <label class="field" style="width:9rem">
+      Pop-up $/pc
+      <input type="number" name="popup_rate" value="{{ '%.2f'|format(popup_rate) }}"
+             min="0" step="0.01" style="text-align:right">
+    </label>
+    <label class="field" style="width:9rem">
+      Pick-up $/pc
+      <input type="number" name="pickup_rate" value="{{ '%.2f'|format(pickup_rate) }}"
+             min="0" step="0.01" style="text-align:right">
+    </label>
+    <div class="field">
+      <span style="visibility:hidden; font-size:.92rem">x</span>
+      <button type="submit">Save prices &amp; consignment sales</button>
+    </div>
   </div>
-  <p class="help">Rates are the <b>net revenue to Ichigo Ichie per piece</b> — splits
-    and pop-up waste already applied (e.g. Iyasare $5.20 = 65% of $8.00, pop-up
-    $6.48 = $7.20 less 10% waste). Saving here also updates the
-    <a href="{{ url_for('invoice') }}">Invoice</a> page.
-    Consignment clients are billed on the sales they report, not on quantity
-    delivered — enter their reported figure and Ichigo Ichie keeps 80%.</p>
+  <p class="help">Per-client rates are the <b>net revenue to Ichigo Ichie per piece</b>,
+    splits already applied (e.g. Iyasare $5.20 = 65% of $8.00). Saving here also
+    updates the <a href="{{ url_for('invoice') }}">Invoice</a> page.
+    Consignment clients bill on the sales they report, not on quantity delivered —
+    enter their reported figure and Ichigo Ichie keeps 80%.
+    Orders ticked <b>Pop-up</b> earn the pop-up rate whoever they belong to;
+    clients whose deliverer is set to <b>pick-up</b> earn the pick-up rate.</p>
   {% else %}
     <p class="muted">No orders recorded for {{ month_label }}.</p>
   {% endif %}
@@ -165,10 +186,10 @@
         <td colspan="2"></td>
       </tr>
       <tr>
-        <td class="muted">Employer payroll tax ({{ '%.2f'|format(tax_rate * 100) }}% of wages)</td>
+        <td class="muted">Employer payroll tax ({{ '%.2f'|format(tax_rate * 100) }}%)</td>
         <td style="text-align:right">${{ '%.2f'|format(labour_tax) }}</td>
         <td colspan="2" class="muted" style="font-size:.82rem">
-          on ${{ '%.2f'|format(taxable_wages) }} of production + pop-up wages</td>
+          on the full ${{ '%.2f'|format(labour_base) }} labour subtotal</td>
       </tr>
       <tr style="border-top:2px solid var(--pink-line)">
         <td><b>Total labour cost</b></td>
@@ -179,8 +200,8 @@
   </table>
   <p class="help">Per-employee figures match the
     <a href="{{ url_for('salary_report', **{'from': date_from, 'to': date_to}) }}">Salary</a>
-    page for {{ date_from }} → {{ date_to }}. Payroll tax is charged on wages only —
-    procurement and delivery are expense reimbursements, which are not taxed.</p>
+    page for {{ date_from }} → {{ date_to }}. Payroll tax is charged on the whole
+    labour cost, procurement and delivery included.</p>
   {% else %}
     <p class="muted">No labour recorded for {{ month_label }}.</p>
   {% endif %}
@@ -359,5 +380,6 @@
 .pill-cost{background:#fdecec;color:#a33;font-size:.72rem}
 .pill-warn{background:#fff3cd;color:#8a6d00;font-size:.72rem}
 tr.row-uncat{background:#fffbf0}
+.pill-chan{background:#eef2ff;color:#3949ab;font-size:.72rem}
 </style>
 {% endblock %}

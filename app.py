@@ -201,6 +201,22 @@ def piece_rate():
         return 2.0
 
 
+def popup_rate():
+    """Revenue per piece sold at a pop-up / market."""
+    try:
+        return float(database.get_setting(g.db, "popup_rate", "7.20"))
+    except (TypeError, ValueError):
+        return 7.20
+
+
+def pickup_rate():
+    """Revenue per piece for clients who collect their own order."""
+    try:
+        return float(database.get_setting(g.db, "pickup_rate", "6.50"))
+    except (TypeError, ValueError):
+        return 6.50
+
+
 def gusto_rate():
     try:
         return float(database.get_setting(g.db, "gusto_rate", "20.00"))
@@ -1831,6 +1847,13 @@ def monthly_summary():
             flash(f"Updated {changed} item(s).", "success")
 
         else:
+            for setting in ("popup_rate", "pickup_rate"):
+                if setting in request.form:
+                    try:
+                        database.set_setting(
+                            g.db, setting, f"{float(request.form[setting]):.2f}")
+                    except (TypeError, ValueError):
+                        pass
             for key, val in request.form.items():
                 if key.startswith("cons_"):
                     try:
@@ -1866,10 +1889,16 @@ def monthly_summary():
     # ---- sales ----
     order_rows = g.db.execute(
         """SELECT c.id AS client_id, c.name, c.unit_price, c.is_consignment,
-                  SUM(o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) AS pcs
+                  c.default_deliverer,
+                  SUM(CASE WHEN o.is_pickup = 1 THEN
+                        o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
+                      ELSE 0 END) AS popup_pcs,
+                  SUM(CASE WHEN o.is_pickup = 1 THEN 0 ELSE
+                        o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
+                      END) AS other_pcs
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) BETWEEN ? AND ?
-            GROUP BY c.id, c.name, c.unit_price, c.is_consignment
+            GROUP BY c.id, c.name, c.unit_price, c.is_consignment, c.default_deliverer
             ORDER BY c.name""",
         (date_from, date_to),
     ).fetchall()
@@ -1882,24 +1911,43 @@ def monthly_summary():
         ).fetchall()
     }
 
+    pop_rate, pick_rate = popup_rate(), pickup_rate()
+
     sales_rows, total_sales = [], 0.0
     for r in order_rows:
-        pcs   = int(r["pcs"] or 0)
-        price = float(r["unit_price"] or 0)
+        popup_pcs = int(r["popup_pcs"] or 0)
+        other_pcs = int(r["other_pcs"] or 0)
+        price     = float(r["unit_price"] or 0)
+        is_pickup_client = (r["default_deliverer"] or "").lower() == "pick-up"
+
+        # Pop-up pieces always earn the pop-up rate, whoever they belong to.
+        popup_rev = round(popup_pcs * pop_rate, 2)
+
         if r["is_consignment"]:
-            gross   = entered.get(r["client_id"], 0.0)
-            revenue = round(gross * CONSIGNMENT_SHARE, 2)
-            basis   = f"{int(CONSIGNMENT_SHARE * 100)}% of reported sales"
+            gross     = entered.get(r["client_id"], 0.0)
+            other_rev = round(gross * CONSIGNMENT_SHARE, 2)
+            other_rate = None
+            basis     = f"{int(CONSIGNMENT_SHARE * 100)}% of reported sales"
         else:
-            gross   = None
-            revenue = round(pcs * price, 2)
-            basis   = f"{pcs} pcs x ${price:.2f}"
+            gross = None
+            other_rate = pick_rate if is_pickup_client else price
+            other_rev  = round(other_pcs * other_rate, 2)
+            basis = (f"{other_pcs} pcs x ${other_rate:.2f}"
+                     + (" (pick-up)" if is_pickup_client else ""))
+        if popup_pcs:
+            basis += f" · {popup_pcs} pop-up x ${pop_rate:.2f}"
+
+        revenue = round(popup_rev + other_rev, 2)
         total_sales += revenue
         sales_rows.append({
             "client_id":      r["client_id"],
             "name":           r["name"],
-            "pcs":            pcs,
+            "pcs":            popup_pcs + other_pcs,
+            "popup_pcs":      popup_pcs,
+            "other_pcs":      other_pcs,
             "unit_price":     price,
+            "other_rate":     other_rate,
+            "is_pickup":      is_pickup_client,
             "is_consignment": bool(r["is_consignment"]),
             "gross":          gross,
             "revenue":        revenue,
@@ -1911,23 +1959,19 @@ def monthly_summary():
     popup_total = round(sal["grand_popup_wage"] + sal["grand_popup_trans"], 2)
     labour_split = [
         {"name": "Production",
-         "amount": sal["grand_production"], "taxable": True,
-         "note": "shift wages"},
+         "amount": sal["grand_production"], "note": "shift wages"},
         {"name": "Pop-up hourly wage",
-         "amount": popup_total, "taxable": True,
+         "amount": popup_total,
          "note": "pop-up hours" + (" + transport" if sal["grand_popup_trans"] else "")},
         {"name": "Procurement",
-         "amount": sal["grand_procurement"], "taxable": False,
-         "note": "strawberry purchases (reimbursement)"},
+         "amount": sal["grand_procurement"], "note": "strawberry purchases"},
         {"name": "Delivery",
-         "amount": sal["grand_delivery"], "taxable": False,
-         "note": "delivery transport (reimbursement)"},
+         "amount": sal["grand_delivery"], "note": "delivery transport"},
     ]
-    # Employer payroll tax applies to wages only — reimbursements are not taxed.
-    taxable_wages = round(sal["grand_production"] + sal["grand_popup_wage"], 2)
-    labour_base   = sal["grand_net"]
-    labour_tax    = round(taxable_wages * PAYROLL_TAX_RATE, 2)
-    labour_total  = round(labour_base + labour_tax, 2)
+    # Payroll tax applies to the whole labour cost, reimbursements included.
+    labour_base  = sal["grand_net"]
+    labour_tax   = round(labour_base * PAYROLL_TAX_RATE, 2)
+    labour_total = round(labour_base + labour_tax, 2)
 
     # ---- hand-entered items (anything not from orders or payroll) ----
     items = g.db.execute(
@@ -1953,12 +1997,14 @@ def monthly_summary():
         prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
         date_from=date_from, date_to=date_to,
         sales_rows=sales_rows, order_sales=order_sales,
+        popup_rate=pop_rate, pickup_rate=pick_rate,
+        popup_pcs=sum(r["popup_pcs"] for r in sales_rows),
         total_sales=total_sales, total_costs=total_costs,
         total_pcs=sum(r["pcs"] for r in sales_rows),
         employees=sal["employees"],
         labour_base=labour_base, labour_tax=labour_tax,
         labour_total=labour_total, tax_rate=PAYROLL_TAX_RATE,
-        labour_split=labour_split, taxable_wages=taxable_wages,
+        labour_split=labour_split,
         other_revenue=other_revenue, other_costs=other_costs,
         other_rev_total=other_rev_total, other_cost_total=other_cost_total,
         uncategorised=uncategorised,
