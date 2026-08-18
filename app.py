@@ -430,6 +430,31 @@ def availability():
                     "DELETE FROM delivery_availability WHERE employee_id=? AND date=?",
                     (emp_id, d),
                 )
+        # Save strawberry purchase-run availability
+        pur_saved = 0
+        for run in g.db.execute(
+            "SELECT id FROM purchase_instances WHERE date LIKE ?", (month + "-%",)
+        ).fetchall():
+            pid = run["id"]
+            if request.form.get(f"pur_{pid}"):
+                g.db.execute(
+                    """INSERT INTO purchase_availability
+                         (employee_id, purchase_instance_id, note, submitted_at)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(employee_id, purchase_instance_id)
+                         DO UPDATE SET note = excluded.note""",
+                    (emp_id, pid,
+                     request.form.get(f"purnote_{pid}", "").strip(),
+                     database.now_iso()),
+                )
+                pur_saved += 1
+            else:
+                g.db.execute(
+                    """DELETE FROM purchase_availability
+                        WHERE employee_id = ? AND purchase_instance_id = ?""",
+                    (emp_id, pid),
+                )
+
         try:
             g.db.commit()
         except Exception as db_err:
@@ -443,6 +468,7 @@ def availability():
             parts = []
             if saved:     parts.append(f"{saved} shift(s)")
             if del_saved: parts.append(f"{del_saved} delivery day(s)")
+            if pur_saved: parts.append(f"{pur_saved} purchase run(s)")
             flash(f"Saved: {', '.join(parts) or 'no changes'}. Shift submissions await owner approval.", "success")
 
         # Warn the employee if they are already assigned to shifts they didn't mark available.
@@ -502,11 +528,38 @@ def availability():
             "checked": d in del_marked,
         })
 
+    # Strawberry purchase runs this employee can volunteer for
+    ensure_purchase_instances(month)
+    pur_marked = {
+        r["purchase_instance_id"]: r["note"]
+        for r in g.db.execute(
+            "SELECT purchase_instance_id, note FROM purchase_availability"
+            " WHERE employee_id = ?", (emp_id,),
+        ).fetchall()
+    }
+    pur_assigned = {
+        r["purchase_instance_id"] for r in g.db.execute(
+            "SELECT purchase_instance_id FROM purchase_assignments WHERE employee_id = ?",
+            (emp_id,),
+        ).fetchall()
+    }
+    pur_rows = [{
+        "id":       r["id"],
+        "date":     r["date"],
+        "weekday":  WEEKDAY_NAMES[date_weekday(r["date"])],
+        "checked":  r["id"] in pur_marked,
+        "note":     pur_marked.get(r["id"], ""),
+        "assigned": r["id"] in pur_assigned,
+    } for r in g.db.execute(
+        "SELECT id, date FROM purchase_instances WHERE date LIKE ? ORDER BY date",
+        (month + "-%",),
+    ).fetchall()]
+
     return render_template(
         "availability.html",
         month=month, month_label=month_label(month),
         prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
-        rows=rows, del_rows=del_rows,
+        rows=rows, del_rows=del_rows, pur_rows=pur_rows,
     )
 
 
@@ -1532,6 +1585,163 @@ def apply_recurring_assignments():
 # Salary report + popup entries
 # ---------------------------------------------------------------------------
 
+# Strawberry purchase runs happen on Sunday, Wednesday and Friday.
+PURCHASE_WEEKDAYS = (6, 2, 4)
+
+
+def ensure_purchase_instances(month):
+    """Seed Sun/Wed/Fri runs for a month, but only the first time it is opened.
+
+    After that the table is authoritative, so dates the owner deleted stay
+    deleted and dates they added stay added.
+    """
+    existing = g.db.execute(
+        "SELECT COUNT(*) AS n FROM purchase_instances WHERE date LIKE ?",
+        (month + "-%",),
+    ).fetchone()["n"]
+    if existing:
+        return
+    y, m = (int(x) for x in month.split("-"))
+    for day in range(1, _calendar.monthrange(y, m)[1] + 1):
+        d = date(y, m, day)
+        if d.weekday() in PURCHASE_WEEKDAYS:
+            g.db.execute(
+                """INSERT INTO purchase_instances (date, created_at)
+                        VALUES (?, ?) ON CONFLICT (date) DO NOTHING""",
+                (d.isoformat(), database.now_iso()),
+            )
+    g.db.commit()
+
+
+def purchase_rows_for_month(month):
+    """Every purchase run in a month with its volunteers and assignees."""
+    runs = g.db.execute(
+        "SELECT id, date FROM purchase_instances WHERE date LIKE ? ORDER BY date",
+        (month + "-%",),
+    ).fetchall()
+
+    avail = {}
+    for r in g.db.execute(
+        """SELECT pa.purchase_instance_id AS pid, pa.employee_id, pa.note,
+                  e.name
+             FROM purchase_availability pa
+             JOIN employees e ON e.id = pa.employee_id
+             JOIN purchase_instances pi ON pi.id = pa.purchase_instance_id
+            WHERE pi.date LIKE ?
+            ORDER BY e.name""",
+        (month + "-%",),
+    ).fetchall():
+        avail.setdefault(r["pid"], []).append(dict(r))
+
+    assigned = {}
+    for r in g.db.execute(
+        """SELECT pa.purchase_instance_id AS pid, pa.employee_id,
+                  pa.completed, e.name
+             FROM purchase_assignments pa
+             JOIN employees e ON e.id = pa.employee_id
+             JOIN purchase_instances pi ON pi.id = pa.purchase_instance_id
+            WHERE pi.date LIKE ?
+            ORDER BY e.name""",
+        (month + "-%",),
+    ).fetchall():
+        assigned.setdefault(r["pid"], []).append(dict(r))
+
+    out = []
+    for r in runs:
+        vols = avail.get(r["id"], [])
+        asgn = assigned.get(r["id"], [])
+        out.append({
+            "id":           r["id"],
+            "date":         r["date"],
+            "weekday":      WEEKDAY_NAMES[date_weekday(r["date"])],
+            "volunteers":   vols,
+            "assigned":     asgn,
+            "assigned_ids": {a["employee_id"] for a in asgn},
+            "is_past":      r["date"] < date.today().isoformat(),
+        })
+    return out
+
+
+@app.route("/owner/purchases", methods=["GET", "POST"])
+@require_owner
+def purchases():
+    month = request.values.get("month") or date.today().strftime("%Y-%m")
+
+    if request.method == "POST":
+        action = request.form.get("action", "save")
+
+        if action == "add_date":
+            new_date = request.form.get("new_date", "").strip()
+            if new_date:
+                g.db.execute(
+                    """INSERT INTO purchase_instances (date, created_at)
+                            VALUES (?, ?) ON CONFLICT (date) DO NOTHING""",
+                    (new_date, database.now_iso()),
+                )
+                g.db.commit()
+                flash(f"Added a purchase run on {new_date}.", "success")
+
+        elif action == "delete_date":
+            pid = request.form.get("purchase_id")
+            g.db.execute(
+                "DELETE FROM purchase_assignments WHERE purchase_instance_id = ?", (pid,))
+            g.db.execute(
+                "DELETE FROM purchase_availability WHERE purchase_instance_id = ?", (pid,))
+            g.db.execute("DELETE FROM purchase_instances WHERE id = ?", (pid,))
+            g.db.commit()
+            flash("Purchase run deleted.", "success")
+
+        else:
+            for run in purchase_rows_for_month(month):
+                pid = run["id"]
+                chosen = {
+                    int(x) for x in request.form.getlist(f"assign_{pid}") if x.isdigit()
+                }
+                done = {
+                    int(x) for x in request.form.getlist(f"done_{pid}") if x.isdigit()
+                }
+                for eid in chosen - run["assigned_ids"]:
+                    g.db.execute(
+                        """INSERT INTO purchase_assignments
+                             (purchase_instance_id, employee_id, completed, created_at)
+                           VALUES (?, ?, ?, ?)
+                           ON CONFLICT (purchase_instance_id, employee_id) DO NOTHING""",
+                        (pid, eid, 1 if eid in done else 0, database.now_iso()),
+                    )
+                for eid in run["assigned_ids"] - chosen:
+                    g.db.execute(
+                        """DELETE FROM purchase_assignments
+                            WHERE purchase_instance_id = ? AND employee_id = ?""",
+                        (pid, eid),
+                    )
+                for eid in chosen:
+                    g.db.execute(
+                        """UPDATE purchase_assignments SET completed = ?
+                            WHERE purchase_instance_id = ? AND employee_id = ?""",
+                        (1 if eid in done else 0, pid, eid),
+                    )
+            g.db.commit()
+            flash(f"{month_label(month)}: purchase assignments saved.", "success")
+
+        return redirect(url_for("purchases", month=month))
+
+    ensure_purchase_instances(month)
+    runs = purchase_rows_for_month(month)
+    employees = g.db.execute(
+        "SELECT id, name FROM employees WHERE active=1 ORDER BY name"
+    ).fetchall()
+
+    n_assigned = sum(1 for r in runs if r["assigned"])
+    return render_template(
+        "purchases.html",
+        month=month, month_label=month_label(month),
+        prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
+        runs=runs, employees=employees,
+        strawberry_price=strawberry_price(),
+        n_assigned=n_assigned, n_unassigned=len(runs) - n_assigned,
+    )
+
+
 def _compute_salary(date_from, date_to):
     """Per-employee pay for a period. Shared by the Salary page and the Summary page."""
     pr   = piece_rate()
@@ -1669,8 +1879,40 @@ def _compute_salary(date_from, date_to):
         (date_from, date_to),
     ).fetchall()
 
+    # --- scheduled purchase runs the owner assigned (Sun/Wed/Fri) ---
+    # These are the primary record; an ad-hoc request for the same person and
+    # date is skipped below so a run is never paid twice.
+    assigned_runs = set()
+    for pr in g.db.execute(
+        """SELECT pa.employee_id, pa.completed, pi.date, e.name AS emp_name
+             FROM purchase_assignments pa
+             JOIN purchase_instances pi ON pi.id = pa.purchase_instance_id
+             JOIN employees e ON e.id = pa.employee_id
+            WHERE pi.date BETWEEN ? AND ?
+            ORDER BY pi.date, e.name""",
+        (date_from, date_to),
+    ).fetchall():
+        eid = pr["employee_id"]
+        if eid not in employees_data:
+            employees_data[eid] = {
+                "name": pr["emp_name"], "shifts": [], "popups": [],
+                "total_hours": 0.0, "total_pay": 0.0, "total_transport": 0.0,
+            }
+        employees_data[eid].setdefault("strawberry_purchases", []).append({
+            "id":        None,
+            "date":      pr["date"],
+            "cost":      round(sp_p, 2),
+            "scheduled": True,
+            "completed": bool(pr["completed"]),
+        })
+        employees_data[eid]["total_strawberry_cost"] = \
+            employees_data[eid].get("total_strawberry_cost", 0.0) + sp_p
+        assigned_runs.add((eid, pr["date"]))
+
     for sp in sp_rows:
         eid  = sp["employee_id"]
+        if (eid, sp["date"]) in assigned_runs:
+            continue  # already paid via the assigned run
         cost = sp_p  # 1 strawberry = strawberry_price per entry
         if eid not in employees_data:
             employees_data[eid] = {

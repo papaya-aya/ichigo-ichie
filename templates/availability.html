@@ -115,8 +115,33 @@
       </tbody>
     </table>
   </div>
-  <button type="submit">{{ 'Update availability' if has_existing else 'Save availability' }}</button>
   {% endif %}
+
+  {% if pur_rows %}
+  <div class="card" style="margin-top:1.5rem">
+    <h2 style="margin-top:0">🍓 Strawberry purchase runs</h2>
+    <p class="muted" style="margin-top:-.5rem">Sunday, Wednesday and Friday. Check
+      the box for any run you could do — the owner assigns from whoever volunteers.</p>
+    <table>
+      <thead>
+        <tr><th>Available?</th><th>Date</th><th>Note</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in pur_rows %}
+        <tr>
+          <td><input type="checkbox" name="pur_{{ p.id }}" {% if p.checked %}checked{% endif %}></td>
+          <td><span class="badge badge-day">{{ p.weekday }}</span> {{ p.date }}</td>
+          <td><input type="text" name="purnote_{{ p.id }}" value="{{ p.note }}"
+                     placeholder="optional" style="width:11rem; font-size:.85em"></td>
+          <td>{% if p.assigned %}<span class="pill" style="background:#e8f5ec;color:#2d6a40;font-size:.75rem">assigned to you</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <button type="submit">{{ 'Update availability' if has_existing else 'Save availability' }}</button>
 </form>
 
 <style>

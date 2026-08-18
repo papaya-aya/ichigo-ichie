@@ -121,6 +121,35 @@ CREATE TABLE IF NOT EXISTS consignment_sales (
   UNIQUE(client_id, month)
 );
 
+-- Strawberry purchase runs. Seeded on Sunday / Wednesday / Friday, but the
+-- owner may add or delete individual dates, so the table is the source of
+-- truth rather than the weekday rule.
+CREATE TABLE IF NOT EXISTS purchase_instances (
+  id         SERIAL PRIMARY KEY,
+  date       TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
+
+-- Employees say which purchase runs they can do, alongside shift availability.
+CREATE TABLE IF NOT EXISTS purchase_availability (
+  id                   SERIAL PRIMARY KEY,
+  employee_id          INTEGER NOT NULL REFERENCES employees(id),
+  purchase_instance_id INTEGER NOT NULL REFERENCES purchase_instances(id),
+  note                 TEXT    NOT NULL DEFAULT '',
+  submitted_at         TEXT    NOT NULL,
+  UNIQUE(employee_id, purchase_instance_id)
+);
+
+-- Who the owner assigned to each run, and whether it actually happened.
+CREATE TABLE IF NOT EXISTS purchase_assignments (
+  id                   SERIAL PRIMARY KEY,
+  purchase_instance_id INTEGER NOT NULL REFERENCES purchase_instances(id),
+  employee_id          INTEGER NOT NULL REFERENCES employees(id),
+  completed            INTEGER NOT NULL DEFAULT 0,
+  created_at           TEXT    NOT NULL,
+  UNIQUE(purchase_instance_id, employee_id)
+);
+
 -- Actual result of a single pop-up, when it differs from the default
 -- "everything made, less waste". Either figure may be given: an exact dollar
 -- amount wins, otherwise pieces sold are multiplied by the pop-up rate.

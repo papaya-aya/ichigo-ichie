@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% from "_monthnav.html" import monthnav %}
+{% block title %}Strawberry purchases · Ichigo Ichie{% endblock %}
+{% block content %}
+
+<h1>Strawberry purchases</h1>
+<p class="subtitle">Runs happen Sunday, Wednesday and Friday. Employees volunteer
+  when they submit monthly availability; assign them here. Each assigned run pays
+  ${{ '%.2f'|format(strawberry_price) }} and flows straight into salary.</p>
+
+{{ monthnav('purchases', prev_month, next_month, month_label) }}
+
+{% if n_unassigned %}
+<div class="card" style="padding:.7rem 1rem; margin-bottom:1rem; background:#fff8e6; border-color:#ffe08a">
+  <b>{{ n_unassigned }} run{{ 's' if n_unassigned != 1 }} still unassigned</b>
+  <span class="muted"> · {{ n_assigned }} assigned</span>
+</div>
+{% endif %}
+
+{% if not runs %}
+  <div class="card"><p class="muted">No purchase runs for {{ month_label }}.</p></div>
+{% else %}
+
+{# Delete forms live outside the main form — forms cannot be nested #}
+{% for r in runs %}
+<form id="delrun-{{ r.id }}" method="post"
+      action="{{ url_for('purchases', month=month) }}"
+      onsubmit="return confirm('Delete the {{ r.weekday }} {{ r.date }} purchase run? This removes its assignments too.')">
+  <input type="hidden" name="action" value="delete_date">
+  <input type="hidden" name="purchase_id" value="{{ r.id }}">
+</form>
+{% endfor %}
+
+<form method="post" action="{{ url_for('purchases', month=month) }}">
+  <input type="hidden" name="action" value="save">
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Volunteered</th>
+          <th>Assign</th>
+          <th>Done?</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs %}
+        <tr class="{{ 'run-past' if r.is_past }} {{ 'run-open' if not r.assigned }}">
+          <td style="white-space:nowrap">
+            <b>{{ r.weekday }}</b><br>
+            <span class="muted" style="font-size:.85rem">{{ r.date }}</span>
+          </td>
+
+          <td>
+            {% if r.volunteers %}
+              {% for v in r.volunteers %}
+                <span class="pill pill-vol">{{ v.name }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="muted" style="font-size:.85rem">nobody yet</span>
+            {% endif %}
+          </td>
+
+          <td>
+            {% for e in employees %}
+            <label style="display:inline-flex; align-items:center; gap:.25rem;
+                          margin-right:.7rem; cursor:pointer; font-size:.88rem">
+              <input type="checkbox" name="assign_{{ r.id }}" value="{{ e.id }}"
+                     {% if e.id in r.assigned_ids %}checked{% endif %}>
+              {{ e.name }}{% if r.volunteers and e.id in r.volunteers|map(attribute='employee_id')|list %} ✋{% endif %}
+            </label>
+            {% endfor %}
+          </td>
+
+          <td style="white-space:nowrap">
+            {% for a in r.assigned %}
+            <label style="display:inline-flex; align-items:center; gap:.25rem;
+                          margin-right:.5rem; cursor:pointer; font-size:.85rem">
+              <input type="checkbox" name="done_{{ r.id }}" value="{{ a.employee_id }}"
+                     {% if a.completed %}checked{% endif %}>
+              {{ a.name }}
+            </label>
+            {% else %}
+            <span class="muted" style="font-size:.82rem">—</span>
+            {% endfor %}
+          </td>
+
+          <td>
+            <button form="delrun-{{ r.id }}" type="submit" class="btn-ghost btn-sm"
+                    style="color:var(--red,#e53935);border-color:var(--red,#e53935)">✕</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="row-actions" style="margin-top:.8rem">
+      <button type="submit">Save assignments</button>
+    </div>
+    <p class="help">✋ marks someone who volunteered for that run. Every assigned run
+      pays ${{ '%.2f'|format(strawberry_price) }}, whether or not “Done?” is ticked —
+      untick nothing, just delete the assignment if a run did not happen.
+      Figures appear under <b>Procurement</b> on the
+      <a href="{{ url_for('salary_report') }}">Salary</a> and
+      <a href="{{ url_for('monthly_summary', month=month) }}">Summary</a> pages.</p>
+  </div>
+</form>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Add a purchase run</h2>
+  <form method="post" action="{{ url_for('purchases', month=month) }}">
+    <input type="hidden" name="action" value="add_date">
+    <div style="display:flex; gap:.6rem; align-items:flex-end; flex-wrap:wrap">
+      <label class="field" style="width:11rem">
+        Date
+        <input type="date" name="new_date" required>
+      </label>
+      <div class="field">
+        <span style="visibility:hidden; font-size:.92rem">x</span>
+        <button type="submit">Add run</button>
+      </div>
+    </div>
+  </form>
+  <p class="help">Use this for an extra run outside the usual Sunday / Wednesday /
+    Friday pattern. Sun/Wed/Fri runs are created automatically the first time a
+    month is opened, so dates you delete stay deleted.</p>
+</div>
+
+<style>
+.pill-vol{background:#e8f5ec;color:#2d6a40;font-size:.75rem}
+tr.run-past{opacity:.62}
+tr.run-open{background:#fffbf0}
+</style>
+{% endblock %}
