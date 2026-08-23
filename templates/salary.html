@@ -46,9 +46,15 @@
       {% for emp_name, sp in all_purchases|sort(attribute='1.date') %}
       <tr>
         <td>{{ emp_name }}</td>
-        <td>{{ sp.date }}</td>
+        <td>{{ sp.date }}
+          {% if sp.scheduled %}
+            <span class="pill" style="background:#e8f5ec;color:#2d6a40;font-size:.72rem">
+              scheduled run{% if not sp.completed %} · not marked done{% endif %}</span>
+          {% endif %}
+        </td>
         <td style="text-align:right" class="ok">+${{ "%.2f"|format(sp.cost) }}</td>
         <td>
+          {% if sp.id %}
           <form method="post"
                 action="{{ url_for('delete_strawberry_purchase', purchase_id=sp.id) }}"
                 class="inline-form" onsubmit="return confirm('Remove this purchase?')">
@@ -57,6 +63,10 @@
             <button type="submit" class="btn-ghost btn-sm"
                     style="color:var(--red);border-color:var(--red)">✕</button>
           </form>
+          {% else %}
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('purchases', month=sp.date[:7]) }}"
+             title="Assigned on the Purchases page">edit →</a>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -286,7 +296,9 @@
     <tbody>
       {% for sp in emp.strawberry_purchases %}
       <tr>
-        <td>🍓 {{ sp.date }}</td>
+        <td>🍓 {{ sp.date }}
+          {% if sp.scheduled %}<span class="muted" style="font-size:.75rem">(scheduled run)</span>{% endif %}
+        </td>
         <td style="text-align:right" class="ok"><b>+${{ "%.2f"|format(sp.cost) }}</b></td>
       </tr>
       {% endfor %}
