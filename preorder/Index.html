@@ -85,6 +85,7 @@
       }
       .contact a { color: var(--berry-dk); text-decoration: none;
                    border-bottom: 1px solid var(--line); }
+      .build { font-size: 11px; color: #C9BDBF; letter-spacing: .06em; }
 
       /* ---------- generic blocks ---------- */
       .section-label {
@@ -302,7 +303,7 @@
 
   <body>
     <header>
-      <div class="mark">🍓</div>
+      <div class="mark" id="em-mark"></div>
       <h1 class="serif" data-txt="brand"></h1>
       <p class="tagline" data-txt="tagline"></p>
       <div class="rule"></div>
@@ -312,10 +313,10 @@
       <div class="card">
         <p class="intro-lead" data-txt="intro_lead"></p>
         <div class="line">
-          <span class="ic">📍</span><span id="info-where"></span>
+          <span class="ic" id="em-pin"></span><span id="info-where"></span>
         </div>
         <div class="line">
-          <span class="ic">📅</span><span id="info-when"></span>
+          <span class="ic" id="em-cal"></span><span id="info-when"></span>
         </div>
         <ul class="intro-notes">
           <li id="note-close"></li>
@@ -333,7 +334,7 @@
     <!-- shop closed -->
     <div class="wrap screen hidden" id="screen-closed">
       <div class="center">
-        <div class="big">🌙</div>
+        <div class="big" id="em-closed"></div>
         <h2 class="serif" data-txt="closed_title"></h2>
         <p data-txt="closed_body"></p>
       </div>
@@ -342,7 +343,7 @@
     <!-- couldn't load -->
     <div class="wrap screen hidden" id="screen-loadfail">
       <div class="center">
-        <div class="big">⚠️</div>
+        <div class="big" id="em-fail"></div>
         <h2 class="serif" data-txt="loadfail_title"></h2>
         <p data-txt="loadfail_body"></p>
       </div>
@@ -406,15 +407,16 @@
 
       <p class="contact">
         <span data-txt="contact_q"></span><br>
-        <a id="contact-mail"></a> · <a id="contact-ig" target="_blank"
-           rel="noopener noreferrer"></a>
+        <a id="contact-mail"></a> <span id="contact-sep"></span> <a id="contact-ig" target="_blank"
+           rel="noopener noreferrer"></a><br>
+        <span class="build" id="build-stamp"></span>
       </p>
     </div>
 
     <!-- confirmation -->
     <div class="wrap screen hidden" id="screen-done">
       <div class="center">
-        <div class="big">🍓</div>
+        <div class="big" id="em-done"></div>
         <h2 class="serif" data-txt="done_title"></h2>
         <p data-txt="done_body"></p>
 
@@ -441,63 +443,63 @@
     </div>
 
     <script>
-      /* ============ MENU — edit me ============
+      /* ============ MENU -- edit me ============
          name_ja is the Japanese name printed under the English one, purely
          as brand texture. Set it to '' on an item to hide that line.       */
       var MENU = [
         {
           id: 'original',
           name_en: 'Original Strawberry Daifuku',
-          name_ja: 'いちご大福',
+          name_ja: '\u3044\u3061\u3054\u5927\u798f',   // ichigo daifuku
           price: 8.00,
           description_en: 'A whole strawberry and white bean paste in hand-pounded mochi.'
         },
         {
           id: 'matcha',
           name_en: 'Matcha Strawberry Daifuku',
-          name_ja: '抹茶いちご大福',
+          name_ja: '\u62b9\u8336\u3044\u3061\u3054\u5927\u798f',   // matcha ichigo daifuku
           price: 8.00,
           description_en: 'Uji matcha folded into the mochi for a gentle, grassy bitterness.'
         },
         {
           id: 'hojicha',
           name_en: 'Hojicha Strawberry Daifuku',
-          name_ja: 'ほうじ茶いちご大福',
+          name_ja: '\u307b\u3046\u3058\u8336\u3044\u3061\u3054\u5927\u798f',   // hojicha ichigo daifuku
           price: 8.00,
-          description_en: 'Roasted hojicha in the mochi — toasty and warm against the berry.'
+          description_en: 'Roasted hojicha in the mochi \u2014 toasty and warm against the berry.'
         },
         {
           id: 'ube',
           name_en: 'Ube Strawberry Daifuku',
-          name_ja: '紅芋いちご大福',
+          name_ja: '\u7d05\u828b\u3044\u3061\u3054\u5927\u798f',   // beni-imo (ube) ichigo daifuku
           price: 8.00,
           description_en: 'Purple yam and strawberry, back only for this weekend.',
           badge: "This weekend's special"
         }
       ];
 
-      /* ============ COPY — edit me ============
+      /* ============ COPY -- edit me ============
          Every label, button and message on the page comes from here.       */
       var TEXT = {
         brand: 'Ichigo Ichie',
-        tagline: 'Fresh strawberry daifuku · made the morning of',
-        intro_lead: "Pre-order your treats for our Ichigo Daifuku Pop-Up at {venue} — we'll have your order ready when you arrive 🍓💖",
-        note_close: 'Limited quantities — pre-orders close {date}.',
+        tagline: 'Fresh strawberry daifuku \u00b7 made the morning of',
+        intro_lead: "Pre-order your treats for our Ichigo Daifuku Pop-Up at {venue} \u2014 we'll have your order ready when you arrive \ud83c\udf53\ud83d\udc96",
+        note_close: 'Limited quantities \u2014 pre-orders close {date}.',
         note_pay: 'Payment accepted via Venmo, credit card or cash at pickup.',
         note_diet: 'Our daifukus are vegan, soy-free, gluten-free and dairy-free!',
         contact_q: 'Questions? Email us or DM us on Instagram.',
         menu_label: 'Menu',
         details_label: 'Your details',
         max_note: 'Limit {max} pieces per customer.',
-        menu_deal: 'Any {size} for {price} — a {save} discount.',
+        menu_deal: 'Any {size} for {price} \u2014 a {save} discount.',
         tip_label: 'Add a tip',
         tip_none: 'No tip',
         tip_other: 'Other',
         tip_custom_label: 'Tip amount',
         set_deal: 'Any {size} for {price}.',
-        set_hint: 'Any {size} for {price} — add {n} more.',
-        set_applied: 'Set of {size} applied — you save {save}.',
-        set_applied_many: '{sets} × set of {size} applied — you save {save}.',
+        set_hint: 'Any {size} for {price} \u2014 add {n} more.',
+        set_applied: 'Set of {size} applied \u2014 you save {save}.',
+        set_applied_many: '{sets} \u00d7 set of {size} applied \u2014 you save {save}.',
         done_saving: 'Set of {size}',
         cap_reached: 'That is the {max}-piece limit per customer.',
         f_name: 'Name',
@@ -508,11 +510,11 @@
         bar_count_one: '1 piece',
         bar_count_many: '{n} pieces',
         bar_saving: 'you save {save}',
-        bar_breakdown: 'Items {items} · Tip {tip}',
+        bar_breakdown: 'Items {items} \u00b7 Tip {tip}',
         done_subtotal: 'Subtotal',
         done_tip: 'Tip',
         submit: 'Place preorder',
-        submitting: 'Sending…',
+        submitting: 'Sending\u2026',
         each: 'each',
         closed_title: 'Preorders are closed',
         closed_body: 'Pre-orders for this pop-up have closed. Follow us on Instagram for the next date.',
@@ -523,7 +525,7 @@
         done_ordernum: 'Order number',
         done_pickup: 'Pickup (any time during the pop-up)',
         done_total: 'Total',
-        pay_due: 'Payment due at pickup — Venmo, credit card or cash.',
+        pay_due: 'Payment due at pickup \u2014 Venmo, credit card or cash.',
         err_NO_ITEMS: 'Please add at least one daifuku.',
         err_TOO_MANY: 'Limit {max} pieces per customer.',
         err_NAME: 'Please enter your name.',
@@ -533,8 +535,23 @@
         err_BAD_TIP: 'That tip amount could not be accepted. Please pick another.',
         err_CLOSED: 'Preorders just closed. Nothing was charged or saved.',
         err_SERVER: 'We could not save your order. Please try again in a moment.',
-        err_NETWORK: 'Connection problem — your order was not sent. Please try again.'
+        err_NETWORK: 'Connection problem \u2014 your order was not sent. Please try again.'
       };
+
+      /* Emoji live here rather than in the markup: everything this file
+         serves is then plain ASCII, which cannot be mis-decoded whatever
+         encoding a browser decides to guess. */
+      var EMOJI = {
+        'em-mark':   '\ud83c\udf53',
+        'em-done':   '\ud83c\udf53',
+        'em-closed': '\ud83c\udf19',
+        'em-fail':   '\u26a0\ufe0f',
+        'em-pin':    '\ud83d\udccd',
+        'em-cal':    '\ud83d\udcc5',
+        'contact-sep': '\u00b7'
+      };
+
+      var BUILD = 'build 2026-08-24c';
 
       /* ============ state ============ */
       var qty = {};                 // id -> count
@@ -571,7 +588,7 @@
         return currency + (Math.round(n * 100) / 100).toFixed(2);
       }
 
-      // Same, but drops a trailing .00 — for prose, not for line items.
+      // Same, but drops a trailing .00 -- for prose, not for line items.
       function moneyShort(n) {
         var v = Math.round(n * 100) / 100;
         return currency + (v === Math.round(v) ? String(v) : v.toFixed(2));
@@ -590,6 +607,11 @@
 
       /* ============ boot ============ */
       function boot() {
+        Object.keys(EMOJI).forEach(function (id) {
+          var node = document.getElementById(id);
+          if (node) node.textContent = EMOJI[id];
+        });
+        document.getElementById('build-stamp').textContent = BUILD;
         applyText();
         google.script.run
           .withSuccessHandler(onState)
@@ -613,9 +635,9 @@
         maxCustomTip = state.maxCustomTip || 0;
 
         el('info-where').textContent =
-          [popupVenue, pickupLocation].filter(Boolean).join(' · ');
+          [popupVenue, pickupLocation].filter(Boolean).join(' \u00b7 ');
         el('info-when').textContent =
-          [popupDate, popupHours].filter(Boolean).join(' · ');
+          [popupDate, popupHours].filter(Boolean).join(' \u00b7 ');
 
         var mail = el('contact-mail');
         mail.textContent = state.contactEmail || '';
@@ -873,7 +895,7 @@
           el('plus-' + m.id).disabled = atCap || sending;
           var lt = el('lt-' + m.id);
           lt.classList.toggle('hidden', q === 0);
-          lt.textContent = money(m.price) + ' ' + t('each') + '  ·  ' +
+          lt.textContent = money(m.price) + ' ' + t('each') + '  \u00b7  ' +
                            money(m.price * q);
         });
 
@@ -906,7 +928,7 @@
         : pieces === 1 ? t('bar_count_one')
         : t('bar_count_many', { n: pieces });
         if (price.savings > 0) {
-          countText += ' · ' + t('bar_saving', { save: money(price.savings) });
+          countText += ' \u00b7 ' + t('bar_saving', { save: money(price.savings) });
         }
         el('bar-count').textContent = countText;
 
@@ -1002,7 +1024,7 @@
           var r = document.createElement('div');
           r.className = 'row';
           r.innerHTML = '<span></span><span></span>';
-          r.children[0].textContent = qty[m.id] + ' × ' + m.name_en;
+          r.children[0].textContent = qty[m.id] + ' \u00d7 ' + m.name_en;
           r.children[1].textContent = money(m.price * qty[m.id]);
           recap.appendChild(r);
         });
@@ -1013,9 +1035,9 @@
           save.className = 'row saving';
           save.innerHTML = '<span></span><span></span>';
           save.children[0].textContent =
-            (price.sets > 1 ? price.sets + ' × ' : '') +
+            (price.sets > 1 ? price.sets + ' \u00d7 ' : '') +
             t('done_saving', { size: setSize });
-          save.children[1].textContent = '−' + money(price.savings);
+          save.children[1].textContent = '\u2212' + money(price.savings);
           recap.appendChild(save);
         }
 
@@ -1046,8 +1068,8 @@
         var where = document.createElement('div');
         where.className = 'where';
         where.textContent = t('done_pickup') + ': ' +
-                            [popupDate, popupHours].filter(Boolean).join(' · ') +
-                            ' · ' + [popupVenue, pickupLocation]
+                            [popupDate, popupHours].filter(Boolean).join(' \u00b7 ') +
+                            ' \u00b7 ' + [popupVenue, pickupLocation]
                                       .filter(Boolean).join(', ');
         recap.appendChild(where);
       }
