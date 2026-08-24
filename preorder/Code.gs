@@ -90,10 +90,46 @@ function pickupWindow_() {
  * Serves the single-page order form.
  */
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
+  var html = asciiSafe_(HtmlService.createHtmlOutputFromFile('Index').getContent());
+  return HtmlService.createHtmlOutput(html)
     .setSandboxMode(HtmlService.SandboxMode.IFRAME)
     .setTitle('Ichigo Ichie Preorder')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+
+/**
+ * HtmlService strips <meta charset> out of the file, and the iframe Google
+ * serves the page inside carries no encoding declaration of its own, so a
+ * browser left to guess decodes the UTF-8 bytes as MacRoman — the strawberry
+ * comes out as "uci" and every dash as ",Ai".
+ *
+ * Rather than depend on that guess, everything above ASCII is escaped before
+ * it is served. Index.html itself stays readable and editable.
+ */
+function asciiSafe_(html) {
+  return html.split(/(<script[\s\S]*?<\/script>)/i).map(function (part) {
+    return /^<script/i.test(part) ? escapeForScript_(part)
+                                  : escapeForMarkup_(part);
+  }).join('');
+}
+
+
+// One escape per UTF-16 unit: an emoji's surrogate pair becomes two escapes,
+// which is exactly what a JavaScript string literal expects.
+function escapeForScript_(s) {
+  return s.replace(/[^\x00-\x7F]/g, function (ch) {
+    return '\\u' + ('000' + ch.charCodeAt(0).toString(16)).slice(-4);
+  });
+}
+
+
+// One entity per code point: astral characters must stay whole here, because
+// HTML ignores an entity that names a lone surrogate.
+function escapeForMarkup_(s) {
+  return s.replace(/[^\x00-\x7F]/gu, function (ch) {
+    return '&#x' + ch.codePointAt(0).toString(16).toUpperCase() + ';';
+  });
 }
 
 
