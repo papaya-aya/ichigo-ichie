@@ -62,6 +62,37 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- cost-spreadsheet parser -----------------------------------------
+    print("\ncost sheet parser")
+    parse = harness.appmod.parse_cost_sheet
+    cases = [
+        # (name, csv, expected row count, expected first month)
+        ("iso dates",
+         "Date,Item,Amount\n2026-08-03,Mixer bowl,84.50\n", 1, "2026-08"),
+        ("us dates, $ and commas",
+         'Date,Description,Cost\n8/3/2026,Uber,"$1,284.50"\n', 1, "2026-08"),
+        ("month names, TOTAL row skipped",
+         "Month,Expense,Amount\nAugust 2026,Scale,120\n,TOTAL,120\n", 1, "2026-08"),
+        ("negative becomes revenue",
+         "Date,Item,Amount\n2026-08-01,Refund,-50\n", 1, "2026-08"),
+    ]
+    for name, csv_text, want_n, want_month in cases:
+        rows, _ = parse(csv_text)
+        ok = len(rows) == want_n and rows and rows[0]["month"] == want_month
+        print(f"  {'ok  ' if ok else 'FAIL'} {name:<32} {len(rows)} row(s)")
+        if not ok:
+            failures.append(name)
+    neg, _ = parse("Date,Item,Amount\n2026-08-01,Refund,-50\n")
+    ok = neg and neg[0]["kind"] == "revenue"
+    print(f"  {'ok  ' if ok else 'FAIL'} {'negative -> revenue':<32}")
+    if not ok:
+        failures.append("negative -> revenue")
+    bad, problems = parse("Date,Item,Notes\n2026-08-01,x,y\n")
+    ok = not bad and problems
+    print(f"  {'ok  ' if ok else 'FAIL'} {'missing amount column reports':<32}")
+    if not ok:
+        failures.append("missing amount column")
+
     print("\nfailures:", failures or "none")
     return 1 if failures else 0
 

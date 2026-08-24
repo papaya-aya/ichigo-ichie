@@ -1,6 +1,8 @@
 """Ichigo Ichie — shift management web app (Flask + SQLite)."""
 import calendar as _calendar
 import os
+import re
+from urllib.parse import urlsplit
 import urllib.request
 import json as _json
 from datetime import date, datetime, timedelta
@@ -1589,6 +1591,136 @@ def apply_recurring_assignments():
 PURCHASE_WEEKDAYS = (6, 2, 4)
 
 
+# --- importing the owner's unexpected-cost spreadsheet ---------------------
+# Header names accepted for each field, matched case-insensitively.
+SHEET_ALIASES = {
+    "date":     ("date", "month", "when", "day", "purchased"),
+    "label":    ("item", "description", "label", "what", "expense",
+                 "name", "detail", "memo", "vendor", "merchant"),
+    "amount":   ("amount", "cost", "total", "price", "spend", "usd", "$"),
+    "category": ("category", "type", "kind", "bucket"),
+    "note":     ("note", "notes", "comment", "remark", "reason"),
+}
+SHEET_HOSTS = ("docs.google.com", "googleusercontent.com")
+
+
+def sheet_csv_url(raw):
+    """Normalise a Google Sheets link to something that returns CSV.
+
+    Accepts a published-to-web link as-is, and rewrites a normal /edit link
+    to its CSV export (which only works if the sheet is link-shared).
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    if "output=csv" in raw or "format=csv" in raw:
+        return raw
+    m = re.search(r"/spreadsheets/d/(?:e/)?([A-Za-z0-9_-]+)", raw)
+    if not m:
+        return raw
+    gid = "0"
+    gm = re.search(r"[?&#]gid=(\d+)", raw)
+    if gm:
+        gid = gm.group(1)
+    return (f"https://docs.google.com/spreadsheets/d/{m.group(1)}"
+            f"/export?format=csv&gid={gid}")
+
+
+def _sheet_month(value):
+    """Coerce a spreadsheet date cell to 'YYYY-MM', or None."""
+    v = (value or "").strip()
+    if not v:
+        return None
+    m = re.match(r"^(\d{4})-(\d{1,2})", v)                    # 2026-08-14
+    if m:
+        return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}"
+    m = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$", v)  # 8/14/2026
+    if m:
+        year = int(m.group(3))
+        year += 2000 if year < 100 else 0
+        return f"{year:04d}-{int(m.group(1)):02d}"
+    m = re.match(r"^([A-Za-z]{3,9})\s+(\d{4})$", v)            # August 2026
+    if m:
+        for i, name in enumerate(_calendar.month_name):
+            if i and name.lower().startswith(m.group(1).lower()[:3]):
+                return f"{int(m.group(2)):04d}-{i:02d}"
+    return None
+
+
+def _sheet_amount(value):
+    """Coerce a spreadsheet money cell to a float, or None."""
+    v = re.sub(r"[^0-9.\-()]", "", (value or ""))
+    if not v or v in ("-", ".", "()"):
+        return None
+    neg = v.startswith("(") and v.endswith(")")
+    v = v.strip("()")
+    try:
+        amount = float(v)
+    except ValueError:
+        return None
+    return -amount if neg else amount
+
+
+def parse_cost_sheet(text):
+    """Turn published-sheet CSV into summary rows. Returns (rows, problems)."""
+    import csv as _csv
+    import io as _io
+
+    reader = _csv.reader(_io.StringIO(text))
+    table = [r for r in reader if any((c or "").strip() for c in r)]
+    if not table:
+        return [], ["The sheet is empty."]
+
+    header = [(c or "").strip().lower() for c in table[0]]
+    col = {}
+    for field, names in SHEET_ALIASES.items():
+        for i, h in enumerate(header):
+            if h and (h in names or any(h.startswith(n) for n in names)):
+                col.setdefault(field, i)
+                break
+
+    problems = []
+    if "amount" not in col:
+        return [], [f"No amount column found. Headers seen: "
+                    f"{', '.join(h for h in header if h) or '(none)'}."]
+
+    rows, skipped = [], 0
+    for raw in table[1:]:
+        def cell(field):
+            i = col.get(field)
+            return (raw[i].strip() if i is not None and i < len(raw) else "")
+
+        amount = _sheet_amount(cell("amount"))
+        if amount is None or amount == 0:
+            skipped += 1
+            continue
+        month = _sheet_month(cell("date"))
+        if not month:
+            skipped += 1
+            continue
+        label = cell("label")
+        if not label:
+            # fall back to the first text cell that isn't the amount or date
+            for i, c in enumerate(raw):
+                if i not in (col.get("amount"), col.get("date")) and (c or "").strip():
+                    label = c.strip()
+                    break
+        rows.append({
+            "month":    month,
+            "kind":     "revenue" if amount < 0 else "cost",
+            "category": cell("category") or "Uncategorised",
+            "label":    label or "(unnamed)",
+            "amount":   abs(amount),
+            "note":     cell("note"),
+        })
+
+    if skipped:
+        problems.append(f"{skipped} row(s) skipped — no usable date or amount.")
+    if "date" not in col:
+        problems.append("No date column found, so nothing could be dated.")
+    return rows, problems
+
+
 def ensure_purchase_instances(month):
     """Seed Sun/Wed/Fri runs for a month, but only the first time it is opened.
 
@@ -2075,6 +2207,58 @@ def monthly_summary():
             g.db.commit()
             flash("Item removed.", "success")
 
+        elif action == "save_sheet_url":
+            database.set_setting(g.db, "cost_sheet_url",
+                                 request.form.get("cost_sheet_url", "").strip())
+            g.db.commit()
+            flash("Cost spreadsheet link saved.", "success")
+
+        elif action == "sync_sheet":
+            url = sheet_csv_url(database.get_setting(g.db, "cost_sheet_url", ""))
+            host = urlsplit(url).hostname or ""
+            if not url:
+                flash("Add the published spreadsheet link first.", "error")
+            elif not any(host == h or host.endswith("." + h) for h in SHEET_HOSTS):
+                flash("Only Google Sheets links can be synced.", "error")
+            else:
+                try:
+                    resp = _requests.get(url, timeout=20)
+                    resp.raise_for_status()
+                    body = resp.text
+                except Exception as exc:                      # noqa: BLE001
+                    body = None
+                    flash(f"Could not fetch the sheet: {exc}", "error")
+                if body is not None:
+                    if body.lstrip()[:1] == "<":
+                        flash("That link returned a web page, not CSV. In Google "
+                              "Sheets use File → Share → Publish to web, choose "
+                              "Comma-separated values (.csv), and paste that link.",
+                              "error")
+                    else:
+                        rows, problems = parse_cost_sheet(body)
+                        if rows:
+                            g.db.execute(
+                                "DELETE FROM summary_items WHERE source = 'sheet'")
+                            for r in rows:
+                                g.db.execute(
+                                    """INSERT INTO summary_items
+                                         (month, kind, category, label, amount,
+                                          note, created_at, source)
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, 'sheet')""",
+                                    (r["month"], r["kind"], r["category"],
+                                     r["label"], r["amount"], r["note"],
+                                     database.now_iso()),
+                                )
+                            database.set_setting(g.db, "cost_sheet_synced_at",
+                                                 database.now_iso())
+                            g.db.commit()
+                            months = sorted({r["month"] for r in rows})
+                            flash(f"Imported {len(rows)} row(s) across "
+                                  f"{len(months)} month(s): {', '.join(months)}.",
+                                  "success")
+                        for p in problems:
+                            flash(p, "error" if not rows else "success")
+
         elif action == "save_popups":
             def _num(raw):
                 raw = (raw or "").strip()
@@ -2306,7 +2490,7 @@ def monthly_summary():
 
     # ---- hand-entered items (anything not from orders or payroll) ----
     items = g.db.execute(
-        """SELECT id, kind, category, label, amount, note
+        """SELECT id, kind, category, label, amount, note, source
              FROM summary_items WHERE month = ?
             ORDER BY kind, category, label""",
         (month,),
@@ -2338,6 +2522,10 @@ def monthly_summary():
         labour_base=labour_base, labour_tax=labour_tax,
         labour_total=labour_total, tax_rate=PAYROLL_TAX_RATE,
         labour_split=labour_split,
+        cost_sheet_url=database.get_setting(g.db, "cost_sheet_url", "") or "",
+        cost_sheet_synced_at=database.get_setting(
+            g.db, "cost_sheet_synced_at", "") or "",
+        sheet_item_count=sum(1 for r in items if r["source"] == "sheet"),
         other_revenue=other_revenue, other_costs=other_costs,
         other_rev_total=other_rev_total, other_cost_total=other_cost_total,
         uncategorised=uncategorised,

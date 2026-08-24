@@ -174,6 +174,9 @@ CREATE TABLE IF NOT EXISTS summary_items (
   note       TEXT    NOT NULL DEFAULT '',
   created_at TEXT    NOT NULL
 );
+-- 'manual' rows are owner-entered. 'sheet' rows come from the published cost
+-- spreadsheet and are replaced wholesale on every sync.
+ALTER TABLE summary_items ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
 
 -- Extra hours not tied to a production shift (pop-ups, markets, etc.)
 CREATE TABLE IF NOT EXISTS popups (

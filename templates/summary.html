@@ -292,6 +292,41 @@
     a one-off sale, or a bank deposit you can't place. Leave the category as
     <b>Uncategorised</b> if you want to record it now and label it later.</p>
 
+  <div style="background:var(--pink-soft,#fef9fa); border:1px solid var(--pink-line);
+              border-radius:var(--radius); padding:.7rem .9rem; margin-bottom:1rem">
+    <b>🔗 Unexpected-cost spreadsheet</b>
+    {% if cost_sheet_synced_at %}
+      <span class="muted" style="font-size:.82rem"> · last synced
+        {{ cost_sheet_synced_at[:16].replace('T', ' ') }}
+        ({{ sheet_item_count }} row{{ 's' if sheet_item_count != 1 }} this month)</span>
+    {% endif %}
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:flex-end; margin-top:.5rem">
+      <form method="post" action="{{ url_for('monthly_summary', month=month) }}"
+            style="display:flex; gap:.5rem; align-items:flex-end; flex:1; min-width:18rem">
+        <input type="hidden" name="action" value="save_sheet_url">
+        <label class="field" style="flex:1">
+          <span style="font-size:.82rem">Published CSV link</span>
+          <input type="text" name="cost_sheet_url" value="{{ cost_sheet_url }}"
+                 placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
+                 style="width:100%; font-size:.82rem">
+        </label>
+        <button type="submit" class="btn-ghost btn-sm">Save link</button>
+      </form>
+      {% if cost_sheet_url %}
+      <form method="post" action="{{ url_for('monthly_summary', month=month) }}"
+            onsubmit="return confirm('Re-import the spreadsheet? Rows previously imported from it are replaced; anything you added by hand is left alone.')">
+        <input type="hidden" name="action" value="sync_sheet">
+        <button type="submit">Sync now</button>
+      </form>
+      {% endif %}
+    </div>
+    <p class="help" style="margin-bottom:0">In Google Sheets choose <b>File → Share →
+      Publish to web</b>, pick the sheet, select <b>Comma-separated values (.csv)</b>,
+      and paste the link here. Syncing replaces every row previously imported from the
+      sheet across all months, so the sheet stays the source of truth for its own rows —
+      items you typed in below are never touched.</p>
+  </div>
+
   {% if other_revenue or other_costs %}
   {# Forms declared outside the table — a form cannot be nested inside another #}
   {% for r in other_revenue + other_costs %}
@@ -325,7 +360,12 @@
             {% endfor %}
           </select>
         </td>
-        <td><b>{{ r.label }}</b></td>
+        <td><b>{{ r.label }}</b>
+          {% if r.source == 'sheet' %}
+            <span class="pill" style="background:#eef2ff;color:#3949ab;font-size:.68rem"
+                  title="Imported from the spreadsheet — edits here are lost on the next sync">sheet</span>
+          {% endif %}
+        </td>
         <td style="text-align:right">
           <input form="items-form" type="number" name="amt_{{ r.id }}"
                  value="{{ '%.2f'|format(r.amount) }}" min="0" step="0.01"
