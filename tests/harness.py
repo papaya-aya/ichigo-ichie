@@ -43,6 +43,10 @@ class _Cur:
         return iter(self._c.fetchall())
 
     @property
+    def rowcount(self):
+        return self._c.rowcount
+
+    @property
     def lastrowid(self):
         return self._c.lastrowid
 
