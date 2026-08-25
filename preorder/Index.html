@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <base target="_top">
+    <style>
+      :root {
+        --cream:    #FFF9F4;
+        --card:     #FFFFFF;
+        --ink:      #3B2A2F;
+        --ink-soft: #8A7579;
+        --berry:    #C63B54;
+        --berry-dk: #9C2A40;
+        --berry-bg: #FDEFF1;
+        --gold:     #C8A96B;
+        --line:     #F1E3DB;
+        --shadow:   0 1px 2px rgba(59,42,47,.05), 0 8px 24px rgba(59,42,47,.06);
+      }
+
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+      body {
+        margin: 0;
+        background: var(--cream);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+                     Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .serif {
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .wrap { max-width: 520px; margin: 0 auto; padding: 0 20px 190px; }
+
+      /* ---------- header ---------- */
+      header {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 26px 20px;
+        text-align: center;
+      }
+      .mark {
+        display: inline-block; font-size: 26px; line-height: 1;
+        margin-bottom: 8px;
+      }
+      h1 {
+        margin: 0; font-size: 27px; font-weight: 400;
+        letter-spacing: .01em;
+      }
+      .tagline {
+        margin: 7px 0 0; font-size: 13.5px; color: var(--ink-soft);
+        letter-spacing: .03em;
+      }
+      .rule {
+        width: 42px; height: 1px; background: var(--gold);
+        margin: 18px auto 0; opacity: .8;
+      }
+      .intro { max-width: 520px; margin: 18px auto 0; padding: 0 20px; }
+      .intro .card { padding: 16px; }
+      .intro-lead { margin: 0 0 13px; font-size: 14.5px; }
+      .intro .line {
+        display: flex; gap: 9px; align-items: baseline; font-size: 14.5px;
+      }
+      .intro .line + .line { margin-top: 5px; }
+      .intro .ic { flex: 0 0 auto; font-size: 13px; }
+      .intro-notes {
+        margin: 13px 0 0; padding: 13px 0 0 18px;
+        border-top: 1px solid var(--line);
+        font-size: 13px; color: var(--ink-soft);
+      }
+      .intro-notes li + li { margin-top: 4px; }
+      .intro-notes li::marker { color: var(--gold); }
+
+      .section-note {
+        margin: -6px 0 12px; font-size: 13px; color: #8A6C2E;
+      }
+
+      .contact {
+        margin: 26px auto 0; text-align: center;
+        font-size: 13px; color: var(--ink-soft); line-height: 1.7;
+      }
+      .contact a { color: var(--berry-dk); text-decoration: none;
+                   border-bottom: 1px solid var(--line); }
+      .build { font-size: 11px; color: #C9BDBF; letter-spacing: .06em; }
+
+      /* ---------- generic blocks ---------- */
+      .section-label {
+        font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase;
+        color: var(--ink-soft); margin: 30px 0 12px;
+      }
+      .card {
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 14px; box-shadow: var(--shadow);
+      }
+      .note {
+        font-size: 13px; color: var(--ink-soft); margin: 10px 2px 0;
+      }
+
+      /* ---------- menu ---------- */
+      .item { padding: 16px 16px 14px; }
+      .item + .item { border-top: 1px solid var(--line); }
+      .item-top { display: flex; gap: 14px; align-items: flex-start; }
+      .item-info { flex: 1 1 auto; min-width: 0; }
+      .item-name { font-size: 17px; margin: 0; font-weight: 400; }
+      .item-sub  { font-size: 12.5px; color: var(--ink-soft); margin: 1px 0 0;
+                   font-family: "Hiragino Mincho ProN", "Yu Mincho",
+                                "Noto Serif JP", Georgia, serif; }
+      .item-desc { font-size: 13.5px; color: var(--ink-soft); margin: 7px 0 0; }
+      .item-price {
+        flex: 0 0 auto; font-size: 15px; color: var(--berry-dk);
+        padding-top: 1px;
+      }
+      .badge {
+        display: inline-block; margin-top: 7px; padding: 2px 9px;
+        border: 1px solid var(--gold); border-radius: 999px;
+        font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+        color: #8A6C2E;
+      }
+      .badge.hidden { display: none; }
+
+      .item-foot {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-top: 12px; min-height: 34px;
+      }
+      .stepper { display: inline-flex; align-items: center; gap: 4px; }
+      .stepper button {
+        width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+        border: 1px solid var(--line); background: #fff; color: var(--berry);
+        font-size: 19px; line-height: 1; font-family: inherit;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0; transition: background .12s, border-color .12s;
+      }
+      .stepper button:active:not(:disabled) { background: var(--berry-bg); }
+      .stepper button:disabled { color: #D9CCCE; cursor: default; }
+      .qty {
+        width: 52px; height: 34px; text-align: center; font-size: 16px;
+        font-variant-numeric: tabular-nums; color: var(--ink);
+        background: #fff; border: 1px solid var(--line); border-radius: 9px;
+        padding: 0 2px; -moz-appearance: textfield;
+      }
+      .qty::-webkit-outer-spin-button,
+      .qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .qty:focus {
+        border-color: var(--berry); box-shadow: 0 0 0 3px var(--berry-bg);
+      }
+      .qty.zero { color: var(--ink-soft); }
+      .qty:disabled { background: #fff; opacity: .6; }
+      .line-total {
+        font-size: 14px; color: var(--berry-dk);
+        font-variant-numeric: tabular-nums;
+      }
+      .line-total.hidden { visibility: hidden; }
+
+      /* ---------- form ---------- */
+      label.field { display: block; margin-top: 15px; }
+      .field-label {
+        display: block; font-size: 13px; color: var(--ink-soft);
+        margin-bottom: 6px; letter-spacing: .02em;
+      }
+      .req { color: var(--berry); }
+      input, select, textarea {
+        width: 100%; font: inherit; font-size: 16px; color: var(--ink);
+        background: #fff; border: 1px solid var(--line); border-radius: 10px;
+        padding: 11px 12px; outline: none; -webkit-appearance: none;
+        appearance: none;
+      }
+      select {
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%238A7579' stroke-width='1.5'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 13px center;
+        padding-right: 34px;
+      }
+      textarea { resize: vertical; min-height: 74px; }
+      input:focus, select:focus, textarea:focus {
+        border-color: var(--berry); box-shadow: 0 0 0 3px var(--berry-bg);
+      }
+      .form-inner { padding: 4px 16px 18px; }
+
+      /* ---------- messages ---------- */
+      .msg {
+        margin-top: 16px; padding: 11px 13px; border-radius: 10px;
+        font-size: 14px; background: var(--berry-bg); color: var(--berry-dk);
+        border: 1px solid #F6D9DE;
+      }
+      .msg.hidden { display: none; }
+      .cap-msg {
+        margin-top: 12px; font-size: 13px; color: var(--berry-dk);
+        background: var(--berry-bg); border-radius: 10px; padding: 9px 12px;
+      }
+      .cap-msg.hidden { display: none; }
+
+      /* ---------- tip ---------- */
+      .tip-inner { padding: 14px 16px 16px; }
+      .tip-row { display: flex; gap: 8px; }
+      .tip-btn {
+        flex: 1 1 0; min-width: 0; cursor: pointer; font-family: inherit;
+        background: #fff; border: 1px solid var(--line); border-radius: 11px;
+        padding: 9px 4px; color: var(--ink); line-height: 1.25;
+        display: flex; flex-direction: column; align-items: center; gap: 1px;
+        transition: border-color .12s, background .12s;
+      }
+      .tip-btn .tip-pct { font-size: 14.5px; }
+      .tip-btn .tip-amt { font-size: 11.5px; color: var(--ink-soft); }
+      .tip-btn.on {
+        border-color: var(--berry); background: var(--berry-bg);
+        color: var(--berry-dk);
+      }
+      .tip-btn.on .tip-amt { color: var(--berry-dk); }
+      .tip-btn:disabled { opacity: .5; cursor: default; }
+      #tip-custom-wrap.hidden { display: none; }
+      #tip-section.hidden { display: none; }
+      .set-msg {
+        margin-top: 12px; font-size: 13px; color: #7A5E20;
+        background: #FBF4E6; border: 1px solid #F0E2C4;
+        border-radius: 10px; padding: 9px 12px;
+      }
+      .set-msg.hidden { display: none; }
+
+      /* ---------- sticky bar ---------- */
+      .bar {
+        position: fixed; left: 0; right: 0; bottom: 0;
+        background: rgba(255,249,244,.94);
+        -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+        border-top: 1px solid var(--line);
+        padding: 12px 20px calc(14px + env(safe-area-inset-bottom));
+      }
+      .bar-inner { max-width: 520px; margin: 0 auto; }
+      .bar-row {
+        display: flex; align-items: baseline; justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .bar-count { font-size: 13px; color: var(--ink-soft); }
+      .bar-sub {
+        font-size: 12.5px; color: var(--ink-soft); margin: -4px 0 10px;
+      }
+      .bar-sub.hidden { display: none; }
+      .bar-total {
+        font-size: 21px; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .btn {
+        display: block; width: 100%; border: 0; border-radius: 12px;
+        background: var(--berry); color: #fff; font: inherit; font-size: 16px;
+        letter-spacing: .02em; padding: 14px; cursor: pointer;
+        transition: background .15s, opacity .15s;
+      }
+      .btn:active:not(:disabled) { background: var(--berry-dk); }
+      .btn:disabled { opacity: .5; cursor: default; }
+
+      /* ---------- states ---------- */
+      .screen.hidden, .bar.hidden { display: none; }
+      .center { text-align: center; padding: 56px 12px; }
+      .center .big { font-size: 34px; }
+      .center h2 { font-weight: 400; font-size: 22px; margin: 14px 0 8px; }
+      .center p { color: var(--ink-soft); font-size: 14.5px; margin: 0 auto;
+                  max-width: 340px; }
+
+      .ordernum {
+        display: inline-block; margin: 20px 0 4px; padding: 14px 26px;
+        border: 1px solid var(--line); border-radius: 14px; background: #fff;
+        box-shadow: var(--shadow);
+      }
+      .ordernum .lbl {
+        font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+      .ordernum .num {
+        font-size: 32px; color: var(--berry-dk); line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+      }
+      .recap {
+        margin: 22px auto 0; max-width: 380px; text-align: left;
+        padding: 16px; font-size: 14px;
+      }
+      .recap .row {
+        display: flex; justify-content: space-between; gap: 12px;
+        padding: 3px 0;
+      }
+      .recap .row.saving { color: #8A6C2E; }
+      .recap .row.total {
+        border-top: 1px solid var(--line); margin-top: 8px; padding-top: 9px;
+        color: var(--berry-dk);
+      }
+      .recap .where { color: var(--ink-soft); margin-top: 14px;
+                      padding-top: 12px; border-top: 1px solid var(--line); }
+      .pay-note {
+        margin-top: 18px; font-size: 14px; color: var(--berry-dk);
+        background: var(--berry-bg); border-radius: 10px; padding: 11px 14px;
+        display: inline-block;
+      }
+      .spinner {
+        width: 18px; height: 18px; border-radius: 50%; margin: 0 auto;
+        border: 2px solid var(--line); border-top-color: var(--berry);
+        animation: spin .7s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div class="mark" id="em-mark"></div>
+      <h1 class="serif" data-txt="brand"></h1>
+      <p class="tagline" data-txt="tagline"></p>
+      <div class="rule"></div>
+    </header>
+
+    <div class="intro screen hidden" id="intro">
+      <div class="card">
+        <p class="intro-lead" data-txt="intro_lead"></p>
+        <div class="line">
+          <span class="ic" id="em-pin"></span><span id="info-where"></span>
+        </div>
+        <div class="line">
+          <span class="ic" id="em-cal"></span><span id="info-when"></span>
+        </div>
+        <ul class="intro-notes">
+          <li id="note-close"></li>
+          <li data-txt="note_pay"></li>
+          <li data-txt="note_diet"></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- loading -->
+    <div class="wrap screen" id="screen-loading">
+      <div class="center"><div class="spinner"></div></div>
+    </div>
+
+    <!-- shop closed -->
+    <div class="wrap screen hidden" id="screen-closed">
+      <div class="center">
+        <div class="big" id="em-closed"></div>
+        <h2 class="serif" data-txt="closed_title"></h2>
+        <p data-txt="closed_body"></p>
+      </div>
+    </div>
+
+    <!-- couldn't load -->
+    <div class="wrap screen hidden" id="screen-loadfail">
+      <div class="center">
+        <div class="big" id="em-fail"></div>
+        <h2 class="serif" data-txt="loadfail_title"></h2>
+        <p data-txt="loadfail_body"></p>
+      </div>
+    </div>
+
+    <!-- order form -->
+    <div class="wrap screen hidden" id="screen-form">
+      <div class="section-label" data-txt="menu_label"></div>
+      <p class="section-note" id="menu-deal"></p>
+      <div class="card" id="menu"></div>
+      <div class="set-msg hidden" id="set-msg"></div>
+      <div class="cap-msg hidden" id="cap-msg"></div>
+      <p class="note" data-txt="max_note"></p>
+
+      <div id="tip-section">
+        <div class="section-label" data-txt="tip_label"></div>
+        <div class="card">
+          <div class="tip-inner">
+            <div class="tip-row" id="tip-buttons"></div>
+            <label class="field hidden" id="tip-custom-wrap">
+              <span class="field-label" data-txt="tip_custom_label"></span>
+              <input type="number" id="tip-custom" min="0" step="0.5"
+                     inputmode="decimal" placeholder="0.00">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label" data-txt="details_label"></div>
+      <div class="card">
+        <div class="form-inner">
+          <label class="field">
+            <span class="field-label">
+              <span data-txt="f_name"></span> <span class="req">*</span>
+            </span>
+            <input type="text" id="f-name" autocomplete="name">
+          </label>
+
+          <label class="field">
+            <span class="field-label">
+              <span data-txt="f_phone"></span> <span class="req">*</span>
+            </span>
+            <input type="tel" id="f-phone" autocomplete="tel">
+          </label>
+
+          <label class="field">
+            <span class="field-label">
+              <span data-txt="f_email"></span> <span class="req">*</span>
+            </span>
+            <input type="email" id="f-email" autocomplete="email">
+          </label>
+
+          <label class="field">
+            <span class="field-label" data-txt="f_notes"></span>
+            <textarea id="f-notes" rows="3"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="msg hidden" id="error-box"></div>
+
+      <p class="contact">
+        <span data-txt="contact_q"></span><br>
+        <a id="contact-mail"></a> <span id="contact-sep"></span> <a id="contact-ig" target="_blank"
+           rel="noopener noreferrer"></a><br>
+        <span class="build" id="build-stamp"></span>
+      </p>
+    </div>
+
+    <!-- confirmation -->
+    <div class="wrap screen hidden" id="screen-done">
+      <div class="center">
+        <div class="big" id="em-done"></div>
+        <h2 class="serif" data-txt="done_title"></h2>
+        <p data-txt="done_body"></p>
+
+        <div class="ordernum">
+          <div class="lbl" data-txt="done_ordernum"></div>
+          <div class="num serif" id="done-num"></div>
+        </div>
+
+        <div class="card recap" id="done-recap"></div>
+        <div class="pay-note" data-txt="pay_due"></div>
+      </div>
+    </div>
+
+    <!-- sticky total + submit -->
+    <div class="bar hidden" id="bar">
+      <div class="bar-inner">
+        <div class="bar-row">
+          <span class="bar-count" id="bar-count"></span>
+          <span class="bar-total serif" id="bar-total"></span>
+        </div>
+        <div class="bar-sub hidden" id="bar-sub"></div>
+        <button type="button" class="btn" id="submit-btn" onclick="submit()"></button>
+      </div>
+    </div>
+
+    <script>
+      /* ============ MENU -- edit me ============
+         name_ja is the Japanese name printed under the English one, purely
+         as brand texture. Set it to '' on an item to hide that line.       */
+      var MENU = [
+        {
+          id: 'original',
+          name_en: 'Original Strawberry Daifuku',
+          name_ja: '\u3044\u3061\u3054\u5927\u798f',   // ichigo daifuku
+          price: 8.00,
+          description_en: 'A whole strawberry and white bean paste in hand-pounded mochi.'
+        },
+        {
+          id: 'matcha',
+          name_en: 'Matcha Strawberry Daifuku',
+          name_ja: '\u62b9\u8336\u3044\u3061\u3054\u5927\u798f',   // matcha ichigo daifuku
+          price: 8.00,
+          description_en: 'Uji matcha folded into the mochi for a gentle, grassy bitterness.'
+        },
+        {
+          id: 'hojicha',
+          name_en: 'Hojicha Strawberry Daifuku',
+          name_ja: '\u307b\u3046\u3058\u8336\u3044\u3061\u3054\u5927\u798f',   // hojicha ichigo daifuku
+          price: 8.00,
+          description_en: 'Roasted hojicha in the mochi \u2014 toasty and warm against the berry.'
+        },
+        {
+          id: 'ube',
+          name_en: 'Ube Strawberry Daifuku',
+          name_ja: '\u7d05\u828b\u3044\u3061\u3054\u5927\u798f',   // beni-imo (ube) ichigo daifuku
+          price: 8.00,
+          description_en: 'Purple yam and strawberry, back only for this weekend.',
+          badge: "This weekend's special"
+        }
+      ];
+
+      /* ============ COPY -- edit me ============
+         Every label, button and message on the page comes from here.       */
+      var TEXT = {
+        brand: 'Ichigo Ichie',
+        tagline: 'Fresh strawberry daifuku \u00b7 made the morning of',
+        intro_lead: "Pre-order your treats for our Ichigo Daifuku Pop-Up at {venue} \u2014 we'll have your order ready when you arrive \ud83c\udf53\ud83d\udc96",
+        note_close: 'Limited quantities \u2014 pre-orders close {date}.',
+        note_pay: 'Payment accepted via Venmo, credit card or cash at pickup.',
+        note_diet: 'Our daifukus are vegan, soy-free, gluten-free and dairy-free!',
+        contact_q: 'Questions? Email us or DM us on Instagram.',
+        menu_label: 'Menu',
+        details_label: 'Your details',
+        max_note: 'Limit {max} pieces per customer.',
+        menu_deal: 'Any {size} for {price} \u2014 a {save} discount.',
+        tip_label: 'Add a tip',
+        tip_none: 'No tip',
+        tip_other: 'Other',
+        tip_custom_label: 'Tip amount',
+        set_deal: 'Any {size} for {price}.',
+        set_hint: 'Any {size} for {price} \u2014 add {n} more.',
+        set_applied: 'Set of {size} applied \u2014 you save {save}.',
+        set_applied_many: '{sets} \u00d7 set of {size} applied \u2014 you save {save}.',
+        done_saving: 'Set of {size}',
+        cap_reached: 'That is the {max}-piece limit per customer.',
+        f_name: 'Name',
+        f_phone: 'Phone',
+        f_email: 'Email',
+        f_notes: 'Notes (allergies, anything else)',
+        bar_count_zero: 'No pieces yet',
+        bar_count_one: '1 piece',
+        bar_count_many: '{n} pieces',
+        bar_saving: 'you save {save}',
+        bar_breakdown: 'Items {items} \u00b7 Tip {tip}',
+        done_subtotal: 'Subtotal',
+        done_tip: 'Tip',
+        submit: 'Place preorder',
+        submitting: 'Sending\u2026',
+        each: 'each',
+        closed_title: 'Preorders are closed',
+        closed_body: 'Pre-orders for this pop-up have closed. Follow us on Instagram for the next date.',
+        loadfail_title: 'Could not load',
+        loadfail_body: 'Something went wrong reaching the shop. Please refresh the page and try again.',
+        done_title: 'Order confirmed',
+        done_body: 'A confirmation is on its way to your inbox.',
+        done_ordernum: 'Order number',
+        done_pickup: 'Pickup (any time during the pop-up)',
+        done_total: 'Total',
+        pay_due: 'Payment due at pickup \u2014 Venmo, credit card or cash.',
+        err_NO_ITEMS: 'Please add at least one daifuku.',
+        err_TOO_MANY: 'Limit {max} pieces per customer.',
+        err_NAME: 'Please enter your name.',
+        err_PHONE: 'Please enter a phone number we can reach you at.',
+        err_EMAIL: 'Please enter a valid email address.',
+        err_MISSING_FIELDS: 'Please fill in your name, phone, and email.',
+        err_BAD_TIP: 'That tip amount could not be accepted. Please pick another.',
+        err_CLOSED: 'Preorders just closed. Nothing was charged or saved.',
+        err_SERVER: 'We could not save your order. Please try again in a moment.',
+        err_NETWORK: 'Connection problem \u2014 your order was not sent. Please try again.'
+      };
+
+      /* Emoji live here rather than in the markup: everything this file
+         serves is then plain ASCII, which cannot be mis-decoded whatever
+         encoding a browser decides to guess. */
+      var EMOJI = {
+        'em-mark':   '\ud83c\udf53',
+        'em-done':   '\ud83c\udf53',
+        'em-closed': '\ud83c\udf19',
+        'em-fail':   '\u26a0\ufe0f',
+        'em-pin':    '\ud83d\udccd',
+        'em-cal':    '\ud83d\udcc5',
+        'contact-sep': '\u00b7'
+      };
+
+      var BUILD = 'build 2026-08-24c';
+
+      /* ============ state ============ */
+      var qty = {};                 // id -> count
+      var maxPieces = 6;
+      var setSize = 0;
+      var setPrice = 0;
+      var currency = '$';
+      var pickupLocation = '';
+      var popupVenue = '';
+      var popupDate = '';
+      var popupHours = '';
+      var closesOn = '';
+      var tipPresets = [];
+      var allowCustomTip = false;
+      var maxCustomTip = 0;
+      var tipMode = 'percent';   // 'percent' | 'custom'
+      var tipPercent = 0;
+      var tipCustom = 0;
+      var sending = false;
+
+      MENU.forEach(function (m) { qty[m.id] = 0; });
+
+      function t(key, vars) {
+        var s = TEXT[key] || '';
+        if (vars) {
+          Object.keys(vars).forEach(function (k) {
+            s = s.split('{' + k + '}').join(vars[k]);
+          });
+        }
+        return s;
+      }
+
+      function money(n) {
+        return currency + (Math.round(n * 100) / 100).toFixed(2);
+      }
+
+      // Same, but drops a trailing .00 -- for prose, not for line items.
+      function moneyShort(n) {
+        var v = Math.round(n * 100) / 100;
+        return currency + (v === Math.round(v) ? String(v) : v.toFixed(2));
+      }
+
+      function el(id) { return document.getElementById(id); }
+
+      function show(screenId) {
+        ['screen-loading', 'screen-closed', 'screen-loadfail',
+         'screen-form', 'screen-done'].forEach(function (id) {
+          el(id).classList.toggle('hidden', id !== screenId);
+        });
+        el('bar').classList.toggle('hidden', screenId !== 'screen-form');
+        el('intro').classList.toggle('hidden', screenId !== 'screen-form');
+      }
+
+      /* ============ boot ============ */
+      function boot() {
+        Object.keys(EMOJI).forEach(function (id) {
+          var node = document.getElementById(id);
+          if (node) node.textContent = EMOJI[id];
+        });
+        document.getElementById('build-stamp').textContent = BUILD;
+        applyText();
+        google.script.run
+          .withSuccessHandler(onState)
+          .withFailureHandler(function () { show('screen-loadfail'); })
+          .getShopState();
+      }
+
+      function onState(state) {
+        if (!state) { show('screen-loadfail'); return; }
+        maxPieces = state.maxPieces || maxPieces;
+        setSize = state.setSize || 0;
+        setPrice = state.setPrice || 0;
+        currency = state.currency || currency;
+        pickupLocation = state.location || '';
+        popupVenue = state.venue || '';
+        popupDate = state.date || '';
+        popupHours = state.hours || '';
+        closesOn = state.closesOn || '';
+        tipPresets = state.tipPresets || [];
+        allowCustomTip = !!state.allowCustomTip;
+        maxCustomTip = state.maxCustomTip || 0;
+
+        el('info-where').textContent =
+          [popupVenue, pickupLocation].filter(Boolean).join(' \u00b7 ');
+        el('info-when').textContent =
+          [popupDate, popupHours].filter(Boolean).join(' \u00b7 ');
+
+        var mail = el('contact-mail');
+        mail.textContent = state.contactEmail || '';
+        mail.href = 'mailto:' + (state.contactEmail || '');
+        var ig = el('contact-ig');
+        ig.textContent = state.contactIg ? '@' + state.contactIg : '';
+        ig.href = 'https://instagram.com/' + (state.contactIg || '');
+
+        if (!state.open) { show('screen-closed'); return; }
+
+        renderMenu();
+        renderTip();
+        applyText();
+        show('screen-form');
+      }
+
+      /* ============ static copy ============ */
+      function applyText() {
+        var nodes = document.querySelectorAll('[data-txt]');
+        for (var i = 0; i < nodes.length; i++) {
+          nodes[i].textContent = t(nodes[i].getAttribute('data-txt'),
+                                   { max: maxPieces });
+        }
+        document.querySelector('[data-txt="intro_lead"]').textContent =
+          t('intro_lead', { venue: popupVenue });
+        el('note-close').textContent = t('note_close', { date: closesOn });
+        el('menu-deal').textContent =
+          (setSize > 0 && setPrice > 0)
+            ? t('menu_deal', { size: setSize, price: moneyShort(setPrice),
+                               save: moneyShort(nominalSetSaving()) })
+            : '';
+        updateTotals();
+      }
+
+      /* ============ menu ============ */
+      function renderMenu() {
+        var host = el('menu');
+        host.innerHTML = '';
+        MENU.forEach(function (m) {
+          var row = document.createElement('div');
+          row.className = 'item';
+          row.innerHTML =
+            '<div class="item-top">' +
+              '<div class="item-info">' +
+                '<p class="item-name serif" id="nm-' + m.id + '"></p>' +
+                '<p class="item-sub" id="sub-' + m.id + '"></p>' +
+                '<p class="item-desc" id="ds-' + m.id + '"></p>' +
+                '<span class="badge hidden" id="bg-' + m.id + '"></span>' +
+              '</div>' +
+              '<div class="item-price" id="pr-' + m.id + '"></div>' +
+            '</div>' +
+            '<div class="item-foot">' +
+              '<span class="stepper">' +
+                '<button type="button" id="minus-' + m.id + '" aria-label="Remove one">&minus;</button>' +
+                '<input type="number" class="qty zero" id="qt-' + m.id + '" ' +
+                       'value="0" min="0" step="1" inputmode="numeric" ' +
+                       'aria-label="Quantity, ' + m.name_en + '">' +
+                '<button type="button" id="plus-' + m.id + '" aria-label="Add one">+</button>' +
+              '</span>' +
+              '<span class="line-total hidden" id="lt-' + m.id + '"></span>' +
+            '</div>';
+          host.appendChild(row);
+
+          el('nm-' + m.id).textContent = m.name_en;
+          el('sub-' + m.id).textContent = m.name_ja || '';
+          el('ds-' + m.id).textContent = m.description_en;
+          if (m.badge) {
+            el('bg-' + m.id).textContent = m.badge;
+            el('bg-' + m.id).classList.remove('hidden');
+          }
+          el('pr-' + m.id).textContent = money(m.price);
+
+          el('minus-' + m.id).onclick = function () { bump(m.id, -1); };
+          el('plus-' + m.id).onclick = function () { bump(m.id, 1); };
+
+          var box = el('qt-' + m.id);
+          box.oninput = function () {
+            // An empty box is treated as 0 but left alone, so the customer
+            // can clear it and type a new number.
+            if (this.value === '') { qty[m.id] = 0; hideError(); updateTotals(); return; }
+            setQty(m.id, this.value);
+            if (this.value !== String(qty[m.id])) this.value = qty[m.id];
+          };
+          box.onblur = function () { this.value = qty[m.id]; };
+          box.onfocus = function () { this.select(); };
+        });
+      }
+
+      function totalPieces() {
+        return MENU.reduce(function (n, m) { return n + qty[m.id]; }, 0);
+      }
+
+      /**
+       * Applies the "any setSize for setPrice" bundle. Must stay in step with
+       * priceOrder_() in Code.gs, or the page shows one number and the sheet
+       * records another. Pieces are sorted most expensive first so the
+       * priciest ones fill the fixed-price sets.
+       *
+       * Returns {full, subtotal, sets, savings}.
+       */
+      function priceOrder() {
+        var pieces = [];
+        MENU.forEach(function (m) {
+          for (var i = 0; i < qty[m.id]; i++) pieces.push(m.price);
+        });
+        pieces.sort(function (a, b) { return b - a; });
+
+        var full = pieces.reduce(function (s, p) { return s + p; }, 0);
+        var subtotal = 0, sets = 0, k = 0;
+        if (setSize > 0 && setPrice > 0) {
+          while (k + setSize <= pieces.length) {
+            var groupFull = 0;
+            for (var j = 0; j < setSize; j++) groupFull += pieces[k + j];
+            // Never let the "deal" cost more than buying the pieces outright.
+            subtotal += Math.min(setPrice, groupFull);
+            sets++;
+            k += setSize;
+          }
+        }
+        for (; k < pieces.length; k++) subtotal += pieces[k];
+
+        return { full: round2(full), subtotal: round2(subtotal),
+                 sets: sets, savings: round2(full - subtotal) };
+      }
+
+      function round2(n) { return Math.round(n * 100) / 100; }
+
+      /**
+       * What a set saves at list price, for the standing "any 4 for $30"
+       * line on the menu. Uses the dearest flavour, which is the set the
+       * bundle actually fills first.
+       */
+      function nominalSetSaving() {
+        var dearest = MENU.reduce(function (p, m) {
+          return Math.max(p, m.price); }, 0);
+        return Math.max(0, round2(dearest * setSize - setPrice));
+      }
+
+      function computeTip(subtotal) {
+        if (tipMode === 'custom') {
+          return round2(Math.min(Math.max(tipCustom, 0), maxCustomTip));
+        }
+        return round2(subtotal * tipPercent / 100);
+      }
+
+      function renderTip() {
+        var host = el('tip-buttons');
+        host.innerHTML = '';
+
+        if (!tipPresets.length && !allowCustomTip) {
+          el('tip-section').classList.add('hidden');
+          return;
+        }
+
+        tipPresets.forEach(function (pct) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'tip-btn';
+          b.id = 'tip-' + pct;
+          b.innerHTML = '<span class="tip-pct"></span><span class="tip-amt"></span>';
+          b.onclick = function () {
+            if (sending) return;
+            tipMode = 'percent';
+            tipPercent = pct;
+            updateTotals();
+          };
+          host.appendChild(b);
+        });
+
+        if (allowCustomTip) {
+          var o = document.createElement('button');
+          o.type = 'button';
+          o.className = 'tip-btn';
+          o.id = 'tip-other';
+          o.innerHTML = '<span class="tip-pct"></span><span class="tip-amt"></span>';
+          o.onclick = function () {
+            if (sending) return;
+            tipMode = 'custom';
+            updateTotals();
+            el('tip-custom').focus();
+          };
+          host.appendChild(o);
+
+          el('tip-custom').oninput = function () {
+            if (this.value === '') { tipCustom = 0; updateTotals(); return; }
+            var n = Number(this.value);
+            if (!isFinite(n) || n < 0) { n = 0; this.value = '0'; }
+            if (n > maxCustomTip) { n = maxCustomTip; this.value = n; }
+            tipCustom = n;
+            updateTotals();
+          };
+        }
+      }
+
+      function updateTipUi(subtotal) {
+        tipPresets.forEach(function (pct) {
+          var b = el('tip-' + pct);
+          if (!b) return;
+          b.children[0].textContent = pct === 0 ? t('tip_none') : pct + '%';
+          b.children[1].textContent =
+            pct === 0 ? '' : money(round2(subtotal * pct / 100));
+          b.classList.toggle('on', tipMode === 'percent' && tipPercent === pct);
+          b.disabled = sending;
+        });
+
+        var other = el('tip-other');
+        if (other) {
+          other.children[0].textContent = t('tip_other');
+          other.children[1].textContent =
+            tipMode === 'custom' && tipCustom > 0 ? money(tipCustom) : '';
+          other.classList.toggle('on', tipMode === 'custom');
+          other.disabled = sending;
+          el('tip-custom-wrap').classList.toggle('hidden', tipMode !== 'custom');
+          el('tip-custom').disabled = sending;
+        }
+      }
+
+      /**
+       * Sets one line's quantity, clamped to 0..(what the per-customer cap
+       * still allows once the other lines are counted).
+       */
+      function setQty(id, value) {
+        if (sending) return;
+        var n = Math.floor(Number(value));
+        if (!isFinite(n) || n < 0) n = 0;
+        var others = totalPieces() - qty[id];
+        qty[id] = Math.min(n, Math.max(0, maxPieces - others));
+        hideError();
+        updateTotals();
+      }
+
+      function bump(id, delta) {
+        setQty(id, qty[id] + delta);
+      }
+
+      function updateTotals() {
+        var pieces = totalPieces();
+        var atCap = pieces >= maxPieces;
+        var price = priceOrder();
+
+        MENU.forEach(function (m) {
+          var q = qty[m.id];
+          var qEl = el('qt-' + m.id);
+          if (!qEl) return;
+          // Refresh the box unless it already reads right (writing the same
+          // string can jump the caret) or the customer has deliberately
+          // cleared it and is about to type a new number.
+          if (qEl.value !== String(q) &&
+              !(document.activeElement === qEl && qEl.value === '')) {
+            qEl.value = q;
+          }
+          qEl.classList.toggle('zero', q === 0);
+          qEl.disabled = sending;
+          el('minus-' + m.id).disabled = q === 0 || sending;
+          el('plus-' + m.id).disabled = atCap || sending;
+          var lt = el('lt-' + m.id);
+          lt.classList.toggle('hidden', q === 0);
+          lt.textContent = money(m.price) + ' ' + t('each') + '  \u00b7  ' +
+                           money(m.price * q);
+        });
+
+        // The plus buttons go dead at the cap, so say why.
+        var cap = el('cap-msg');
+        cap.textContent = t('cap_reached', { max: maxPieces });
+        cap.classList.toggle('hidden', !atCap);
+
+        // Nudge towards the set price, then confirm once it lands.
+        var setMsg = el('set-msg');
+        if (setSize > 0 && setPrice > 0) {
+          var toNext = (setSize - (pieces % setSize)) % setSize;
+          if (price.sets > 0 && price.savings > 0) {
+            setMsg.textContent = t(price.sets > 1 ? 'set_applied_many' : 'set_applied',
+              { sets: price.sets, size: setSize, save: money(price.savings) });
+          } else if (pieces === 0) {
+            setMsg.textContent = t('set_deal',
+              { size: setSize, price: money(setPrice) });
+          } else {
+            setMsg.textContent = t('set_hint',
+              { size: setSize, price: money(setPrice), n: toNext });
+          }
+          setMsg.classList.remove('hidden');
+        } else {
+          setMsg.classList.add('hidden');
+        }
+
+        var countText =
+          pieces === 0 ? t('bar_count_zero')
+        : pieces === 1 ? t('bar_count_one')
+        : t('bar_count_many', { n: pieces });
+        if (price.savings > 0) {
+          countText += ' \u00b7 ' + t('bar_saving', { save: money(price.savings) });
+        }
+        el('bar-count').textContent = countText;
+
+        updateTipUi(price.subtotal);
+        var tip = computeTip(price.subtotal);
+        el('bar-total').textContent = money(round2(price.subtotal + tip));
+
+        var sub = el('bar-sub');
+        sub.textContent = t('bar_breakdown',
+          { items: money(price.subtotal), tip: money(tip) });
+        sub.classList.toggle('hidden', tip <= 0);
+
+        var btn = el('submit-btn');
+        btn.textContent = sending ? t('submitting') : t('submit');
+        btn.disabled = sending;
+      }
+
+      /* ============ errors ============ */
+      function showError(key) {
+        var box = el('error-box');
+        box.textContent = t(key, { max: maxPieces }) || t('err_SERVER');
+        box.classList.remove('hidden');
+        box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      function hideError() { el('error-box').classList.add('hidden'); }
+
+      /* ============ submit ============ */
+      function submit() {
+        if (sending) return;
+        hideError();
+
+        var name = el('f-name').value.trim();
+        var phone = el('f-phone').value.trim();
+        var email = el('f-email').value.trim();
+        var notes = el('f-notes').value.trim();
+
+        var items = MENU.filter(function (m) { return qty[m.id] > 0; })
+          .map(function (m) {
+            return {
+              id: m.id, name_en: m.name_en, name_ja: m.name_ja,
+              price: m.price, qty: qty[m.id]
+            };
+          });
+
+        if (items.length === 0)              { showError('err_NO_ITEMS');  return; }
+        if (totalPieces() > maxPieces)       { showError('err_TOO_MANY');  return; }
+        if (!name)                           { showError('err_NAME');      return; }
+        if (phone.replace(/\D/g, '').length < 7) { showError('err_PHONE'); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+          showError('err_EMAIL'); return;
+        }
+
+        sending = true;
+        updateTotals();
+
+        google.script.run
+          .withSuccessHandler(onSubmitDone)
+          .withFailureHandler(function () {
+            sending = false;
+            updateTotals();
+            showError('err_NETWORK');
+          })
+          .submitOrder({
+            name: name, phone: phone, email: email,
+            notes: notes, items: items,
+            tip: tipMode === 'custom'
+              ? { mode: 'custom', value: tipCustom }
+              : { mode: 'percent', value: tipPercent }
+          });
+      }
+
+      function onSubmitDone(res) {
+        sending = false;
+        updateTotals();
+        if (!res || !res.ok) {
+          // The form keeps every value the customer typed.
+          var key = 'err_' + ((res && res.error) || 'SERVER');
+          showError(TEXT[key] ? key : 'err_SERVER');
+          return;
+        }
+        renderDone(res.orderNumber);
+        window.scrollTo(0, 0);
+        show('screen-done');
+      }
+
+      function renderDone(orderNumber) {
+        el('done-num').textContent = '#' + orderNumber;
+
+        var recap = el('done-recap');
+        recap.innerHTML = '';
+        MENU.filter(function (m) { return qty[m.id] > 0; }).forEach(function (m) {
+          var r = document.createElement('div');
+          r.className = 'row';
+          r.innerHTML = '<span></span><span></span>';
+          r.children[0].textContent = qty[m.id] + ' \u00d7 ' + m.name_en;
+          r.children[1].textContent = money(m.price * qty[m.id]);
+          recap.appendChild(r);
+        });
+
+        var price = priceOrder();
+        if (price.sets > 0 && price.savings > 0) {
+          var save = document.createElement('div');
+          save.className = 'row saving';
+          save.innerHTML = '<span></span><span></span>';
+          save.children[0].textContent =
+            (price.sets > 1 ? price.sets + ' \u00d7 ' : '') +
+            t('done_saving', { size: setSize });
+          save.children[1].textContent = '\u2212' + money(price.savings);
+          recap.appendChild(save);
+        }
+
+        var tip = computeTip(price.subtotal);
+        if (tip > 0) {
+          var subRow = document.createElement('div');
+          subRow.className = 'row';
+          subRow.innerHTML = '<span></span><span></span>';
+          subRow.children[0].textContent = t('done_subtotal');
+          subRow.children[1].textContent = money(price.subtotal);
+          recap.appendChild(subRow);
+
+          var tipRow = document.createElement('div');
+          tipRow.className = 'row';
+          tipRow.innerHTML = '<span></span><span></span>';
+          tipRow.children[0].textContent = t('done_tip');
+          tipRow.children[1].textContent = money(tip);
+          recap.appendChild(tipRow);
+        }
+
+        var tot = document.createElement('div');
+        tot.className = 'row total';
+        tot.innerHTML = '<span></span><span></span>';
+        tot.children[0].textContent = t('done_total');
+        tot.children[1].textContent = money(round2(price.subtotal + tip));
+        recap.appendChild(tot);
+
+        var where = document.createElement('div');
+        where.className = 'where';
+        where.textContent = t('done_pickup') + ': ' +
+                            [popupDate, popupHours].filter(Boolean).join(' \u00b7 ') +
+                            ' \u00b7 ' + [popupVenue, pickupLocation]
+                                      .filter(Boolean).join(', ');
+        recap.appendChild(where);
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

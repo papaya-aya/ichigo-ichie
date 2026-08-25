@@ -62,6 +62,32 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- month generation -------------------------------------------------
+    # Regression: scheduler used SQLite-only "INSERT OR IGNORE", which
+    # Postgres rejects, and read cur.rowcount, which the db wrapper did not
+    # expose. Generating a month raised instead of creating shifts.
+    print("\ngenerate month")
+    r = cl.post("/owner/generate", data={"month": "2026-09"},
+                follow_redirects=True)
+    n_after = harness._con.execute(
+        "SELECT COUNT(*) c FROM shift_instances WHERE date LIKE '2026-09-%'"
+    ).fetchone()["c"]
+    ok = r.status_code == 200 and n_after == 5      # 5 Wednesdays in Sep 2026
+    print(f"  {'ok  ' if ok else 'FAIL'} {'creates the month':<32} "
+          f"{n_after} shift date(s)")
+    if not ok:
+        failures.append("generate month")
+
+    cl.post("/owner/generate", data={"month": "2026-09"}, follow_redirects=True)
+    n_twice = harness._con.execute(
+        "SELECT COUNT(*) c FROM shift_instances WHERE date LIKE '2026-09-%'"
+    ).fetchone()["c"]
+    ok = n_twice == n_after
+    print(f"  {'ok  ' if ok else 'FAIL'} {'is idempotent':<32} "
+          f"{n_twice} after second run")
+    if not ok:
+        failures.append("generate idempotent")
+
     # ---- cost-spreadsheet parser -----------------------------------------
     print("\ncost sheet parser")
     parse = harness.appmod.parse_cost_sheet

@@ -59,7 +59,8 @@ def generate_instances(conn, year, month):
     for t in templates:
         for iso in dates_in_month(year, month, t["weekday"]):
             cur = conn.execute(
-                "INSERT OR IGNORE INTO shift_instances (template_id, date) VALUES (?, ?)",
+                """INSERT INTO shift_instances (template_id, date) VALUES (?, ?)
+                   ON CONFLICT (template_id, date) DO NOTHING""",
                 (t["id"], iso),
             )
             created += cur.rowcount

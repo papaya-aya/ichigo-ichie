@@ -129,6 +129,13 @@ class _Cursor:
         return iter(self._cur)
 
     @property
+    def rowcount(self):
+        # Rows affected by the last statement. INSERT ... ON CONFLICT DO
+        # NOTHING reports 0 when it skipped, which is how callers count
+        # what they actually created.
+        return self._cur.rowcount
+
+    @property
     def lastrowid(self):
         # Not used in this app, but provided for completeness.
         return self._cur.fetchone()[0] if self._cur.rowcount else None
