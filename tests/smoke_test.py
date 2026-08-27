@@ -21,6 +21,7 @@ PAGES = [
     ("Calendar",   "/calendar?month=2026-09"),
     ("Deliveries", "/owner/deliveries?month=2026-09"),
     ("Input",      "/owner"),
+    ("Guide",      "/owner/guide"),
 ]
 
 

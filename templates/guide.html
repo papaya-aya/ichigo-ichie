@@ -7,21 +7,34 @@
 
 {# ── Timeline nav ────────────────────────────────────────────────────────── #}
 <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:1.6rem">
-  <a href="#setup"      class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">1 · One-time setup</a>
-  <a href="#generate"   class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">2 · Open the month</a>
-  <a href="#approvals"  class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">3 · Approve availability</a>
-  <a href="#orders"     class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">4 · Enter orders</a>
-  <a href="#schedule"   class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">5 · Assign people</a>
-  <a href="#confirm"    class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">6 · Confirm hours</a>
-  <a href="#salary"     class="pill" style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">7 · Salary & Gusto</a>
+  {% for n, anchor, label in [
+      (1, 'setup',      'One-time setup'),
+      (2, 'generate',   'Open the month'),
+      (3, 'approvals',  'Approve availability'),
+      (4, 'orders',     'Enter orders'),
+      (5, 'schedule',   'Assign people'),
+      (6, 'deliveries', 'Plan deliveries'),
+      (7, 'purchases',  'Strawberry runs'),
+      (8, 'confirm',    'Confirm hours'),
+      (9, 'salary',     'Salary & Gusto'),
+      (10, 'invoice',   'Invoice clients'),
+      (11, 'summary',   'Month-end summary')] %}
+    <a href="#{{ anchor }}" class="pill"
+       style="font-size:0.88rem; padding:0.3rem 0.8rem; text-decoration:none">{{ n }} · {{ label }}</a>
+  {% endfor %}
 </div>
 
-{# ── Section 1: One-time setup ───────────────────────────────────────────── #}
+<div class="card" style="background:var(--pink-soft,#fef9fa)">
+  <p style="margin:0"><b>The short version.</b> Once a month: open the month,
+    approve availability, enter orders, assign people, sort deliveries and
+    strawberry runs. After the month: confirm hours, run salary, invoice
+    clients, then read the summary to see what you actually made.</p>
+</div>
+
+{# ── 1 · One-time setup ──────────────────────────────────────────────────── #}
 <div class="card" id="setup">
   <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
-    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
-                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
-                 font-weight:700; flex-shrink:0">1</span>
+    <span class="guide-num">1</span>
     <h2 style="margin:0">One-time setup</h2>
     <span class="muted" style="font-size:0.85rem">Do this once when you first start</span>
   </div>
@@ -51,189 +64,281 @@
       <div class="guide-step-label">Set pay rates</div>
       <p class="help">These drive the salary calculation. Check they're correct.</p>
       <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Pay rate</b> card<br>
-      • <b>Piece rate</b> — dollars earned per daifuku produced (default $2.00)<br>
-      • <b>Gusto base rate</b> — the hourly rate used to convert total pay into Gusto hours (default $20.00)</p>
+      • <b>Piece rate</b> — dollars earned per daifuku produced (currently ${{ '%.2f'|format(piece_rate) }})<br>
+      • <b>Gusto base rate</b> — the hourly rate used to convert total pay into Gusto hours (currently ${{ '%.2f'|format(gusto_rate) }})<br>
+      • <b>Strawberry price</b> — reimbursed for each purchase run (currently ${{ '%.2f'|format(strawberry_price) }})<br>
+      • <b>Delivery transport</b> — the per-stop delivery fee (currently ${{ '%.2f'|format(delivery_transport) }})</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Set target productivity <span class="muted">(optional)</span></div>
-      <p class="help">Used to suggest how many people to assign based on the day's order volume.</p>
-      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Target productivity</b> card → enter pieces per person-hour → <b>Save</b></p>
+      <div class="guide-step-label">Set what each client pays you</div>
+      <p class="help">These are <b>net to you per piece</b>, with any revenue split already applied — not the client's shelf price.</p>
+      <p><a href="{{ url_for('monthly_summary') }}">Summary</a> → <b>Sales</b> table → edit the <b>Rate</b> column → <b>Save prices</b><br>
+      The same rate is used on the <a href="{{ url_for('invoice') }}">Invoice</a> page.</p>
+      <p class="help">Channel rates live on the same page:
+        <b>pop-up</b> ${{ '%.2f'|format(popup_rate) }} less {{ '%g'|format(popup_waste * 100) }}% waste,
+        <b>pick-up</b> ${{ '%.2f'|format(pickup_rate) }}.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Share the schedule link <span class="muted">(optional)</span></div>
+      <p class="help">Anyone with this link can see the calendar without logging in — handy for a staff group chat.</p>
+      <p><a href="{{ url_for('calendar_view') }}">Calendar</a> → <b>Generate link</b> → <b>Copy</b>.
+        <b>Revoke</b> kills the old link immediately.</p>
     </div>
 
   </div>
 </div>
 
-{# ── Section 2: Open the month ───────────────────────────────────────────── #}
+{# ── 2 · Open the month ──────────────────────────────────────────────────── #}
 <div class="card" id="generate">
   <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
-    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
-                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
-                 font-weight:700; flex-shrink:0">2</span>
+    <span class="guide-num">2</span>
     <h2 style="margin:0">Open the month</h2>
-    <span class="muted" style="font-size:0.85rem">Do this ~3–4 weeks before the month starts</span>
+    <span class="muted" style="font-size:0.85rem">~3–4 weeks before the month starts</span>
   </div>
 
   <div class="guide-steps">
 
     <div class="guide-step">
-      <div class="guide-step-label">Generate shift dates</div>
-      <p class="help">This creates the Mon/Tue/Wed/Fri dates for the chosen month so employees can submit availability.</p>
-      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Open a month</b> card → type the month (e.g. <code>2026-08</code>) → <b>Generate shifts</b><br>
-      Safe to run again — it won't create duplicates.</p>
+      <div class="guide-step-label">Generate the shift dates</div>
+      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → <b>Generate month</b> → pick the month → <b>Generate</b></p>
+      <p class="help">This creates every Mon/Tue/Wed/Fri production date from your shift templates.
+        Safe to run twice — dates that already exist are left alone, and it tells you how many were added.</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Tell your team to submit availability</div>
-      <p class="help">Employees log in and go to <b>My availability</b> to mark which shifts they can work, including partial time windows if needed.</p>
-      <p>Give them a deadline — at least 1 week before the month starts is recommended.</p>
+      <div class="guide-step-label">Tell the team to submit availability</div>
+      <p class="help">Employees log in and tick the shifts they can work, plus delivery days and
+        strawberry purchase runs — all on one page, one submission.</p>
+      <p>They go to <b>Availability</b> → tick shifts → <b>Save availability</b>.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Delete a date you don't need</div>
+      <p><a href="{{ url_for('owner_dashboard') }}">Input</a> → find the shift row → <b>Delete</b><br>
+      Removes that day's assignments and availability too. Also available on the
+      <a href="{{ url_for('calendar_view') }}">Calendar</a>.</p>
     </div>
 
   </div>
 </div>
 
-{# ── Section 3: Approve availability ─────────────────────────────────────── #}
+{# ── 3 · Approve availability ────────────────────────────────────────────── #}
 <div class="card" id="approvals">
   <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
-    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
-                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
-                 font-weight:700; flex-shrink:0">3</span>
+    <span class="guide-num">3</span>
     <h2 style="margin:0">Approve availability</h2>
-    <span class="muted" style="font-size:0.85rem">After employees submit, before you assign</span>
+    <span class="muted" style="font-size:0.85rem">As submissions come in</span>
   </div>
 
   <div class="guide-steps">
 
     <div class="guide-step">
-      <div class="guide-step-label">Review submissions</div>
-      <p class="help">Each submission shows the employee name, which shift, and their available time window.</p>
-      <p><a href="{{ url_for('approvals') }}">Approvals</a> → review each row →
-      click <b>Approve</b> or <b>Reject</b><br>
-      Only approved submissions appear as options when you assign people to shifts.</p>
+      <div class="guide-step-label">Review and approve</div>
+      <p><a href="{{ url_for('approvals') }}">Approvals</a> → check each submission → <b>Approve</b> or <b>Reject</b></p>
+      <p class="help">Only <b>approved</b> availability counts. Someone left pending won't be
+        offered when you assign shifts, and won't show as available for deliveries.</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Check coverage</div>
-      <p class="help">Make sure enough people are available for each shift (min/max targets: Mon 3, Tue 4–5, Wed 4–5, Fri 5–7).</p>
-      <p>If a shift looks short, reach out to employees before assigning.</p>
+      <div class="guide-step-label">Clear any conflicts</div>
+      <p class="help">A conflict means someone is assigned to a shift they never said they could work —
+        usually because they edited their availability after you assigned them.</p>
+      <p><a href="{{ url_for('approvals') }}">Approvals</a> → <b>Remove all conflicting assignments</b>,
+        then reassign those days.</p>
     </div>
 
   </div>
 </div>
 
-{# ── Section 4: Enter orders ─────────────────────────────────────────────── #}
+{# ── 4 · Enter orders ────────────────────────────────────────────────────── #}
 <div class="card" id="orders">
   <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
-    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
-                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
-                 font-weight:700; flex-shrink:0">4</span>
+    <span class="guide-num">4</span>
     <h2 style="margin:0">Enter client orders</h2>
-    <span class="muted" style="font-size:0.85rem">Before assigning staff — orders drive the suggested team size</span>
+    <span class="muted" style="font-size:0.85rem">As orders are confirmed</span>
   </div>
 
   <div class="guide-steps">
 
     <div class="guide-step">
-      <div class="guide-step-label">Add orders per production day</div>
-      <p class="help">Enter how many of each flavor (Original / Matcha / Hojicha / Other) each client ordered for that day.</p>
-      <p>Two ways to get there:<br>
-      • <a href="{{ url_for('orders_month') }}">Orders</a> → pick the month → click <b>Edit orders</b> on any row<br>
-      • <a href="{{ url_for('owner_dashboard') }}">Input</a> → upcoming shifts table → <b>Edit orders</b> button on any day</p>
+      <div class="guide-step-label">Add the orders for a day</div>
+      <p><a href="{{ url_for('calendar_view') }}">Calendar</a> → <b>📋 Orders</b> on the day →
+        choose client, enter quantities per flavour → <b>Add order</b></p>
+      <p class="help">Order quantities drive everything downstream: how many people the app suggests,
+        what each shift pays, and what you invoice.</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Edit or remove orders</div>
-      <p class="help">On any day's order page, quantities are editable inline — just change the numbers and hit <b>Save</b>. Use the red ✕ to delete an order.</p>
+      <div class="guide-step-label">Deliver on a different day</div>
+      <p class="help">Set <b>Deliver on</b> if the order is made one day and delivered another.
+        The calendar and invoices use the delivery date.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Mark pop-ups</div>
+      <p class="help">Tick <b>Pop-up</b> for stock you sell yourself at a market or event.
+        Pop-up pieces skip delivery entirely and are priced at the pop-up rate.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Repeating orders</div>
+      <p><a href="{{ url_for('recurring_orders') }}">Recurring</a> → set a standing weekly order per client,
+        then apply it to a month instead of typing it out each week.</p>
     </div>
 
   </div>
 </div>
 
-{# ── Section 5: Assign people ────────────────────────────────────────────── #}
+{# ── 5 · Assign people ───────────────────────────────────────────────────── #}
 <div class="card" id="schedule">
   <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
-    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
-                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
-                 font-weight:700; flex-shrink:0">5</span>
+    <span class="guide-num">5</span>
     <h2 style="margin:0">Assign people to shifts</h2>
-    <span class="muted" style="font-size:0.85rem">Once orders are entered and availability is approved</span>
+    <span class="muted" style="font-size:0.85rem">Once availability is approved</span>
   </div>
 
   <div class="guide-steps">
 
     <div class="guide-step">
-      <div class="guide-step-label">Open the schedule</div>
-      <p><a href="{{ url_for('owner_schedule') }}">Schedule</a> → pick the month → see all shift dates with staffing status</p>
-      <p class="help">Each row shows how many people are assigned vs. needed, and total pieces ordered.</p>
+      <div class="guide-step-label">Open a shift</div>
+      <p><a href="{{ url_for('calendar_view') }}">Calendar</a> → <b>👥 Staff</b> on the day</p>
+      <p class="help">The page shows how many people the orders justify, who is available,
+        and whether the team you've picked covers the shift.</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Auto-assign (quick option)</div>
-      <p class="help">The app picks people automatically to keep the average headcount within the min/max band.</p>
-      <p>On the Schedule page: <b>⚡ Auto-assign empty shifts</b> button fills every unstaffed shift at once.<br>
-      Or open a specific shift → <b>⚡ Auto-assign from approved availability</b> for just that day.</p>
+      <div class="guide-step-label">Let the app pick, then adjust</div>
+      <p><b>⚡ Smart auto-assign</b> chooses a team that keeps headcount inside the shift's
+        min/max band. <b>✓ Assign all available</b> adds everyone who offered.<br>
+        Then tick or untick people by hand and <b>Save assignment</b>.</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Manual assignment</div>
-      <p class="help">Use this to override auto-assign or fine-tune individual shifts.</p>
-      <p>Schedule → click a shift date → <b>People</b> section:<br>
-      • Tick the checkbox next to each person to include them<br>
-      • Adjust their start/end window if needed (e.g. someone can only come for part of the shift)<br>
-      • Tick <b>Manager 👑</b> for whoever is leading that shift (+5% pay)<br>
-      • Click <b>Save assignment</b></p>
-      <p class="help">The <b>Coverage</b> bar chart shows average headcount across the shift — amber = below minimum, red = above maximum.</p>
+      <div class="guide-step-label">Name a manager</div>
+      <p class="help">Tick <b>Manager 👑</b> for whoever leads the shift — they earn 5% more for it,
+        and they're the one who files the shift report.</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Check the calendar</div>
-      <p><a href="{{ url_for('calendar_view') }}">Calendar</a> → verify the month looks right before sharing with your team</p>
-      <p class="help">Employees can see the calendar anytime — their own shifts are highlighted.</p>
+      <div class="guide-step-label">Watch the coverage bar</div>
+      <p class="help">Amber means below your minimum at that moment, red means above your maximum.
+        Partial shifts are accounted for, so someone leaving early shows up as a dip.</p>
     </div>
 
   </div>
 </div>
 
-{# ── Section 6: Confirm hours ────────────────────────────────────────────── #}
+{# ── 6 · Deliveries ──────────────────────────────────────────────────────── #}
+<div class="card" id="deliveries">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span class="guide-num">6</span>
+    <h2 style="margin:0">Plan deliveries</h2>
+    <span class="muted" style="font-size:0.85rem">Alongside assigning shifts</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Assign a driver per client</div>
+      <p><a href="{{ url_for('deliveries_month') }}">Deliveries</a> → pick the month →
+        choose a deliverer for each client on each date → <b>Save</b></p>
+      <p class="help">The app pre-fills a suggestion: whoever is already saved, then the client's
+        usual driver, then anyone with approved availability that day. Change any of it.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Skip a day</div>
+      <p class="help">Tick <b>No delivery</b> on a date to black it out — a holiday, say.
+        The calendar stops showing a delivery for that day.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Drop one client from a day</div>
+      <p><a href="{{ url_for('deliveries_month') }}">Deliveries</a> → open the day → <b>✕</b> on that client's row.
+        This deletes their order for that date.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Who marks it delivered</div>
+      <p class="help">Drivers tick their own stops on <b>My deliveries &amp; 🍓 runs</b>.
+        You can also do it from the day's delivery page.</p>
+      <p class="help">Delivery pay: Wed and Thu earn a base fee plus ${{ '%.2f'|format(delivery_transport) }}
+        per stop; other days are per stop only. It lands in salary on its own.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── 7 · Strawberry runs ─────────────────────────────────────────────────── #}
+<div class="card" id="purchases">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span class="guide-num">7</span>
+    <h2 style="margin:0">Assign strawberry runs</h2>
+    <span class="muted" style="font-size:0.85rem">Sunday, Wednesday, Friday</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Assign from the volunteers</div>
+      <p><a href="{{ url_for('purchases') }}">🍓 Purchases</a> → pick the month →
+        tick who does each run → <b>Save assignments</b></p>
+      <p class="help">A ✋ marks someone who volunteered for that run when they submitted availability.
+        A banner at the top counts runs nobody is assigned to yet.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Add or remove a date</div>
+      <p class="help">Sun/Wed/Fri runs appear automatically the first time you open a month.
+        After that the list is yours — use <b>Add a purchase run</b> for an extra date, or <b>✕</b> to delete one.
+        Deleted dates stay deleted.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">How it pays</div>
+      <p class="help">Every assigned run reimburses ${{ '%.2f'|format(strawberry_price) }} automatically —
+        it appears under <b>Procurement</b> in salary. Whether "Done?" is ticked makes no difference to pay,
+        so if a run didn't happen, <b>delete the assignment</b> rather than leaving it unticked.</p>
+      <p class="help">Employees can tick their own runs done on <b>My deliveries &amp; 🍓 runs</b>.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── 8 · Confirm hours ───────────────────────────────────────────────────── #}
 <div class="card" id="confirm">
   <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
-    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
-                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
-                 font-weight:700; flex-shrink:0">6</span>
+    <span class="guide-num">8</span>
     <h2 style="margin:0">Confirm actual hours worked</h2>
-    <span class="muted" style="font-size:0.85rem">After each production day</span>
+    <span class="muted" style="font-size:0.85rem">After each shift</span>
   </div>
 
   <div class="guide-steps">
 
     <div class="guide-step">
-      <div class="guide-step-label">Go to the shift's detail page</div>
-      <p><a href="{{ url_for('owner_schedule') }}">Schedule</a> → click the date → scroll to <b>"Confirm actual hours worked"</b> at the bottom</p>
+      <div class="guide-step-label">Approve the shift report</div>
+      <p class="help">The shift manager files a report with actual start and end times per person,
+        plus stock notes.</p>
+      <p><a href="{{ url_for('approvals') }}">Approvals</a> → review the report → <b>Approve</b></p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Review and adjust times</div>
-      <p class="help">Times are pre-filled automatically:</p>
-      <p>• <b>Manager 👑</b> — start time is set 15 minutes before the official shift start<br>
-      • <b>Everyone else</b> — start/end match their assigned window</p>
-      <p>Change any time if someone arrived late, left early, or stayed longer. The hours calculate live as you type.</p>
-    </div>
-
-    <div class="guide-step">
-      <div class="guide-step-label">Save</div>
-      <p>Click <b>Save actual hours</b> → status changes to <span class="ok">✓ confirmed</span><br>
-      These confirmed times are then used in the salary calculation.</p>
+      <div class="guide-step-label">Or set the times yourself</div>
+      <p><a href="{{ url_for('calendar_view') }}">Calendar</a> → <b>👥 Staff</b> → adjust each person's
+        window → <b>Save assignment</b></p>
+      <p class="help">Salary uses actual times where they exist and the planned window otherwise.
+        A shift marked <span class="warn">⚠ unconfirmed</span> on the Salary page still has no actual times.</p>
     </div>
 
   </div>
 </div>
 
-{# ── Section 7: Salary & Gusto ───────────────────────────────────────────── #}
+{# ── 9 · Salary ──────────────────────────────────────────────────────────── #}
 <div class="card" id="salary">
   <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
-    <span style="font-size:1.5rem; background:var(--pink); color:#fff; border-radius:50%;
-                 width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
-                 font-weight:700; flex-shrink:0">7</span>
+    <span class="guide-num">9</span>
     <h2 style="margin:0">Salary &amp; Gusto</h2>
     <span class="muted" style="font-size:0.85rem">At the end of the pay period</span>
   </div>
@@ -243,31 +348,113 @@
     <div class="guide-step">
       <div class="guide-step-label">Add any pop-up hours</div>
       <p class="help">For markets, events, or any work outside the regular production schedule.</p>
-      <p><a href="{{ url_for('salary_report') }}">Salary</a> → <b>Add pop-up / extra hours</b> form:<br>
-      Select the employee, date, start time, end time, hourly rate, and any transport cost (bridge toll, BART, etc.).<br>
-      Leave the rate blank to use the default Gusto rate (${{ gusto_rate }}).</p>
+      <p><a href="{{ url_for('salary_report') }}">Salary</a> → <b>Add pop-up / extra hours</b>:
+        employee, date, times, hourly rate, plus transport (bridge toll, BART).<br>
+        Leave the rate blank to use the Gusto rate (${{ '%.2f'|format(gusto_rate) }}).</p>
     </div>
 
     <div class="guide-step">
       <div class="guide-step-label">Set the date range and calculate</div>
-      <p><a href="{{ url_for('salary_report') }}">Salary</a> → set <b>From</b> and <b>To</b> dates for the pay period → <b>Calculate</b></p>
-      <p class="help">How the hourly rate is calculated per shift:<br>
-      <code>rate = (${{ piece_rate }} × total daifuku produced) ÷ total person-hours on that shift</code><br>
-      Manager pay = rate × hours × 1.05 (5% bonus). All other workers = rate × hours.</p>
+      <p><a href="{{ url_for('salary_report') }}">Salary</a> → set <b>From</b> and <b>To</b> → <b>Calculate</b></p>
+      <p class="help">How the hourly rate is worked out per shift:<br>
+      <code>rate = (${{ '%.2f'|format(piece_rate) }} × daifuku produced) ÷ person-hours on that shift</code><br>
+      Manager pay = rate × hours × 1.05. Everyone else = rate × hours.</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Read the Gusto input table</div>
-      <p class="help">The highlighted <b>Gusto hours</b> column is the single number to enter per person in Gusto at ${{ gusto_rate }}/hr.</p>
-      <p>Formula: <code>Gusto hours = (total wage pay + transport costs) ÷ ${{ gusto_rate }}</code><br>
-      Transport is folded in so you enter one number per person — no separate line items needed.</p>
-      <p class="help">Shifts showing <span class="warn">⚠ unconfirmed</span> means actual hours haven't been saved yet on that shift's detail page — go confirm them first for accurate numbers.</p>
+      <div class="guide-step-label">Read the Gusto column</div>
+      <p class="help">The highlighted <b>Gusto hours</b> column is the single number to enter per person
+        at ${{ '%.2f'|format(gusto_rate) }}/hr.</p>
+      <p><code>Gusto hours = (wages + transport + strawberry reimbursements) ÷ ${{ '%.2f'|format(gusto_rate) }}</code><br>
+      Everything is folded in, so there are no separate line items to enter.</p>
     </div>
 
     <div class="guide-step">
-      <div class="guide-step-label">Enter hours into Gusto</div>
-      <p>In Gusto, run payroll and enter each person's <b>Gusto hours</b> at the ${{ gusto_rate }}/hr base rate.<br>
-      That's it — the app has done all the math.</p>
+      <div class="guide-step-label">Enter it into Gusto</div>
+      <p>Run payroll and enter each person's <b>Gusto hours</b> at the ${{ '%.2f'|format(gusto_rate) }}/hr base rate. That's it.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── 10 · Invoice ────────────────────────────────────────────────────────── #}
+<div class="card" id="invoice">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span class="guide-num">10</span>
+    <h2 style="margin:0">Invoice clients</h2>
+    <span class="muted" style="font-size:0.85rem">Start of the following month</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">Set the period</div>
+      <p><a href="{{ url_for('invoice') }}">Invoice</a> → <b>From</b> and <b>To</b> → <b>Calculate</b></p>
+      <p class="help">Pick-ups and pop-ups are left out — they aren't invoiced.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Consignment clients</div>
+      <p class="help">For consignment, enter what the client reported selling in the <b>Sold</b> column.
+        Leave it blank to bill the full quantity delivered.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Send it through Mercury</div>
+      <p><b>Send to Mercury Command</b> copies a ready-made instruction and opens Mercury —
+        paste it and review before sending.</p>
+      <p class="help">The prompt asks for today's date, Net 15 terms, payment from the checking account,
+        card payment enabled, reminders on, and a memo listing how many pieces went out on each date.</p>
+    </div>
+
+  </div>
+</div>
+
+{# ── 11 · Summary ────────────────────────────────────────────────────────── #}
+<div class="card" id="summary">
+  <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
+    <span class="guide-num">11</span>
+    <h2 style="margin:0">Month-end summary</h2>
+    <span class="muted" style="font-size:0.85rem">Once the month is closed</span>
+  </div>
+
+  <div class="guide-steps">
+
+    <div class="guide-step">
+      <div class="guide-step-label">What the page shows</div>
+      <p><a href="{{ url_for('monthly_summary') }}">Summary</a> → pick the month</p>
+      <p class="help">Sales come from orders priced at each client's rate. Costs are labour —
+        split into production, pop-up, procurement and delivery — plus everything else you record below.
+        Employer payroll tax of {{ '%.2f'|format(tax_rate * 100) }}% is added to labour.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Fix up pop-up sales</div>
+      <p class="help">A pop-up is assumed to sell everything made less {{ '%g'|format(popup_waste * 100) }}% waste.
+        When one sells unusually well or badly, record what really happened in the <b>Pop-ups</b> section —
+        either pieces sold or an exact amount. Clearing both fields restores the default.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Pull in the cost spreadsheet</div>
+      <p><a href="{{ url_for('monthly_summary') }}">Summary</a> → <b>🔗 Unexpected-cost spreadsheet</b> →
+        paste the sheet's CSV link → <b>Save link</b> → <b>Sync now</b></p>
+      <p class="help">Syncing replaces everything previously imported from the sheet, so the spreadsheet
+        stays in charge of its own rows. Anything you typed in by hand is never touched.
+        Imported rows are badged <b>sheet</b> — editing one is pointless, the next sync overwrites it.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Categorise what's left</div>
+      <p class="help">A banner counts rows still marked <b>Uncategorised</b>, and those rows are tinted.
+        Set the category, amount or note inline and <b>Save categories</b>.
+        Use <b>Add an item</b> for a one-off cost or a bit of income that came from nowhere else.</p>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-step-label">Read the bottom line</div>
+      <p class="help">Sales, costs, net and margin for the month. If it looks wrong, the usual causes are
+        unconfirmed shift hours, a client rate that was never set, or a pop-up still on its default.</p>
     </div>
 
   </div>
@@ -275,7 +462,9 @@
 
 {# ── Quick reference ─────────────────────────────────────────────────────── #}
 <div class="card">
-  <h2 style="margin-top:0">Quick reference — production shifts</h2>
+  <h2 style="margin-top:0">Quick reference</h2>
+
+  <h3 style="margin-bottom:.4rem">Production shifts</h3>
   <table>
     <thead>
       <tr><th>Day</th><th>Time</th><th>Min people</th><th>Max people</th></tr>
@@ -287,9 +476,37 @@
       <tr><td><span class="badge badge-day">Fri</span></td><td>6:45 am – 9:30 am</td><td>5</td><td>7</td></tr>
     </tbody>
   </table>
+
+  <h3 style="margin-bottom:.4rem">What pays what</h3>
+  <table>
+    <thead><tr><th>Item</th><th>Rate</th><th>Where it comes from</th></tr></thead>
+    <tbody>
+      <tr><td>Production</td><td>${{ '%.2f'|format(piece_rate) }} per piece, shared across the shift</td><td>shift assignments</td></tr>
+      <tr><td>Manager bonus</td><td>+5%</td><td>the 👑 tick on a shift</td></tr>
+      <tr><td>Strawberry run</td><td>${{ '%.2f'|format(strawberry_price) }} each</td><td>Purchases page</td></tr>
+      <tr><td>Delivery</td><td>${{ '%.2f'|format(delivery_transport) }} per stop, plus a base fee on Wed/Thu</td><td>assigned deliverer</td></tr>
+      <tr><td>Payroll tax</td><td>{{ '%.2f'|format(tax_rate * 100) }}%</td><td>added on the Summary page</td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin-bottom:.4rem">If something looks wrong</h3>
+  <table>
+    <tbody>
+      <tr><td>Someone missing when assigning</td><td>their availability is still pending — approve it</td></tr>
+      <tr><td>Salary looks low</td><td>actual hours not confirmed on some shifts</td></tr>
+      <tr><td>A client shows no revenue</td><td>their rate is still $0 — set it on the Summary page</td></tr>
+      <tr><td>Delivery on a day you skipped</td><td>tick <b>No delivery</b> for that date</td></tr>
+      <tr><td>A cost counted twice</td><td>it's in the spreadsheet <i>and</i> added by hand — delete the hand-typed one</td></tr>
+    </tbody>
+  </table>
 </div>
 
 <style>
+.guide-num {
+  font-size: 1.5rem; background: var(--pink); color: #fff; border-radius: 50%;
+  width: 2rem; height: 2rem; display: flex; align-items: center;
+  justify-content: center; font-weight: 700; flex-shrink: 0;
+}
 .guide-steps { display: flex; flex-direction: column; gap: 0; }
 .guide-step {
   padding: 0.9rem 0 0.9rem 1.1rem;

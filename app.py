@@ -2738,6 +2738,12 @@ def owner_guide():
         "guide.html",
         piece_rate=piece_rate(),
         gusto_rate=gusto_rate(),
+        strawberry_price=strawberry_price(),
+        delivery_transport=delivery_transport_amount(),
+        popup_rate=popup_rate(),
+        pickup_rate=pickup_rate(),
+        popup_waste=popup_waste(),
+        tax_rate=PAYROLL_TAX_RATE,
     )
 
 
