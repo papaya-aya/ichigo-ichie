@@ -47,6 +47,37 @@ function copyPubLink() {
 </script>
 {% endif %}
 
+{% if is_owner %}
+<div class="card" style="padding:.8rem 1rem; margin-bottom:1rem">
+  <b>➕ Add an extra shift day</b>
+  <p class="muted" style="margin:.25rem 0 .5rem; font-size:.85rem">
+    For a one-off production day outside the usual weekly pattern. It copies the
+    times and headcount targets of the shift you pick, so employees can submit
+    availability for it and you can assign people as normal.</p>
+  <form method="post" action="{{ url_for('add_shift_instance') }}"
+        style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:flex-end">
+    <input type="hidden" name="month" value="{{ month }}">
+    <input type="hidden" name="back" value="calendar">
+    <label class="field" style="width:10rem">
+      <span style="font-size:.82rem">Date</span>
+      <input type="date" name="date" required>
+    </label>
+    <label class="field" style="min-width:14rem">
+      <span style="font-size:.82rem">Use this shift's pattern</span>
+      <select name="template_id" required>
+        {% for t in shift_templates %}
+          <option value="{{ t.id }}">{{ t.label }} · {{ t.start_time }}–{{ t.end_time }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="field">
+      <span style="visibility:hidden; font-size:.82rem">x</span>
+      <button type="submit">Add shift day</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
 {% if not days %}
   <div class="card">
     <p class="muted">Nothing scheduled for {{ month_label }} yet.
@@ -154,6 +185,7 @@ function copyPubLink() {
           <form method="post" action="{{ url_for('delete_shift_instance', instance_id=day.shift.inst.instance_id) }}" class="inline-form"
                 onsubmit="return confirm('Delete the {{ day.weekday }} {{ day.date }} shift? This removes all assignments and availability for this day.')">
             <input type="hidden" name="month" value="{{ month }}">
+            <input type="hidden" name="back" value="calendar">
             <button type="submit" class="btn-ghost btn-sm" style="color:var(--red,#e53935);border-color:var(--red,#e53935)">🗑 Delete</button>
           </form>
         </div>

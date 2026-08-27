@@ -142,6 +142,40 @@ def main():
     if not ok:
         failures.append("generate idempotent")
 
+    # ---- adding a one-off shift day ---------------------------------------
+    print("\nadd shift day")
+
+    def n_shifts():
+        return con.execute("SELECT COUNT(*) c FROM shift_instances"
+                           ).fetchone()["c"]
+
+    before = n_shifts()
+    r = cl.post("/owner/shift/add", data={"date": "2026-09-10",
+                                          "template_id": "1",
+                                          "month": "2026-09",
+                                          "back": "calendar"})
+    ok = (n_shifts() == before + 1
+          and "/calendar" in (r.headers.get("Location") or ""))
+    print(f"  {'ok  ' if ok else 'FAIL'} {'adds and returns to calendar':<32}")
+    if not ok:
+        failures.append("add shift day")
+
+    # Same date twice must not create a duplicate.
+    cl.post("/owner/shift/add", data={"date": "2026-09-10",
+                                      "template_id": "1", "month": "2026-09"})
+    ok = n_shifts() == before + 1
+    print(f"  {'ok  ' if ok else 'FAIL'} {'refuses a duplicate':<32}")
+    if not ok:
+        failures.append("duplicate shift day")
+
+    # A bad template id must not create anything.
+    cl.post("/owner/shift/add", data={"date": "2026-09-11",
+                                      "template_id": "999", "month": "2026-09"})
+    ok = n_shifts() == before + 1
+    print(f"  {'ok  ' if ok else 'FAIL'} {'rejects unknown template':<32}")
+    if not ok:
+        failures.append("bad template")
+
     # ---- cost-spreadsheet parser -----------------------------------------
     print("\ncost sheet parser")
     parse = harness.appmod.parse_cost_sheet

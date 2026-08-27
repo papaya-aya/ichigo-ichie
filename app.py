@@ -869,6 +869,11 @@ def calendar_view():
         days=days, flavors=FLAVORS,
         current_emp_id=current_emp_id,
         public_token=public_token,
+        shift_templates=g.db.execute(
+            """SELECT id, label, start_time, end_time, weekday
+                 FROM shift_templates WHERE active = 1
+                ORDER BY weekday, start_time"""
+        ).fetchall(),
     )
 
 
@@ -3391,7 +3396,54 @@ def delete_shift_instance(instance_id):
     g.db.commit()
     flash("Shift deleted.", "success")
     month = request.form.get("month", "")
+    if request.form.get("back") == "calendar":
+        return redirect(url_for("calendar_view", month=month) if month
+                        else url_for("calendar_view"))
     return redirect(url_for("owner_dashboard", month=month) if month else url_for("owner_dashboard"))
+
+
+@app.route("/owner/shift/add", methods=["POST"])
+@require_owner
+def add_shift_instance():
+    """Add a one-off production day, using an existing shift's times and targets."""
+    shift_date  = request.form.get("date", "").strip()
+    template_id = request.form.get("template_id", "").strip()
+    month       = request.form.get("month", "") or shift_date[:7]
+
+    def _back():
+        if request.form.get("back") == "calendar":
+            return redirect(url_for("calendar_view", month=month))
+        return redirect(url_for("owner_dashboard", month=month))
+
+    if not shift_date or not template_id:
+        flash("Pick a date and which shift to copy.", "error")
+        return _back()
+
+    tpl = g.db.execute(
+        "SELECT label, start_time, end_time FROM shift_templates WHERE id = ?",
+        (template_id,),
+    ).fetchone()
+    if not tpl:
+        flash("That shift template no longer exists.", "error")
+        return _back()
+
+    existing = g.db.execute(
+        "SELECT 1 FROM shift_instances WHERE template_id = ? AND date = ?",
+        (template_id, shift_date),
+    ).fetchone()
+    if existing:
+        flash(f"{tpl['label']} already exists on {shift_date}.", "error")
+        return _back()
+
+    g.db.execute(
+        """INSERT INTO shift_instances (template_id, date) VALUES (?, ?)
+           ON CONFLICT (template_id, date) DO NOTHING""",
+        (template_id, shift_date),
+    )
+    g.db.commit()
+    flash(f"Added {tpl['label']} ({tpl['start_time']}–{tpl['end_time']}) "
+          f"on {shift_date}. Staff still need to be assigned.", "success")
+    return _back()
 
 
 # ---------------------------------------------------------------------------
