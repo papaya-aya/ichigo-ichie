@@ -843,7 +843,9 @@ def calendar_view():
         info["n_done"]  += 1 if r["delivered"] else 0
 
     # --- union of all dates with anything to show ---
-    all_dates = sorted(set(list(shifts_by_date) + list(deliveries_by_date)))
+    purchases_by_date = purchases_by_date_for_month(month)
+    all_dates = sorted(set(list(shifts_by_date) + list(deliveries_by_date)
+                          + list(purchases_by_date)))
 
     days = []
     for d in all_dates:
@@ -856,6 +858,7 @@ def calendar_view():
             "is_today": d == today_str,
             "shift":    shifts_by_date.get(d),
             "delivery": deliveries_by_date.get(d),
+            "purchase": purchases_by_date.get(d),
         })
 
     public_token = database.get_setting(g.db, "public_calendar_token") or ""
@@ -925,7 +928,10 @@ def public_calendar(token):
         info["n_total"] += 1
         info["n_done"]  += 1 if r["delivered"] else 0
 
-    all_dates = sorted(set(list(shifts_by_date.keys()) + list(deliveries_by_date.keys())))
+    purchases_by_date = purchases_by_date_for_month(month)
+    all_dates = sorted(set(list(shifts_by_date.keys())
+                          + list(deliveries_by_date.keys())
+                          + list(purchases_by_date.keys())))
     days = []
     for d in all_dates:
         y, mo, dy = (int(x) for x in d.split("-"))
@@ -937,6 +943,7 @@ def public_calendar(token):
             "is_today": d == today_str,
             "shift":    shifts_by_date.get(d),
             "delivery": deliveries_by_date.get(d),
+            "purchase": purchases_by_date.get(d),
         })
 
     return render_template(
@@ -1757,6 +1764,29 @@ def ensure_purchase_instances(month):
                 (d.isoformat(), database.now_iso()),
             )
     g.db.commit()
+
+
+def purchases_by_date_for_month(month):
+    """Purchase runs in a month keyed by date, for the calendar."""
+    out = {}
+    for r in g.db.execute(
+        """SELECT pi.date, pi.id, pa.completed, pa.employee_id, e.name
+             FROM purchase_instances pi
+             LEFT JOIN purchase_assignments pa
+                    ON pa.purchase_instance_id = pi.id
+             LEFT JOIN employees e ON e.id = pa.employee_id
+            WHERE pi.date LIKE ?
+            ORDER BY pi.date, e.name""",
+        (month + "-%",),
+    ).fetchall():
+        info = out.setdefault(r["date"], {
+            "id": r["id"], "people": [], "n_done": 0, "n_total": 0,
+        })
+        if r["employee_id"]:
+            info["people"].append(dict(r))
+            info["n_total"] += 1
+            info["n_done"] += 1 if r["completed"] else 0
+    return out
 
 
 def purchase_rows_for_month(month):
@@ -3587,6 +3617,18 @@ def my_deliveries():
     emp_name = session.get("employee_name", "")
 
     if request.method == "POST":
+        if request.form.get("action") == "purchase_done":
+            # Employees may only tick runs that are assigned to them.
+            g.db.execute(
+                """UPDATE purchase_assignments SET completed = ?
+                    WHERE purchase_instance_id = ? AND employee_id = ?""",
+                (1 if request.form.get("completed") else 0,
+                 request.form.get("purchase_id"), emp_id),
+            )
+            g.db.commit()
+            flash("Strawberry run updated.", "success")
+            return redirect(url_for("my_deliveries"))
+
         deliver_on = request.form.get("deliver_on")
         client_id  = request.form.get("client_id")
         delivered  = 1 if request.form.get("delivered") else 0
@@ -3616,6 +3658,10 @@ def my_deliveries():
             flash("Delivery status updated.", "success")
         return redirect(url_for("my_deliveries"))
 
+    # Upcoming plus the last week, computed here rather than in SQL so the
+    # query stays portable.
+    cutoff = (date.today() - timedelta(days=7)).isoformat()
+
     # Fetch all upcoming + recent deliveries assigned to this employee
     rows = g.db.execute(
         """SELECT COALESCE(o.delivery_date, o.date) AS deliver_on,
@@ -3628,10 +3674,10 @@ def my_deliveries():
                   MAX(o.delivered)    AS delivered
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE lower(o.deliverer) = lower(?)
-              AND COALESCE(o.delivery_date, o.date) >= (CURRENT_DATE - INTERVAL '7 days')::text
+              AND COALESCE(o.delivery_date, o.date) >= ?
             GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
-        (emp_name,),
+        (emp_name, cutoff),
     ).fetchall()
 
     # Group by date
@@ -3653,9 +3699,24 @@ def my_deliveries():
     delivery_days = sorted(by_date.values(), key=lambda x: x["date"])
     today_str = date.today().isoformat()
 
+    # Strawberry purchase runs assigned to this employee, same window
+    purchase_runs = [dict(r) for r in g.db.execute(
+        """SELECT pi.id, pi.date, pa.completed
+             FROM purchase_assignments pa
+             JOIN purchase_instances pi ON pi.id = pa.purchase_instance_id
+            WHERE pa.employee_id = ?
+              AND pi.date >= ?
+            ORDER BY pi.date""",
+        (emp_id, cutoff),
+    ).fetchall()]
+    for r in purchase_runs:
+        r["weekday"] = WEEKDAY_NAMES[date_weekday(r["date"])]
+
     return render_template(
         "my_deliveries.html",
         delivery_days=delivery_days, today=today_str, flavors=FLAVORS,
+        purchase_runs=purchase_runs,
+        strawberry_price=strawberry_price(),
     )
 
 

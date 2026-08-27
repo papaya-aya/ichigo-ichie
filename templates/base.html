@@ -30,7 +30,7 @@
       {% elif employee_name %}
         <a href="{{ url_for('availability') }}">My availability</a>
         <a href="{{ url_for('my_shifts') }}">My shifts & pay</a>
-        <a href="{{ url_for('my_deliveries') }}">My deliveries</a>
+        <a href="{{ url_for('my_deliveries') }}">My deliveries &amp; 🍓 runs</a>
         <a href="{{ url_for('calendar_view') }}">Schedule</a>
         <span class="who">{{ employee_name }}</span>
         <a class="btn-link" href="{{ url_for('logout') }}">Log out</a>

@@ -1,8 +1,56 @@
 {% extends "base.html" %}
-{% block title %}My Deliveries · Ichigo Ichie{% endblock %}
+{% block title %}My Deliveries &amp; Strawberry Runs · Ichigo Ichie{% endblock %}
 {% block content %}
-<h1>🚚 My deliveries</h1>
-<p class="subtitle">Orders assigned to you. Tap "Mark delivered" after each drop-off.</p>
+<h1>🚚 My deliveries &amp; 🍓 strawberry runs</h1>
+<p class="subtitle">Everything assigned to you. Tap "Mark delivered" after each
+  drop-off, and tick a strawberry run once you have bought them.</p>
+
+{% if purchase_runs %}
+<div class="card" style="margin-bottom:1.2rem; border-left:4px solid #e0559a">
+  <h2 style="margin-top:0">🍓 Strawberry purchase runs</h2>
+  <p class="muted" style="margin-top:-.4rem; font-size:.88rem">
+    ${{ '%.2f'|format(strawberry_price) }} is reimbursed for each run and added
+    to your pay automatically.</p>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in purchase_runs %}
+      <tr {% if r.date == today %}style="background:var(--pink-soft,#fef9fa)"{% endif %}>
+        <td>
+          <span class="badge badge-day">{{ r.weekday }}</span> {{ r.date }}
+          {% if r.date == today %}
+            <span class="pill" style="background:var(--pink);color:#fff;font-size:.75rem">Today</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.completed %}
+            <span class="ok">✓ done</span>
+          {% elif r.date < today %}
+            <span class="bad">not marked done</span>
+          {% else %}
+            <span class="muted">upcoming</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right">
+          <form method="post" action="{{ url_for('my_deliveries') }}" class="inline-form">
+            <input type="hidden" name="action" value="purchase_done">
+            <input type="hidden" name="purchase_id" value="{{ r.id }}">
+            {% if r.completed %}
+              <button type="submit" class="btn-ghost btn-sm">Undo</button>
+            {% else %}
+              <input type="hidden" name="completed" value="1">
+              <button type="submit">Mark done</button>
+            {% endif %}
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 {% if not delivery_days %}
   <div class="card">

@@ -62,6 +62,59 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- employee views ---------------------------------------------------
+    print("\nemployee views")
+    con = harness._con
+    con.execute("INSERT INTO purchase_assignments (purchase_instance_id,"
+                "employee_id,completed,created_at) VALUES (2,1,0,'x')")
+    con.execute("INSERT INTO purchase_instances (id,date,created_at)"
+                " VALUES (3,'2026-09-06','x')")
+    con.execute("INSERT INTO purchase_assignments (purchase_instance_id,"
+                "employee_id,completed,created_at) VALUES (3,2,0,'x')")
+    con.commit()
+
+    emp = harness.flask_app.test_client()
+    with emp.session_transaction() as s:
+        s["employee_id"] = 1
+        s["employee_name"] = "Yumi"
+
+    r = emp.get("/my-deliveries")
+    body = r.get_data(as_text=True)
+    ok = (r.status_code == 200 and "strawberry runs" in body.lower()
+          and "2026-09-04" in body and "2026-09-06" not in body)
+    print(f"  {'ok  ' if ok else 'FAIL'} {'my-deliveries lists own runs':<32}")
+    if not ok:
+        failures.append("my-deliveries runs")
+
+    emp.post("/my-deliveries", data={"action": "purchase_done",
+                                     "purchase_id": "2", "completed": "1"},
+             follow_redirects=True)
+    ok = con.execute("SELECT completed FROM purchase_assignments WHERE"
+                     " purchase_instance_id=2 AND employee_id=1"
+                     ).fetchone()["completed"] == 1
+    print(f"  {'ok  ' if ok else 'FAIL'} {'employee can tick own run':<32}")
+    if not ok:
+        failures.append("tick own run")
+
+    # An employee must not be able to tick a run assigned to someone else.
+    emp.post("/my-deliveries", data={"action": "purchase_done",
+                                     "purchase_id": "3", "completed": "1"},
+             follow_redirects=True)
+    ok = con.execute("SELECT completed FROM purchase_assignments WHERE"
+                     " purchase_instance_id=3 AND employee_id=2"
+                     ).fetchone()["completed"] == 0
+    label = "cannot tick another's run"
+    print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+    if not ok:
+        failures.append("cross-employee tick")
+
+    r = emp.get("/calendar?month=2026-09")
+    body = r.get_data(as_text=True)
+    ok = r.status_code == 200 and "Strawberry run" in body and "Yumi" in body
+    print(f"  {'ok  ' if ok else 'FAIL'} {'calendar shows runs':<32}")
+    if not ok:
+        failures.append("calendar runs")
+
     # ---- month generation -------------------------------------------------
     # Regression: scheduler used SQLite-only "INSERT OR IGNORE", which
     # Postgres rejects, and read cur.rowcount, which the db wrapper did not

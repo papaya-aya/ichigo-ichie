@@ -207,6 +207,46 @@ function copyPubLink() {
       </div>
       {% endif %}
 
+      {% if day.purchase %}
+      {# Strawberry purchase run #}
+      <div class="day-content purchase-content">
+        <div class="shift-meta">
+          <div class="shift-time" style="color:#b3306b">🍓 Strawberry run</div>
+          <div class="muted" style="font-size:0.78rem">
+            {% if not day.purchase.n_total %}
+              <span class="warn">nobody assigned</span>
+            {% elif day.purchase.n_done == day.purchase.n_total %}
+              <span class="ok">done ✓</span>
+            {% else %}
+              pending
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="shift-orders">
+          {% if day.purchase.people %}
+            {% for p in day.purchase.people %}
+              {% if current_emp_id and p.employee_id == current_emp_id %}
+                <span class="pill shift-me">{{ p.name }}{% if p.completed %} ✓{% endif %}</span>
+              {% else %}
+                <span class="pill purchase-who">{{ p.name }}{% if p.completed %} ✓{% endif %}</span>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <span class="muted" style="font-size:0.85rem">Not yet assigned</span>
+          {% endif %}
+        </div>
+
+        {% if is_owner %}
+        <div class="shift-actions">
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('purchases', month=month) }}"
+             title="Assign strawberry runs"
+             style="color:#b3306b;border-color:#b3306b">🍓 Assign</a>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
     </div>{# end day-rows #}
   </div>
   {% endfor %}
@@ -230,6 +270,8 @@ function copyPubLink() {
 .day-content{display:flex;align-items:flex-start;gap:1rem;padding:.65rem .9rem;border-radius:var(--radius)}
 .shift-content{background:var(--card);border:1px solid var(--pink-line)}
 .delivery-content{background:#f5fbf7;border:1px solid #c3e6cc}
+.purchase-content{background:#fdf4f8;border:1px solid #f3c6da}
+.purchase-who{background:#fbe4ef;color:#8a1f4d;font-size:.8rem}
 
 /* ── Shift content areas ── */
 .shift-meta{min-width:8rem;flex-shrink:0}
