@@ -1593,13 +1593,14 @@ PURCHASE_WEEKDAYS = (6, 2, 4)
 
 # --- importing the owner's unexpected-cost spreadsheet ---------------------
 # Header names accepted for each field, matched case-insensitively.
+# Ordered most-specific first — the earlier alias wins when several match.
 SHEET_ALIASES = {
     "date":     ("date", "month", "when", "day", "purchased"),
-    "label":    ("item", "description", "label", "what", "expense",
-                 "name", "detail", "memo", "vendor", "merchant"),
+    "label":    ("description", "item", "label", "detail", "memo", "what",
+                 "paid to", "payee", "vendor", "merchant", "expense", "name"),
     "amount":   ("amount", "cost", "total", "price", "spend", "usd", "$"),
-    "category": ("category", "type", "kind", "bucket"),
-    "note":     ("note", "notes", "comment", "remark", "reason"),
+    "category": ("expense category", "category", "type", "bucket"),
+    "note":     ("notes", "note", "comment", "remark", "reason"),
 }
 SHEET_HOSTS = ("docs.google.com", "googleusercontent.com")
 
@@ -1631,9 +1632,12 @@ def _sheet_month(value):
     v = (value or "").strip()
     if not v:
         return None
-    m = re.match(r"^(\d{4})-(\d{1,2})", v)                    # 2026-08-14
-    if m:
+    m = re.match(r"^(\d{4})[-/.](\d{1,2})", v)                # 2026-08-14, 2026/08/14
+    if m and 1 <= int(m.group(2)) <= 12:
         return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}"
+    m = re.fullmatch(r"(\d{4})(\d{2})(\d{2})", v)             # 20260816
+    if m and 1 <= int(m.group(2)) <= 12:
+        return f"{m.group(1)}-{m.group(2)}"
     m = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$", v)  # 8/14/2026
     if m:
         year = int(m.group(3))
@@ -1674,9 +1678,19 @@ def parse_cost_sheet(text):
     header = [(c or "").strip().lower() for c in table[0]]
     col = {}
     for field, names in SHEET_ALIASES.items():
-        for i, h in enumerate(header):
-            if h and (h in names or any(h.startswith(n) for n in names)):
-                col.setdefault(field, i)
+        # Exact header first, then "starts with", then "contains". Within each
+        # tier the earlier alias wins, so "Description" beats "Name" for the
+        # label and "Expense Category" beats "Expense Sub-Category".
+        for test in (lambda h, n: h == n,
+                     lambda h, n: h.startswith(n),
+                     lambda h, n: n in h):
+            for name in names:
+                match = next((i for i, h in enumerate(header)
+                              if h and test(h, name)), None)
+                if match is not None:
+                    col[field] = match
+                    break
+            if field in col:
                 break
 
     problems = []
