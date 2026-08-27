@@ -285,6 +285,29 @@ def migrate_db():
         )
         conn.commit()
 
+    # 2026-08-26: the owner's Expense & Sales Ledger itemises every card and
+    # cash purchase, so the aggregated Amex rows seeded from the bank exports
+    # are the same money counted twice. Drop those and let the ledger own them.
+    # Bank ACH items the ledger never records — kitchen rent, insurance,
+    # permits, software — are kept.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='dedupe_ledger_overlap'"
+    ).fetchone():
+        for prefix in ("Amex — ", "Kinokuniya", "Tokyo Fish Market",
+                       "VENMO", "Venmo", "Sakurako Yanagisawa"):
+            conn.execute(
+                """DELETE FROM summary_items
+                    WHERE note = 'imported from Mercury/Amex'
+                      AND label LIKE ?""",
+                (prefix + "%",),
+            )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('dedupe_ledger_overlap', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     # 2026-07-31: remove Teance from all August 2026 deliveries (one-time).
     if not conn.execute(
         "SELECT 1 FROM settings WHERE key='cleanup_teance_aug_2026'"
