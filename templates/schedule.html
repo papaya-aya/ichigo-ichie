@@ -76,4 +76,85 @@
     <a href="{{ url_for('owner_dashboard') }}">Input</a>.</p>
   {% endif %}
 </div>
+
+{# ── Deliveries ──────────────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">🚚 Deliveries
+    {% if deliveries %}
+      {% set open_days = deliveries | selectattr('unassigned') | list | length %}
+      {% if open_days %}
+        <span class="pill" style="background:#fff3cd;color:#8a6d00">
+          {{ open_days }} day{{ 's' if open_days != 1 }} need a driver</span>
+      {% else %}
+        <span class="pill" style="background:#e8f5ec;color:#2d6a40">all assigned</span>
+      {% endif %}
+    {% endif %}
+  </h2>
+
+  {% if not deliveries %}
+    <p class="muted">No deliveries scheduled for {{ month_label }}.</p>
+  {% else %}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Stops</th><th style="text-align:right">Pieces</th>
+        <th>Driver</th><th>Assign whole day</th><th>Status</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in deliveries %}
+      <tr {% if d.unassigned %}class="row-open"{% endif %}>
+        <td style="white-space:nowrap">
+          <span class="badge badge-day">{{ d.weekday }}</span> {{ d.date }}
+        </td>
+        <td>
+          {% for c in d.clients %}
+            <span class="pill" style="font-size:.75rem;background:#e8f5ec;color:#2d6a40">
+              {{ c.client_name }}{% if not c.deliverer %} ⚠{% endif %}</span>
+          {% endfor %}
+        </td>
+        <td style="text-align:right">{{ d.pcs }}</td>
+        <td>
+          {% if d.drivers %}{{ d.drivers | join(', ') }}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('assign_day_deliverer') }}"
+                style="display:flex; gap:.3rem; align-items:center">
+            <input type="hidden" name="date" value="{{ d.date }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <select name="deliverer" style="width:7.5rem; font-size:.85em">
+              <option value="">— clear —</option>
+              {% for e in employees %}
+                <option value="{{ e.name }}"
+                  {% if d.drivers|length == 1 and d.drivers[0] == e.name %}selected{% endif %}>{{ e.name }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn-ghost btn-sm">Set</button>
+          </form>
+        </td>
+        <td>
+          {% if d.n_done == d.n_total %}<span class="ok">done ✓</span>
+          {% elif d.n_done %}<span class="warn">{{ d.n_done }}/{{ d.n_total }}</span>
+          {% else %}<span class="muted">pending</span>{% endif %}
+        </td>
+        <td>
+          <a class="btn btn-ghost btn-sm"
+             href="{{ url_for('deliveries_day', date=d.date) }}">Per client</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="help">⚠ marks a stop with no driver. <b>Assign whole day</b> sets one
+    person for every stop that day — use <b>Per client</b> to split a day between
+    two drivers, or to mark individual stops delivered.
+    Blackout days set on <a href="{{ url_for('deliveries_month', month=month) }}">Deliveries</a>
+    are hidden here.</p>
+  {% endif %}
+</div>
+
+<style>
+tr.row-open { background: #fffbf0; }
+</style>
 {% endblock %}

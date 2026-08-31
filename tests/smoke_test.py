@@ -22,6 +22,7 @@ PAGES = [
     ("Deliveries", "/owner/deliveries?month=2026-09"),
     ("Input",      "/owner"),
     ("Guide",      "/owner/guide"),
+    ("Schedule",   "/owner/schedule?month=2026-09"),
 ]
 
 
@@ -175,6 +176,30 @@ def main():
     print(f"  {'ok  ' if ok else 'FAIL'} {'rejects unknown template':<32}")
     if not ok:
         failures.append("bad template")
+
+    # ---- whole-day delivery assignment ------------------------------------
+    print("\nday deliverer")
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,is_pickup,"
+                "qty_original,created_at)"
+                " VALUES (2,'2026-09-02','2026-09-02',1,40,'x')")
+    con.commit()
+    cl.post("/owner/schedule/deliverer", data={"date": "2026-09-02",
+                                               "deliverer": "Saku",
+                                               "month": "2026-09"})
+    ok = all(r["deliverer"] == "Saku" for r in con.execute(
+        "SELECT deliverer FROM orders WHERE COALESCE(delivery_date,date)"
+        "='2026-09-02' AND (is_pickup IS NULL OR is_pickup=0)"))
+    print(f"  {'ok  ' if ok else 'FAIL'} {'assigns every stop that day':<32}")
+    if not ok:
+        failures.append("day deliverer")
+
+    # Pop-ups are not delivered, so they must never get a driver.
+    pop = con.execute("SELECT deliverer FROM orders WHERE is_pickup=1 AND"
+                      " COALESCE(delivery_date,date)='2026-09-02'").fetchone()
+    ok = not (pop["deliverer"] or "")
+    print(f"  {'ok  ' if ok else 'FAIL'} {'skips pop-up orders':<32}")
+    if not ok:
+        failures.append("day deliverer pop-up")
 
     # ---- cost-spreadsheet parser -----------------------------------------
     print("\ncost sheet parser")

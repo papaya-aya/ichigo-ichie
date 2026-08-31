@@ -202,8 +202,17 @@
   <div class="guide-steps">
 
     <div class="guide-step">
+      <div class="guide-step-label">See the whole month at once</div>
+      <p><a href="{{ url_for('owner_schedule') }}">Schedule</a> → pick the month</p>
+      <p class="help">One row per shift showing orders, suggested team size, who's assigned
+        and whether coverage is in band — plus every delivery day underneath.
+        Start here, then open whichever day needs work.</p>
+    </div>
+
+    <div class="guide-step">
       <div class="guide-step-label">Open a shift</div>
-      <p><a href="{{ url_for('calendar_view') }}">Calendar</a> → <b>👥 Staff</b> on the day</p>
+      <p><a href="{{ url_for('owner_schedule') }}">Schedule</a> → <b>Assign</b> on the row, or
+        <a href="{{ url_for('calendar_view') }}">Calendar</a> → <b>👥 Staff</b> on the day</p>
       <p class="help">The page shows how many people the orders justify, who is available,
         and whether the team you've picked covers the shift.</p>
     </div>
@@ -241,9 +250,13 @@
   <div class="guide-steps">
 
     <div class="guide-step">
-      <div class="guide-step-label">Assign a driver per client</div>
-      <p><a href="{{ url_for('deliveries_month') }}">Deliveries</a> → pick the month →
-        choose a deliverer for each client on each date → <b>Save</b></p>
+      <div class="guide-step-label">Assign a driver</div>
+      <p>Quickest way: <a href="{{ url_for('owner_schedule') }}">Schedule</a> →
+        <b>🚚 Deliveries</b> table → pick a name under <b>Assign whole day</b> → <b>Set</b>.
+        A banner counts the days still without a driver.</p>
+      <p class="help">To split a day between two drivers, go to
+        <a href="{{ url_for('deliveries_month') }}">Deliveries</a> → pick the month →
+        choose a deliverer per client → <b>Save</b>.</p>
       <p class="help">The app pre-fills a suggestion: whoever is already saved, then the client's
         usual driver, then anyone with approved availability that day. Change any of it.</p>
     </div>

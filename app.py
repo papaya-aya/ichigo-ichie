@@ -3471,12 +3471,76 @@ def owner_schedule():
             "total_pieces": total,
             "staff": staff,
         })
+    # --- deliveries in the same month, so one page covers both ---
+    blackout = {
+        r["date"] for r in g.db.execute(
+            "SELECT date FROM delivery_blackout WHERE date LIKE ?",
+            (month + "-%",),
+        ).fetchall()
+    }
+    delivery_days = {}
+    for r in g.db.execute(
+        """SELECT COALESCE(o.delivery_date, o.date) AS deliver_on,
+                  c.name AS client_name, o.deliverer, o.delivered,
+                  SUM(o.qty_original + o.qty_matcha
+                      + o.qty_hojicha + o.qty_other) AS total
+             FROM orders o JOIN clients c ON c.id = o.client_id
+            WHERE COALESCE(o.delivery_date, o.date) LIKE ?
+              AND (o.is_pickup IS NULL OR o.is_pickup = 0)
+            GROUP BY deliver_on, c.name, o.deliverer, o.delivered
+            ORDER BY deliver_on, c.name""",
+        (month + "-%",),
+    ).fetchall():
+        d = r["deliver_on"]
+        if d in blackout:
+            continue
+        info = delivery_days.setdefault(d, {
+            "date": d, "weekday": WEEKDAY_NAMES[date_weekday(d)],
+            "clients": [], "pcs": 0, "n_done": 0, "drivers": [],
+        })
+        info["clients"].append(dict(r))
+        info["pcs"] += r["total"] or 0
+        info["n_done"] += 1 if r["delivered"] else 0
+        who = (r["deliverer"] or "").strip()
+        if who and who not in info["drivers"]:
+            info["drivers"].append(who)
+
+    deliveries = sorted(delivery_days.values(), key=lambda x: x["date"])
+    for d in deliveries:
+        d["n_total"] = len(d["clients"])
+        d["unassigned"] = sum(1 for c in d["clients"]
+                              if not (c["deliverer"] or "").strip())
+
     return render_template(
         "schedule.html",
         month=month, month_label=month_label(month),
         prev_month=shift_month(month, -1), next_month=shift_month(month, 1),
         rows=rows, target_productivity=tp,
+        deliveries=deliveries,
+        employees=g.db.execute(
+            "SELECT id, name FROM employees WHERE active=1 ORDER BY name"
+        ).fetchall(),
     )
+
+
+@app.route("/owner/schedule/deliverer", methods=["POST"])
+@require_owner
+def assign_day_deliverer():
+    """Set one driver for every stop on a delivery day."""
+    deliver_on = request.form.get("date", "").strip()
+    deliverer  = request.form.get("deliverer", "").strip()
+    month      = request.form.get("month", "") or deliver_on[:7]
+    if deliver_on:
+        g.db.execute(
+            """UPDATE orders SET deliverer = ?
+                WHERE COALESCE(delivery_date, date) = ?
+                  AND (is_pickup IS NULL OR is_pickup = 0)""",
+            (deliverer, deliver_on),
+        )
+        g.db.commit()
+        what = f"all stops assigned to {deliverer}" if deliverer else "driver cleared"
+        flash(f"{deliver_on}: {what}.", "success")
+    return redirect(url_for("owner_schedule", month=month))
 
 
 @app.route("/owner/schedule/auto-month", methods=["POST"])
