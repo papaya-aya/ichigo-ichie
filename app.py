@@ -3462,14 +3462,22 @@ def owner_schedule():
         cov = coverage(inst, [dict(p) for p in people])
         total = production.day_totals(g.db, inst["date"])["total"]
         staff = production.staffing(inst, total, [dict(p) for p in people], tp)
+        n_assigned = len(people)
         rows.append({
             "inst": inst,
             "weekday": WEEKDAY_NAMES[inst["weekday"]],
-            "n_assigned": len(people),
+            "n_assigned": n_assigned,
             "n_candidates": len(approved_candidates(inst["instance_id"])),
             "cov": cov,
             "total_pieces": total,
             "staff": staff,
+            # A day needs attention if nobody is on it, if the team is below
+            # the shift's minimum at some point, or if the orders need more
+            # hands than are assigned.
+            "needs_people": (n_assigned == 0
+                             or staff["understaffed_for_orders"]
+                             or cov["any_understaffed"]),
+            "short_by": max(0, inst["min_people"] - n_assigned),
         })
     # --- deliveries in the same month, so one page covers both ---
     blackout = {

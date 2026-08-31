@@ -27,6 +27,27 @@
     <p class="muted">No shifts for {{ month_label }}. Generate the month from the
       <a href="{{ url_for('owner_dashboard') }}">Input</a> first.</p>
   {% else %}
+  {% set short_days = rows | selectattr('needs_people') | list %}
+  {% set empty_days = rows | rejectattr('n_assigned') | list %}
+  <h2 style="margin-top:0">👥 Shifts
+    {% if short_days %}
+      <span class="pill" style="background:#fdecef;color:#a3234a">
+        {{ short_days | length }} day{{ 's' if short_days|length != 1 }} need people</span>
+      {% if empty_days %}
+        <span class="pill" style="background:#fff3cd;color:#8a6d00">
+          {{ empty_days | length }} with nobody at all</span>
+      {% endif %}
+    {% else %}
+      <span class="pill" style="background:#e8f5ec;color:#2d6a40">all shifts covered</span>
+    {% endif %}
+  </h2>
+  {% if short_days %}
+  <p class="muted" style="margin-top:-.3rem; font-size:.86rem">
+    Needs people:
+    {% for r in short_days %}<a href="{{ url_for('shift_detail', instance_id=r.inst.instance_id) }}"
+       style="margin-right:.45rem">{{ r.weekday }} {{ r.inst.date[8:] }}</a>{% endfor %}
+  </p>
+  {% endif %}
   <table>
     <thead>
       <tr><th>Date</th><th>Shift</th><th title="min–max guardrail">Band</th>
@@ -38,7 +59,7 @@
     </thead>
     <tbody>
       {% for r in rows %}
-      <tr>
+      <tr {% if r.needs_people %}class="row-short"{% endif %}>
         <td><span class="badge badge-day">{{ r.weekday }}</span> {{ r.inst.date }}</td>
         <td>{{ r.inst.start_time }}–{{ r.inst.end_time }}</td>
         <td>{{ r.inst.min_people }}–{{ r.inst.max_people }}</td>
@@ -50,7 +71,13 @@
             {% elif r.staff.above_max %}<span class="pill" title="orders exceed max guardrail">max!</span>{% endif %}
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
-        <td>{{ r.n_assigned }}</td>
+        <td>
+          {% if r.n_assigned %}{{ r.n_assigned }}
+          {% else %}<span class="bad"><b>0</b></span>{% endif %}
+          {% if r.short_by %}
+            <span class="muted" style="font-size:.78rem">(need {{ r.short_by }} more)</span>
+          {% endif %}
+        </td>
         <td>
           <span class="{{ 'bad' if r.cov.under_target or r.cov.over_target else 'ok' }}">{{ r.cov.avg }}</span>
         </td>
@@ -60,8 +87,8 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         <td>
-          {% if r.staff.understaffed_for_orders %}<span class="bad">short for orders</span>
-          {% elif r.n_assigned == 0 %}<span class="muted">—</span>
+          {% if r.n_assigned == 0 %}<span class="bad"><b>nobody assigned</b></span>
+          {% elif r.staff.understaffed_for_orders %}<span class="bad">short for orders</span>
           {% elif r.cov.any_understaffed %}<span class="warn">under at times</span>
           {% elif r.cov.any_overstaffed %}<span class="warn">over at times</span>
           {% else %}<span class="ok">in band</span>{% endif %}
@@ -155,6 +182,7 @@
 </div>
 
 <style>
-tr.row-open { background: #fffbf0; }
+tr.row-open  { background: #fffbf0; }
+tr.row-short { background: #fdf3f6; }
 </style>
 {% endblock %}

@@ -177,6 +177,22 @@ def main():
     if not ok:
         failures.append("bad template")
 
+    # ---- understaffed shifts are surfaced ---------------------------------
+    # Generating the month above created Wednesdays with nobody on them, so
+    # there are already understaffed days to surface.
+    print("\nshifts needing people")
+    body = cl.get("/owner/schedule?month=2026-09").get_data(as_text=True)
+    checks = [
+        ("banner counts short days", "need people" in body),
+        ("names the empty day",      "with nobody at all" in body),
+        ("row says nobody assigned", "nobody assigned" in body),
+        ("short rows tinted",        'class="row-short"' in body),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(label)
+
     # ---- whole-day delivery assignment ------------------------------------
     print("\nday deliverer")
     con.execute("INSERT INTO orders (client_id,date,delivery_date,is_pickup,"
