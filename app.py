@@ -394,11 +394,11 @@ def availability():
                     """INSERT INTO availability
                          (employee_id, shift_instance_id, start_time, end_time,
                           status, note, can_deliver, if_needed, submitted_at, is_update)
-                       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, 0)
+                       VALUES (?, ?, ?, ?, 'approved', ?, ?, ?, ?, 0)
                        ON CONFLICT(employee_id, shift_instance_id) DO UPDATE SET
                          start_time   = excluded.start_time,
                          end_time     = excluded.end_time,
-                         status       = 'pending',
+                         status       = 'approved',
                          note         = excluded.note,
                          can_deliver  = excluded.can_deliver,
                          if_needed    = excluded.if_needed,
@@ -471,7 +471,8 @@ def availability():
             if saved:     parts.append(f"{saved} shift(s)")
             if del_saved: parts.append(f"{del_saved} delivery day(s)")
             if pur_saved: parts.append(f"{pur_saved} purchase run(s)")
-            flash(f"Saved: {', '.join(parts) or 'no changes'}. Shift submissions await owner approval.", "success")
+            flash(f"Saved: {', '.join(parts) or 'no changes'}. "
+                  f"You can change this any time before the shift.", "success")
 
         # Warn the employee if they are already assigned to shifts they didn't mark available.
         conflicts = g.db.execute(
@@ -1241,6 +1242,43 @@ def recurring_add_client():
             flash(f"Added client {name}.", "success")
         except Exception:
             flash(f"Client '{name}' already exists.", "error")
+    return redirect(url_for("recurring_orders"))
+
+
+@app.route("/owner/recurring-orders/client/<int:client_id>/remove", methods=["POST"])
+@require_owner
+def recurring_remove_client(client_id):
+    """Retire a client.
+
+    A client with past orders is deactivated rather than deleted, so invoices
+    and summaries for months already closed still resolve. One that was never
+    ordered from is deleted outright.
+    """
+    row = g.db.execute(
+        "SELECT name FROM clients WHERE id = ?", (client_id,)
+    ).fetchone()
+    if not row:
+        flash("That client no longer exists.", "error")
+        return redirect(url_for("recurring_orders"))
+
+    name = row["name"]
+    n_orders = g.db.execute(
+        "SELECT COUNT(*) AS n FROM orders WHERE client_id = ?", (client_id,)
+    ).fetchone()["n"]
+
+    # Recurring defaults are safe to drop either way — they only seed new months.
+    g.db.execute("DELETE FROM recurring_orders WHERE client_id = ?", (client_id,))
+
+    if n_orders:
+        g.db.execute("UPDATE clients SET active = 0 WHERE id = ?", (client_id,))
+        flash(f"{name} retired. Their {n_orders} past order(s) are kept so "
+              f"closed months still add up, but they no longer appear when "
+              f"entering orders.", "success")
+    else:
+        g.db.execute("DELETE FROM consignment_sales WHERE client_id = ?", (client_id,))
+        g.db.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+        flash(f"{name} deleted — they had no orders.", "success")
+    g.db.commit()
     return redirect(url_for("recurring_orders"))
 
 
@@ -3330,7 +3368,7 @@ def approvals():
                 SELECT 1 FROM availability av2
                   JOIN shift_instances si2 ON si2.id = av2.shift_instance_id
                  WHERE av2.employee_id = a.employee_id
-                   AND LEFT(si2.date, 7) = LEFT(si.date, 7)
+                   AND SUBSTR(si2.date, 1, 7) = SUBSTR(si.date, 1, 7)
               )
             ORDER BY si.date, e.name""",
         (date.today().isoformat(),),
@@ -3367,7 +3405,7 @@ def fix_assignment_conflicts():
                    SELECT 1 FROM availability av2
                      JOIN shift_instances si2 ON si2.id = av2.shift_instance_id
                     WHERE av2.employee_id = a.employee_id
-                      AND LEFT(si2.date, 7) = LEFT(si.date, 7)
+                      AND SUBSTR(si2.date, 1, 7) = SUBSTR(si.date, 1, 7)
                  )
             )""",
         (date.today().isoformat(),),

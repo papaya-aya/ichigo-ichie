@@ -285,6 +285,18 @@ def migrate_db():
         )
         conn.commit()
 
+    # 2026-08-28: availability no longer needs approving — it is auto-approved
+    # on submission. Approve anything left pending so nobody is invisible when
+    # assigning shifts, and retire Teance as a client (kept, not deleted, so
+    # past orders and invoices still resolve).
+    conn.execute(
+        "UPDATE availability SET status='approved', decided_at=?"
+        " WHERE status='pending'",
+        (now_iso(),),
+    )
+    conn.execute("UPDATE clients SET active=0 WHERE name='Teance'")
+    conn.commit()
+
     # 2026-08-26: the owner's Expense & Sales Ledger itemises every card and
     # cash purchase, so the aggregated Amex rows seeded from the bank exports
     # are the same money counted twice. Drop those and let the ledger own them.

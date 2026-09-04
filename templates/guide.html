@@ -10,7 +10,7 @@
   {% for n, anchor, label in [
       (1, 'setup',      'One-time setup'),
       (2, 'generate',   'Open the month'),
-      (3, 'approvals',  'Approve availability'),
+      (3, 'approvals',  'Check submissions'),
       (4, 'orders',     'Enter orders'),
       (5, 'schedule',   'Assign people'),
       (6, 'deliveries', 'Plan deliveries'),
@@ -128,17 +128,18 @@
 <div class="card" id="approvals">
   <div style="display:flex; align-items:baseline; gap:0.7rem; margin-bottom:0.8rem">
     <span class="guide-num">3</span>
-    <h2 style="margin:0">Approve availability</h2>
+    <h2 style="margin:0">Check submissions</h2>
     <span class="muted" style="font-size:0.85rem">As submissions come in</span>
   </div>
 
   <div class="guide-steps">
 
     <div class="guide-step">
-      <div class="guide-step-label">Review and approve</div>
-      <p><a href="{{ url_for('approvals') }}">Approvals</a> → check each submission → <b>Approve</b> or <b>Reject</b></p>
-      <p class="help">Only <b>approved</b> availability counts. Someone left pending won't be
-        offered when you assign shifts, and won't show as available for deliveries.</p>
+      <div class="guide-step-label">Nothing to approve</div>
+      <p class="help">Availability counts the moment an employee submits it — there's no
+        approval step. They can change it themselves any time before the shift.</p>
+      <p>See who's free on a day from the <a href="{{ url_for('owner_schedule') }}">Schedule</a>
+        or the shift's own page.</p>
     </div>
 
     <div class="guide-step">

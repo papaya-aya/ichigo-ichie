@@ -29,105 +29,14 @@
 </div>
 {% endif %}
 
-<div class="month-nav">
-  {% for s in ['pending', 'approved', 'rejected'] %}
-    <a class="btn btn-sm {{ 'btn-ghost' if status != s }}" href="{{ url_for('approvals', status=s) }}">
-      {{ s|capitalize }} ({{ counts.get(s, 0) }})
-    </a>
-  {% endfor %}
+<div class="card" style="margin-bottom:1rem">
+  <h2 style="margin-top:0">📋 Availability</h2>
+  <p class="muted" style="margin:.2rem 0 0">
+    Availability is approved automatically the moment an employee submits it, so
+    there is nothing to action here. To see who is free on a given day, use the
+    <a href="{{ url_for('owner_schedule') }}">Schedule</a> or open the shift itself.
+    Employees can change their own availability any time before the shift.</p>
 </div>
-
-{% set originals = rows | selectattr('is_update', 'equalto', 0) | list %}
-{% set updates   = rows | selectattr('is_update', 'equalto', 1) | list %}
-
-<form method="post" action="{{ url_for('approvals', status=status) }}">
-  {% if not rows %}
-    <div class="card"><p class="muted">Nothing {{ status }}.</p></div>
-  {% else %}
-
-  {# ── Original submissions ── #}
-  {% if originals %}
-  <div class="card" style="margin-bottom:1rem">
-    <h2 style="margin-top:0">📋 Original submissions
-      <span class="muted" style="font-weight:400;font-size:.85rem">({{ originals|length }})</span>
-    </h2>
-    <table>
-      <thead>
-        <tr>
-          <th><input type="checkbox" onclick="toggleGroup(this,'cb-orig')"></th>
-          <th>Date</th><th>Shift</th><th>Employee</th><th>Available</th><th>Note</th><th></th><th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in originals %}
-        <tr>
-          <td><input class="cb cb-orig" type="checkbox" name="av_id" value="{{ r.id }}"></td>
-          <td><span class="badge badge-day">{{ weekday_names[r.weekday] }}</span> {{ r.date }}</td>
-          <td>{{ r.label }} <span class="muted">({{ r.shift_start }}–{{ r.shift_end }})</span></td>
-          <td>{{ r.emp_name }}</td>
-          <td>
-            {{ r.start_time }}–{{ r.end_time }}
-            {% if r.start_time != r.shift_start or r.end_time != r.shift_end %}
-              <span class="pill">partial</span>
-            {% endif %}
-          </td>
-          <td class="muted">{{ r.note or '' }}</td>
-          <td>{% if r.if_needed %}<span class="pill" title="Can work if needed but prefers not to">if needed</span>{% endif %}</td>
-          <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-
-  {# ── Update requests ── #}
-  {% if updates %}
-  <div class="card" style="border-left:3px solid #f59e0b; margin-bottom:1rem">
-    <h2 style="margin-top:0">✏️ Change requests
-      <span class="muted" style="font-weight:400;font-size:.85rem">({{ updates|length }}) — employee updated their availability</span>
-    </h2>
-    <table>
-      <thead>
-        <tr>
-          <th><input type="checkbox" onclick="toggleGroup(this,'cb-upd')"></th>
-          <th>Date</th><th>Shift</th><th>Employee</th><th>Requested change</th><th>Note</th><th></th><th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in updates %}
-        <tr style="background:#fffbeb">
-          <td><input class="cb cb-upd" type="checkbox" name="av_id" value="{{ r.id }}"></td>
-          <td><span class="badge badge-day">{{ weekday_names[r.weekday] }}</span> {{ r.date }}</td>
-          <td>{{ r.label }} <span class="muted">({{ r.shift_start }}–{{ r.shift_end }})</span></td>
-          <td><b>{{ r.emp_name }}</b></td>
-          <td>
-            {{ r.start_time }}–{{ r.end_time }}
-            {% if r.start_time != r.shift_start or r.end_time != r.shift_end %}
-              <span class="pill">partial</span>
-            {% endif %}
-          </td>
-          <td class="muted">{{ r.note or '' }}</td>
-          <td>{% if r.if_needed %}<span class="pill" title="Can work if needed but prefers not to">if needed</span>{% endif %}</td>
-          <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-
-  <div class="row-actions" style="flex-wrap:wrap;gap:.5rem">
-    {% if originals and status == 'pending' %}
-    <button type="submit" name="action" value="approve_originals" style="background:var(--pink);color:#fff;border:none">
-      ✓ Approve all originals ({{ originals|length }})
-    </button>
-    {% endif %}
-    <button type="submit" name="action" value="approve" class="btn-green">Approve selected</button>
-    <button type="submit" name="action" value="reject"  class="btn-red">Reject selected</button>
-  </div>
-  {% endif %}
-</form>
 
 {# ── Employee strawberry requests ────────────────────────────────────────── #}
 {% if pending_strawberries %}

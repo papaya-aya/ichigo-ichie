@@ -23,6 +23,8 @@ PAGES = [
     ("Input",      "/owner"),
     ("Guide",      "/owner/guide"),
     ("Schedule",   "/owner/schedule?month=2026-09"),
+    ("Approvals",  "/owner/approvals"),
+    ("Recurring",  "/owner/recurring-orders"),
 ]
 
 
@@ -176,6 +178,46 @@ def main():
     print(f"  {'ok  ' if ok else 'FAIL'} {'rejects unknown template':<32}")
     if not ok:
         failures.append("bad template")
+
+    # ---- availability needs no approval -----------------------------------
+    print("\navailability")
+    emp2 = harness.flask_app.test_client()
+    with emp2.session_transaction() as s:
+        s["employee_id"] = 2
+        s["employee_name"] = "Saku"
+    emp2.post("/availability?month=2026-09",
+              data={"month": "2026-09", "work_1": "1",
+                    "start_1": "06:45", "end_1": "09:30"},
+              follow_redirects=True)
+    row = con.execute("SELECT status FROM availability WHERE employee_id=2"
+                      " AND shift_instance_id=1").fetchone()
+    ok = row is not None and row["status"] == "approved"
+    print(f"  {'ok  ' if ok else 'FAIL'} {'auto-approved on submit':<32}")
+    if not ok:
+        failures.append("availability auto-approve")
+
+    # ---- retiring a client -------------------------------------------------
+    print("\nremove client")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (9,'NeverUsed',1)")
+    con.commit()
+    cl.post("/owner/recurring-orders/client/9/remove")
+    ok = con.execute("SELECT COUNT(*) n FROM clients WHERE id=9"
+                     ).fetchone()["n"] == 0
+    print(f"  {'ok  ' if ok else 'FAIL'} {'deletes an unused client':<32}")
+    if not ok:
+        failures.append("delete unused client")
+
+    # A client with history must be kept so closed months still add up.
+    n_before = con.execute("SELECT COUNT(*) n FROM orders WHERE client_id=1"
+                           ).fetchone()["n"]
+    cl.post("/owner/recurring-orders/client/1/remove")
+    kept = con.execute("SELECT active FROM clients WHERE id=1").fetchone()
+    n_after = con.execute("SELECT COUNT(*) n FROM orders WHERE client_id=1"
+                          ).fetchone()["n"]
+    ok = kept is not None and kept["active"] == 0 and n_after == n_before
+    print(f"  {'ok  ' if ok else 'FAIL'} {'retires one with orders':<32}")
+    if not ok:
+        failures.append("retire client with orders")
 
     # ---- understaffed shifts are surfaced ---------------------------------
     # Generating the month above created Wednesdays with nobody on them, so
