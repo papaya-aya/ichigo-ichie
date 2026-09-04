@@ -6,66 +6,107 @@
  *   2. Paste this into Code.gs and the companion file into Index.html.
  *   3. Deploy > New deployment > Web app.
  *        Execute as: Me      Who has access: Anyone
- *   4. Edit the CONFIG block below any time; re-deploy only when you
- *      change the code, not when you flip SHOP_OPEN (see note below).
  *
- * Note: changing a constant here takes effect on the next page load for
- * anyone using the "test" URL, and after "Deploy > Manage deployments >
- * edit > Version: New version" for the live URL.
+ * DAY TO DAY YOU SHOULD NOT NEED TO EDIT THIS FILE.
+ *
+ * The menu and every setting live in two tabs of the spreadsheet, "Menu"
+ * and "Settings", which are created and filled in automatically the first
+ * time the site is opened. Editing a cell there takes effect on the next
+ * page load — no redeploy. The values below are only the starting point
+ * used to build those tabs, and the fallback if a cell is left blank.
+ *
+ * Code changes are different: those need
+ * Deploy > Manage deployments > edit > Version: New version.
  */
 
-/* =====================  CONFIG — edit me  ===================== */
+/* ==============  STARTING VALUES (seed the Settings tab)  ============== */
 
-// Master switch. false => the page shows a "preorders are closed" screen
-// and the server refuses any order that sneaks through.
-var SHOP_OPEN = true;
+var DEFAULTS = {
+  // false shows a "pre-orders are closed" screen and refuses orders.
+  shop_open: true,
 
-// Pre-orders also close by themselves at this moment, so nobody can order
-// after the cut-off if you forget to flip the switch above.
-// Months are 0-based: 7 = August. This is read in the SCRIPT's timezone —
-// check File > Project settings > Time zone reads America/Los_Angeles.
-// Set to null to rely on SHOP_OPEN alone.
-var PREORDER_CLOSES_AT = new Date(2026, 7, 26, 23, 59, 59);
-var PREORDER_CLOSES_LABEL = 'Wednesday, August 26';
+  // Pre-orders also close by themselves at this moment, so nobody can
+  // order after the cut-off if the switch above is forgotten. Blank the
+  // cell in the Settings tab to rely on shop_open alone.
+  // Read in the SCRIPT's timezone — Project settings > Time zone.
+  preorder_closes_at: new Date(2026, 7, 26, 23, 59, 59),
+  preorder_closes_label: 'Wednesday, August 26',
 
-// The pop-up itself.
-var POPUP_VENUE = 'Enchanted Popup Market';
-var PICKUP_LOCATION = '1250 22nd St, Dogpatch, SF';
-var POPUP_DATE = 'Saturday, August 29';
-var POPUP_HOURS = '11:00 AM – 3:00 PM';
+  // The pop-up itself.
+  popup_venue: 'Enchanted Popup Market',
+  pickup_location: '1250 22nd St, Dogpatch, SF',
+  popup_date: 'Saturday, August 29',
+  popup_hours: '11:00 AM – 3:00 PM',
 
-// Hard cap on total pieces in a single order.
-var MAX_PIECES_PER_CUSTOMER = 24;
+  // Hard cap on total pieces in one order.
+  max_pieces_per_customer: 24,
 
-// Bundle pricing: any SET_SIZE pieces cost SET_PRICE. Applied as many
-// times as it fits, with leftovers charged at the per-piece price.
-// Set SET_PRICE to 0 to turn bundling off entirely.
-var SET_SIZE = 4;
-var SET_PRICE = 30;
+  // Any set_size pieces cost set_price, applied as many times as it fits,
+  // with leftovers at the per-piece price. set_price 0 turns it off.
+  set_size: 4,
+  set_price: 30,
 
-// Tipping. Presets are percentages of the food subtotal; 0 renders as
-// "No tip". Set TIP_PRESETS to [] and ALLOW_CUSTOM_TIP to false to drop
-// tipping from the page entirely.
-var TIP_PRESETS = [0, 10, 15, 20];
-var ALLOW_CUSTOM_TIP = true;
-var MAX_CUSTOM_TIP = 200;
+  // Percentages of the food subtotal. 0 renders as "No tip".
+  // Empty tip_presets plus allow_custom_tip FALSE removes tipping.
+  tip_presets: '0, 10, 15, 20',
+  allow_custom_tip: true,
+  max_custom_tip: 200,
 
-// Tab the orders are appended to. Created automatically if missing.
-var SHEET_NAME = 'Orders';
+  // Cosmetic.
+  currency: '$',
+  shop_name: 'Ichigo Ichie',
+  contact_email: 'IchigoIchieSweets@gmail.com',
+  contact_ig: 'ichigoichie151515'
+};
 
-// Order numbers count up from here and are stored on the row, so sorting,
-// filtering or deleting rows never changes the number a customer was given.
-// Starting above 100 keeps them visually distinct from row numbers.
-var FIRST_ORDER_NUMBER = 101;
+// One line of help per setting, written into the Settings tab so whoever
+// edits it can see what each row does without asking.
+var SETTING_NOTES = {
+  shop_open: 'TRUE or FALSE. FALSE closes pre-orders immediately.',
+  preorder_closes_at: 'Pre-orders stop at this date and time. Leave blank for no automatic close.',
+  preorder_closes_label: 'How the closing date is written on the page.',
+  popup_venue: 'Name of the market or venue.',
+  pickup_location: 'Street address shown to customers.',
+  popup_date: 'Pop-up date as you want it written, e.g. Saturday, September 13.',
+  popup_hours: 'Opening hours as you want them written.',
+  max_pieces_per_customer: 'Most pieces one person can order.',
+  set_size: 'How many pieces make a set. 4 means "any 4".',
+  set_price: 'Price of one set. 0 turns set pricing off.',
+  tip_presets: 'Tip buttons, as percentages separated by commas. 0 shows as "No tip".',
+  allow_custom_tip: 'TRUE or FALSE. Shows the "Other" tip button.',
+  max_custom_tip: 'Largest custom tip accepted.',
+  currency: 'Currency symbol.',
+  shop_name: 'Used in the confirmation email.',
+  contact_email: 'Shown at the bottom of the page.',
+  contact_ig: 'Instagram handle, without the @.'
+};
 
-// Cosmetic only.
-var CURRENCY = '$';
-var SHOP_NAME = 'Ichigo Ichie';
-var CONTACT_EMAIL = 'IchigoIchieSweets@gmail.com';
-var CONTACT_IG = 'ichigoichie151515';
+// Starting menu. Edit the Menu tab after the first run, not this.
+var DEFAULT_MENU = [
+  { id: 'original', name_en: 'Original Strawberry Daifuku',
+    name_ja: 'いちご大福', price: 8,
+    description_en: 'A whole strawberry and white bean paste in hand-pounded mochi.',
+    badge: '', active: true },
+  { id: 'matcha', name_en: 'Matcha Strawberry Daifuku',
+    name_ja: '抹茶いちご大福', price: 8,
+    description_en: 'Uji matcha folded into the mochi for a gentle, grassy bitterness.',
+    badge: '', active: true },
+  { id: 'hojicha', name_en: 'Hojicha Strawberry Daifuku',
+    name_ja: 'ほうじ茶いちご大福', price: 8,
+    description_en: 'Roasted hojicha in the mochi — toasty and warm against the berry.',
+    badge: '', active: true },
+  { id: 'ube', name_en: 'Ube Strawberry Daifuku',
+    name_ja: '紅芋いちご大福', price: 8,
+    description_en: 'Purple yam and strawberry, back only for this weekend.',
+    badge: "This weekend's special", active: true }
+];
 
-/* ===================  END CONFIG  =================== */
+/* ======================  END STARTING VALUES  ====================== */
 
+
+var ORDERS_SHEET = 'Orders';
+var SETTINGS_SHEET = 'Settings';
+var MENU_SHEET = 'Menu';
 
 var HEADERS = [
   'order_number', 'timestamp', 'name', 'phone', 'email', 'pickup',
@@ -73,17 +114,14 @@ var HEADERS = [
   'payment_status', 'no_show'
 ];
 
+var SETTINGS_HEADERS = ['setting', 'value', 'what it does'];
+var MENU_HEADERS = ['id', 'name_en', 'name_ja', 'price', 'description_en',
+                    'badge', 'active'];
+
+// Order numbers count up from here and are stored on the row, so sorting,
+// filtering or deleting rows never changes the number a customer was given.
+var FIRST_ORDER_NUMBER = 101;
 var ORDER_COUNTER_KEY = 'LAST_ORDER_NUMBER';
-
-
-/**
- * Customers collect any time during the pop-up, so every order carries the
- * same window. Recorded on the row anyway, so a sheet reused across
- * pop-ups can still be filtered by event.
- */
-function pickupWindow_() {
-  return [POPUP_DATE, POPUP_HOURS].filter(function (p) { return p; }).join(' · ');
-}
 
 
 /**
@@ -99,71 +137,29 @@ function doGet() {
 
 
 /**
- * HtmlService strips <meta charset> out of the file, and the iframe Google
- * serves the page inside carries no encoding declaration of its own, so a
- * browser left to guess decodes the UTF-8 bytes as MacRoman — the strawberry
- * comes out as "uci" and every dash as ",Ai".
- *
- * Rather than depend on that guess, everything above ASCII is escaped before
- * it is served. Index.html itself stays readable and editable.
- */
-function asciiSafe_(html) {
-  return html.split(/(<script[\s\S]*?<\/script>)/i).map(function (part) {
-    return /^<script/i.test(part) ? escapeForScript_(part)
-                                  : escapeForMarkup_(part);
-  }).join('');
-}
-
-
-// One escape per UTF-16 unit: an emoji's surrogate pair becomes two escapes,
-// which is exactly what a JavaScript string literal expects.
-function escapeForScript_(s) {
-  return s.replace(/[^\x00-\x7F]/g, function (ch) {
-    return '\\u' + ('000' + ch.charCodeAt(0).toString(16)).slice(-4);
-  });
-}
-
-
-// One entity per code point: astral characters must stay whole here, because
-// HTML ignores an entity that names a lone surrogate.
-function escapeForMarkup_(s) {
-  return s.replace(/[^\x00-\x7F]/gu, function (ch) {
-    return '&#x' + ch.codePointAt(0).toString(16).toUpperCase() + ';';
-  });
-}
-
-
-/**
- * True only while both the manual switch and the cut-off allow orders.
- */
-function preordersOpen_() {
-  if (!SHOP_OPEN) return false;
-  if (PREORDER_CLOSES_AT && new Date() > PREORDER_CLOSES_AT) return false;
-  return true;
-}
-
-
-/**
- * Everything the page needs before it can render. Called on load, so
- * flipping SHOP_OPEN closes the shop without touching Index.html.
+ * Everything the page needs before it can render, read fresh from the
+ * spreadsheet on every load — which is why a menu or settings edit shows
+ * up without redeploying.
  */
 function getShopState() {
+  var cfg = config_();
   return {
-    open: preordersOpen_(),
-    venue: POPUP_VENUE,
-    location: PICKUP_LOCATION,
-    date: POPUP_DATE,
-    hours: POPUP_HOURS,
-    closesOn: PREORDER_CLOSES_LABEL,
-    maxPieces: MAX_PIECES_PER_CUSTOMER,
-    setSize: SET_SIZE,
-    setPrice: SET_PRICE,
-    tipPresets: TIP_PRESETS,
-    allowCustomTip: ALLOW_CUSTOM_TIP,
-    maxCustomTip: MAX_CUSTOM_TIP,
-    currency: CURRENCY,
-    contactEmail: CONTACT_EMAIL,
-    contactIg: CONTACT_IG
+    open: preordersOpen_(cfg),
+    menu: menu_(),
+    venue: cfg.popup_venue,
+    location: cfg.pickup_location,
+    date: cfg.popup_date,
+    hours: cfg.popup_hours,
+    closesOn: cfg.preorder_closes_label,
+    maxPieces: cfg.max_pieces_per_customer,
+    setSize: cfg.set_size,
+    setPrice: cfg.set_price,
+    tipPresets: cfg.tip_presets,
+    allowCustomTip: cfg.allow_custom_tip,
+    maxCustomTip: cfg.max_custom_tip,
+    currency: cfg.currency,
+    contactEmail: cfg.contact_email,
+    contactIg: cfg.contact_ig
   };
 }
 
@@ -173,16 +169,20 @@ function getShopState() {
  *
  * orderObj = {
  *   name, phone, email, notes,
- *   items: [{id, name_en, name_ja, price, qty}, ...],
+ *   items: [{id, qty}, ...],
  *   tip: {mode: 'percent'|'custom', value: n}
  * }
+ *
+ * Prices and names are looked up from the Menu tab, never taken from the
+ * page, so what is charged is always what the spreadsheet says.
  *
  * Returns {ok:true, orderNumber:n} or {ok:false, error:'CODE'}.
  * The error codes are turned into sentences by the page, so keep them stable.
  */
 function submitOrder(orderObj) {
   try {
-    if (!preordersOpen_()) {
+    var cfg = config_();
+    if (!preordersOpen_(cfg)) {
       return { ok: false, error: 'CLOSED' };
     }
 
@@ -196,41 +196,41 @@ function submitOrder(orderObj) {
       return { ok: false, error: 'MISSING_FIELDS' };
     }
 
-    // Keep only real lines, and recompute the money server-side.
+    var byId = {};
+    menu_().forEach(function (m) { byId[m.id] = m; });
+
     var items = [];
     var count = 0;
     var raw = o.items || [];
     for (var i = 0; i < raw.length; i++) {
       var qty = Math.floor(Number(raw[i].qty) || 0);
-      var price = Number(raw[i].price) || 0;
       if (qty <= 0) continue;
-      items.push({
-        id: raw[i].id,
-        name_en: raw[i].name_en,
-        name_ja: raw[i].name_ja,
-        price: price,
-        qty: qty
-      });
+      var m = byId[trimStr_(raw[i].id)];
+      // An unknown id means the menu changed while someone had the page
+      // open. Better to send them back than to guess a price.
+      if (!m) return { ok: false, error: 'MENU_CHANGED' };
+      items.push({ id: m.id, name_en: m.name_en, name_ja: m.name_ja,
+                   price: m.price, qty: qty });
       count += qty;
     }
 
     if (count === 0) {
       return { ok: false, error: 'NO_ITEMS' };
     }
-    if (count > MAX_PIECES_PER_CUSTOMER) {
+    if (count > cfg.max_pieces_per_customer) {
       return { ok: false, error: 'TOO_MANY' };
     }
 
     // Must match priceOrder() in Index.html, or the customer is shown one
     // number and charged another.
-    var price = priceOrder_(items);
+    var price = priceOrder_(items, cfg);
 
-    var tip = resolveTip_(o.tip, price.subtotal);
+    var tip = resolveTip_(o.tip, price.subtotal, cfg);
     if (tip === null) {
       return { ok: false, error: 'BAD_TIP' };
     }
     var total = round2_(price.subtotal + tip);
-    var pickup = pickupWindow_();
+    var pickup = pickupWindow_(cfg);
 
     // Allocating the number and appending the row must not interleave with
     // another submission, or two orders could be handed the same number.
@@ -241,20 +241,9 @@ function submitOrder(orderObj) {
       var sheet = getOrdersSheet_();
       orderNumber = nextOrderNumber_(sheet);
       sheet.appendRow([
-        orderNumber,
-        new Date(),
-        name,
-        phone,
-        email,
-        pickup,
-        JSON.stringify(items),
-        count,
-        price.subtotal,
-        tip,
-        total,
-        notes,
-        'unpaid',
-        ''
+        orderNumber, new Date(), name, phone, email, pickup,
+        JSON.stringify(items), count, price.subtotal, tip, total,
+        notes, 'unpaid', ''
       ]);
       // Commit before releasing the lock: the next order reads this row
       // back when working out which number to hand out.
@@ -267,7 +256,7 @@ function submitOrder(orderObj) {
     // must not turn a good order into a failure for the customer.
     try {
       sendConfirmation_(orderNumber, name, email, pickup, items, price,
-                        tip, total);
+                        tip, total, cfg);
     } catch (mailErr) {
       Logger.log('Confirmation email failed for order ' + orderNumber +
                  ': ' + mailErr);
@@ -282,16 +271,169 @@ function submitOrder(orderObj) {
 }
 
 
-/* ---------------------  helpers  --------------------- */
+/**
+ * Run this from the Apps Script editor before going live (pick it from the
+ * function dropdown, press Run, read the Execution log). It also creates
+ * the Menu and Settings tabs, so it is the quickest way to set them up.
+ *
+ * Never called by the web app — safe to leave in place.
+ */
+function checkSetup() {
+  var cfg = config_();
+  var items = menu_();
+  Logger.log('Script timezone:    ' + Session.getScriptTimeZone());
+  Logger.log('Now:                ' + new Date());
+  Logger.log('Pre-orders close:   ' + cfg.preorder_closes_at);
+  Logger.log('Accepting orders?   ' + preordersOpen_(cfg));
+  Logger.log('Spreadsheet:        ' + SpreadsheetApp.getActiveSpreadsheet().getName());
+  Logger.log('Tabs in use:        ' + [ORDERS_SHEET, MENU_SHEET, SETTINGS_SHEET].join(', '));
+  Logger.log('Pop-up:             ' + pickupWindow_(cfg));
+  Logger.log('Where:              ' + cfg.popup_venue + ', ' + cfg.pickup_location);
+  Logger.log('Menu items on sale: ' + items.length);
+  items.forEach(function (m) {
+    Logger.log('  - ' + m.name_en + '  ' + cfg.currency + m.price.toFixed(2));
+  });
+  Logger.log('Confirmations from: ' + Session.getEffectiveUser().getEmail());
+}
+
+
+/* ---------------------  settings and menu  --------------------- */
 
 /**
- * Applies the "any SET_SIZE for SET_PRICE" bundle. Pieces are sorted most
+ * Settings tab merged over DEFAULTS. A blank cell falls back to the
+ * default, so clearing a value can never leave the site without one.
+ */
+function config_() {
+  ensureConfigSheets_();
+
+  var raw = {};
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SETTINGS_SHEET);
+  if (sheet && sheet.getLastRow() > 1) {
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+    for (var i = 0; i < rows.length; i++) {
+      var key = trimStr_(rows[i][0]).toLowerCase();
+      if (key) raw[key] = rows[i][1];
+    }
+  }
+
+  return {
+    shop_open:               bool_(raw.shop_open, DEFAULTS.shop_open),
+    // Blank here deliberately means "no automatic close", so it is the one
+    // setting that does not fall back to its default.
+    preorder_closes_at:      ('preorder_closes_at' in raw)
+                               ? date_(raw.preorder_closes_at)
+                               : DEFAULTS.preorder_closes_at,
+    preorder_closes_label:   str_(raw.preorder_closes_label, DEFAULTS.preorder_closes_label),
+    popup_venue:             str_(raw.popup_venue, DEFAULTS.popup_venue),
+    pickup_location:         str_(raw.pickup_location, DEFAULTS.pickup_location),
+    popup_date:              str_(raw.popup_date, DEFAULTS.popup_date),
+    popup_hours:             str_(raw.popup_hours, DEFAULTS.popup_hours),
+    max_pieces_per_customer: num_(raw.max_pieces_per_customer, DEFAULTS.max_pieces_per_customer),
+    set_size:                num_(raw.set_size, DEFAULTS.set_size),
+    set_price:               num_(raw.set_price, DEFAULTS.set_price),
+    tip_presets:             list_(raw.tip_presets, DEFAULTS.tip_presets),
+    allow_custom_tip:        bool_(raw.allow_custom_tip, DEFAULTS.allow_custom_tip),
+    max_custom_tip:          num_(raw.max_custom_tip, DEFAULTS.max_custom_tip),
+    currency:                str_(raw.currency, DEFAULTS.currency),
+    shop_name:               str_(raw.shop_name, DEFAULTS.shop_name),
+    contact_email:           str_(raw.contact_email, DEFAULTS.contact_email),
+    contact_ig:              str_(raw.contact_ig, DEFAULTS.contact_ig)
+  };
+}
+
+
+/**
+ * Menu tab, in sheet order, skipping rows whose active column is not TRUE
+ * and rows without an id or a price.
+ */
+function menu_() {
+  ensureConfigSheets_();
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(MENU_SHEET);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1,
+                            MENU_HEADERS.length).getValues();
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var id = trimStr_(r[0]);
+    var price = Number(r[3]);
+    if (!id || !isFinite(price) || price < 0) continue;
+    if (!bool_(r[6], true)) continue;
+    out.push({
+      id: id,
+      name_en: trimStr_(r[1]) || id,
+      name_ja: trimStr_(r[2]),
+      price: round2_(price),
+      description_en: trimStr_(r[4]),
+      badge: trimStr_(r[5])
+    });
+  }
+  return out;
+}
+
+
+/**
+ * Builds the Menu and Settings tabs the first time they are needed, so a
+ * fresh spreadsheet becomes editable without anyone touching the code.
+ * Existing tabs are never rewritten.
+ */
+function ensureConfigSheets_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  if (!ss.getSheetByName(SETTINGS_SHEET)) {
+    var s = ss.insertSheet(SETTINGS_SHEET);
+    s.appendRow(SETTINGS_HEADERS);
+    Object.keys(DEFAULTS).forEach(function (key) {
+      s.appendRow([key, DEFAULTS[key], SETTING_NOTES[key] || '']);
+    });
+    s.setFrozenRows(1);
+    s.setColumnWidth(1, 190);
+    s.setColumnWidth(2, 260);
+    s.setColumnWidth(3, 420);
+    s.getRange(1, 1, 1, SETTINGS_HEADERS.length).setFontWeight('bold');
+  }
+
+  if (!ss.getSheetByName(MENU_SHEET)) {
+    var m = ss.insertSheet(MENU_SHEET);
+    m.appendRow(MENU_HEADERS);
+    DEFAULT_MENU.forEach(function (it) {
+      m.appendRow([it.id, it.name_en, it.name_ja, it.price,
+                   it.description_en, it.badge, it.active]);
+    });
+    m.setFrozenRows(1);
+    m.setColumnWidth(2, 240);
+    m.setColumnWidth(3, 180);
+    m.setColumnWidth(5, 420);
+    m.getRange(1, 1, 1, MENU_HEADERS.length).setFontWeight('bold');
+  }
+}
+
+
+/* ---------------------  helpers  --------------------- */
+
+function preordersOpen_(cfg) {
+  if (!cfg.shop_open) return false;
+  if (cfg.preorder_closes_at && new Date() > cfg.preorder_closes_at) return false;
+  return true;
+}
+
+
+function pickupWindow_(cfg) {
+  return [cfg.popup_date, cfg.popup_hours]
+    .filter(function (p) { return p; }).join(' · ');
+}
+
+
+/**
+ * Applies the "any set_size for set_price" bundle. Pieces are sorted most
  * expensive first so the priciest ones fill the fixed-price sets, which is
  * the reading that favours the customer when flavours differ in price.
  *
  * Returns {full, subtotal, sets, savings}.
  */
-function priceOrder_(items) {
+function priceOrder_(items, cfg) {
   var pieces = [];
   for (var i = 0; i < items.length; i++) {
     for (var q = 0; q < items[i].qty; q++) pieces.push(items[i].price);
@@ -302,14 +444,14 @@ function priceOrder_(items) {
   for (var p = 0; p < pieces.length; p++) full += pieces[p];
 
   var subtotal = 0, sets = 0, k = 0;
-  if (SET_SIZE > 0 && SET_PRICE > 0) {
-    while (k + SET_SIZE <= pieces.length) {
+  if (cfg.set_size > 0 && cfg.set_price > 0) {
+    while (k + cfg.set_size <= pieces.length) {
       var groupFull = 0;
-      for (var j = 0; j < SET_SIZE; j++) groupFull += pieces[k + j];
+      for (var j = 0; j < cfg.set_size; j++) groupFull += pieces[k + j];
       // Never let the "deal" cost more than buying the pieces outright.
-      subtotal += Math.min(SET_PRICE, groupFull);
+      subtotal += Math.min(cfg.set_price, groupFull);
       sets++;
-      k += SET_SIZE;
+      k += cfg.set_size;
     }
   }
   for (; k < pieces.length; k++) subtotal += pieces[k];
@@ -328,18 +470,18 @@ function priceOrder_(items) {
  * one the page could not have produced. Never trust the amount itself —
  * a percentage is recomputed here from the subtotal.
  */
-function resolveTip_(tipObj, subtotal) {
+function resolveTip_(tipObj, subtotal, cfg) {
   var t = tipObj || {};
 
   if (t.mode === 'custom') {
-    if (!ALLOW_CUSTOM_TIP) return null;
+    if (!cfg.allow_custom_tip) return null;
     var amount = Number(t.value);
-    if (!isFinite(amount) || amount < 0 || amount > MAX_CUSTOM_TIP) return null;
+    if (!isFinite(amount) || amount < 0 || amount > cfg.max_custom_tip) return null;
     return round2_(amount);
   }
 
   var pct = Number(t.value || 0);
-  if (TIP_PRESETS.indexOf(pct) === -1) return null;
+  if (cfg.tip_presets.indexOf(pct) === -1) return null;
   return round2_(subtotal * pct / 100);
 }
 
@@ -378,9 +520,9 @@ function highestOrderNumberOnSheet_(sheet) {
 
 function getOrdersSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME);
+  var sheet = ss.getSheetByName(ORDERS_SHEET);
   if (!sheet) {
-    sheet = ss.insertSheet(SHEET_NAME);
+    sheet = ss.insertSheet(ORDERS_SHEET);
   }
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADERS);
@@ -391,11 +533,11 @@ function getOrdersSheet_() {
 
 
 function sendConfirmation_(orderNumber, name, email, pickup, items, price,
-                           tip, total) {
+                           tip, total, cfg) {
   var lines = [];
   lines.push('Hi ' + name + ',');
   lines.push('');
-  lines.push('Thank you for preordering from ' + SHOP_NAME + '. Your order is confirmed.');
+  lines.push('Thank you for preordering from ' + cfg.shop_name + '. Your order is confirmed.');
   lines.push('');
   lines.push('Order number: #' + orderNumber);
   lines.push('');
@@ -405,69 +547,96 @@ function sendConfirmation_(orderNumber, name, email, pickup, items, price,
     var it = items[i];
     lines.push(
       it.qty + ' x ' + it.name_en +
-      '  (' + money_(it.price) + ' each)  ' +
-      money_(it.price * it.qty)
+      '  (' + money_(it.price, cfg) + ' each)  ' +
+      money_(it.price * it.qty, cfg)
     );
   }
   lines.push('----------------------------------------');
   if (price.sets > 0 && price.savings > 0) {
-    lines.push('Items: ' + money_(price.full));
-    lines.push(price.sets + ' x set of ' + SET_SIZE + ' (any flavour): -' +
-               money_(price.savings));
-    lines.push('Subtotal: ' + money_(price.subtotal));
+    lines.push('Items: ' + money_(price.full, cfg));
+    lines.push(price.sets + ' x set of ' + cfg.set_size + ' (any flavour): -' +
+               money_(price.savings, cfg));
+    lines.push('Subtotal: ' + money_(price.subtotal, cfg));
   }
   if (tip > 0) {
     if (price.sets === 0 || price.savings === 0) {
-      lines.push('Subtotal: ' + money_(price.subtotal));
+      lines.push('Subtotal: ' + money_(price.subtotal, cfg));
     }
-    lines.push('Tip: ' + money_(tip));
+    lines.push('Tip: ' + money_(tip, cfg));
   }
-  lines.push('Total: ' + money_(total));
+  lines.push('Total: ' + money_(total, cfg));
   lines.push('');
   lines.push('PICKUP — any time during the pop-up');
   lines.push(pickup);
-  lines.push(POPUP_VENUE + ', ' + PICKUP_LOCATION);
+  lines.push(cfg.popup_venue + ', ' + cfg.pickup_location);
   lines.push('');
   lines.push('Payment due at pickup — Venmo, credit card or cash.');
   lines.push('');
-  lines.push('Questions? Email ' + CONTACT_EMAIL + ' or DM us on Instagram @' +
-             CONTACT_IG + '.');
+  lines.push('Questions? Email ' + cfg.contact_email + ' or DM us on Instagram @' +
+             cfg.contact_ig + '.');
   lines.push('');
   lines.push('See you soon,');
-  lines.push(SHOP_NAME);
+  lines.push(cfg.shop_name);
 
   MailApp.sendEmail({
     to: email,
-    subject: SHOP_NAME + ' — Order #' + orderNumber + ' confirmed',
+    subject: cfg.shop_name + ' — Order #' + orderNumber + ' confirmed',
     body: lines.join('\n'),
-    name: SHOP_NAME
+    name: cfg.shop_name
   });
 }
 
 
-/**
- * Run this from the Apps Script editor before going live (pick it from the
- * function dropdown, press Run, read the Execution log).
- *
- * It proves the timezone is right, rather than trusting the settings label:
- * if "now" and "closes at" print in Pacific time and "accepting orders"
- * says true, the auto-close is wired up correctly.
- *
- * Never called by the web app — safe to leave in place.
- */
-function checkSetup() {
-  Logger.log('Script timezone:   ' + Session.getScriptTimeZone());
-  Logger.log('Now:               ' + new Date());
-  Logger.log('Pre-orders close:  ' + PREORDER_CLOSES_AT);
-  Logger.log('Accepting orders?  ' + preordersOpen_());
-  Logger.log('Writing to sheet:  ' + SpreadsheetApp.getActiveSpreadsheet().getName() +
-             ' > ' + SHEET_NAME);
-  Logger.log('Confirmations from: ' + Session.getEffectiveUser().getEmail());
+/* ---------------------  cell readers  --------------------- */
+
+function bool_(v, dflt) {
+  if (v === true || v === false) return v;
+  var s = trimStr_(v).toLowerCase();
+  if (s === '') return dflt;
+  if (s === 'true' || s === 'yes' || s === 'y' || s === '1') return true;
+  if (s === 'false' || s === 'no' || s === 'n' || s === '0') return false;
+  return dflt;
 }
 
 
-function money_(n) {
-  return CURRENCY + round2_(n).toFixed(2);
+function num_(v, dflt) {
+  if (v === '' || v === null || v === undefined) return dflt;
+  var n = Number(v);
+  return isFinite(n) ? n : dflt;
+}
+
+
+function str_(v, dflt) {
+  var s = trimStr_(v);
+  return s === '' ? dflt : s;
+}
+
+
+/** "0, 10, 15, 20" -> [0, 10, 15, 20]. A single number is allowed too. */
+function list_(v, dflt) {
+  var source = (v === '' || v === null || v === undefined) ? dflt : v;
+  if (typeof source === 'number') return [source];
+  var out = [];
+  String(source).split(',').forEach(function (part) {
+    var n = Number(part.trim());
+    if (part.trim() !== '' && isFinite(n)) out.push(n);
+  });
+  return out;
+}
+
+
+/** A blank cell means "no automatic close", so this may return null. */
+function date_(v) {
+  if (v instanceof Date) return isFinite(v.getTime()) ? v : null;
+  var s = trimStr_(v);
+  if (s === '') return null;
+  var d = new Date(s);
+  return isFinite(d.getTime()) ? d : null;
+}
+
+
+function money_(n, cfg) {
+  return cfg.currency + round2_(n).toFixed(2);
 }
 
 
@@ -478,4 +647,42 @@ function round2_(n) {
 
 function trimStr_(v) {
   return String(v === null || v === undefined ? '' : v).trim();
+}
+
+
+/* ---------------------  encoding  --------------------- */
+
+/**
+ * HtmlService strips <meta charset> and the serving iframe declares no
+ * encoding, so browsers guess and mangle any non-ASCII byte. Index.html is
+ * written as pure ASCII for that reason; this is the belt to that braces,
+ * covering anything non-ASCII that creeps back in.
+ */
+function asciiSafe_(html) {
+  return html.split(/(<script[\s\S]*?<\/script>)/i).map(function (part) {
+    return /^<script/i.test(part) ? escapeForScript_(part)
+                                  : escapeForMarkup_(part);
+  }).join('');
+}
+
+
+function escapeForScript_(s) {
+  return s.replace(/[^\x00-\x7F]/g, function (ch) {
+    var out = '';
+    for (var i = 0; i < ch.length; i++) {
+      out += '\\u' + ('000' + ch.charCodeAt(i).toString(16)).slice(-4);
+    }
+    return out;
+  });
+}
+
+
+function escapeForMarkup_(s) {
+  return s.replace(/[^\x00-\x7F]/g, function (ch) {
+    var out = '';
+    for (var i = 0; i < ch.length; i++) {
+      out += '&#' + ch.charCodeAt(i) + ';';
+    }
+    return out;
+  });
 }

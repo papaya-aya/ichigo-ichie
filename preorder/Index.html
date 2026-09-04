@@ -443,40 +443,10 @@
     </div>
 
     <script>
-      /* ============ MENU -- edit me ============
-         name_ja is the Japanese name printed under the English one, purely
-         as brand texture. Set it to '' on an item to hide that line.       */
-      var MENU = [
-        {
-          id: 'original',
-          name_en: 'Original Strawberry Daifuku',
-          name_ja: '\u3044\u3061\u3054\u5927\u798f',   // ichigo daifuku
-          price: 8.00,
-          description_en: 'A whole strawberry and white bean paste in hand-pounded mochi.'
-        },
-        {
-          id: 'matcha',
-          name_en: 'Matcha Strawberry Daifuku',
-          name_ja: '\u62b9\u8336\u3044\u3061\u3054\u5927\u798f',   // matcha ichigo daifuku
-          price: 8.00,
-          description_en: 'Uji matcha folded into the mochi for a gentle, grassy bitterness.'
-        },
-        {
-          id: 'hojicha',
-          name_en: 'Hojicha Strawberry Daifuku',
-          name_ja: '\u307b\u3046\u3058\u8336\u3044\u3061\u3054\u5927\u798f',   // hojicha ichigo daifuku
-          price: 8.00,
-          description_en: 'Roasted hojicha in the mochi \u2014 toasty and warm against the berry.'
-        },
-        {
-          id: 'ube',
-          name_en: 'Ube Strawberry Daifuku',
-          name_ja: '\u7d05\u828b\u3044\u3061\u3054\u5927\u798f',   // beni-imo (ube) ichigo daifuku
-          price: 8.00,
-          description_en: 'Purple yam and strawberry, back only for this weekend.',
-          badge: "This weekend's special"
-        }
-      ];
+      /* The menu now lives in the spreadsheet's "Menu" tab and arrives with
+         getShopState(), so edits there show up on the next page load with
+         no redeploy. This is filled in by onState(). */
+      var MENU = [];
 
       /* ============ COPY -- edit me ============
          Every label, button and message on the page comes from here.       */
@@ -533,6 +503,8 @@
         err_EMAIL: 'Please enter a valid email address.',
         err_MISSING_FIELDS: 'Please fill in your name, phone, and email.',
         err_BAD_TIP: 'That tip amount could not be accepted. Please pick another.',
+        err_MENU_CHANGED: 'The menu changed while you were ordering. Please refresh the page.',
+        err_NO_MENU: 'Nothing is on the menu right now. Please check back soon.',
         err_CLOSED: 'Preorders just closed. Nothing was charged or saved.',
         err_SERVER: 'We could not save your order. Please try again in a moment.',
         err_NETWORK: 'Connection problem \u2014 your order was not sent. Please try again.'
@@ -571,8 +543,6 @@
       var tipPercent = 0;
       var tipCustom = 0;
       var sending = false;
-
-      MENU.forEach(function (m) { qty[m.id] = 0; });
 
       function t(key, vars) {
         var s = TEXT[key] || '';
@@ -630,6 +600,10 @@
         popupDate = state.date || '';
         popupHours = state.hours || '';
         closesOn = state.closesOn || '';
+        MENU = state.menu || [];
+        MENU.forEach(function (m) {
+          if (!(m.id in qty)) qty[m.id] = 0;
+        });
         tipPresets = state.tipPresets || [];
         allowCustomTip = !!state.allowCustomTip;
         maxCustomTip = state.maxCustomTip || 0;
@@ -647,6 +621,15 @@
         ig.href = 'https://instagram.com/' + (state.contactIg || '');
 
         if (!state.open) { show('screen-closed'); return; }
+
+        // An empty Menu tab would otherwise render an empty card and a
+        // submit button that can never succeed.
+        if (!MENU.length) {
+          document.querySelector('[data-txt="closed_body"]').textContent =
+            t('err_NO_MENU');
+          show('screen-closed');
+          return;
+        }
 
         renderMenu();
         renderTip();
@@ -968,10 +951,9 @@
 
         var items = MENU.filter(function (m) { return qty[m.id] > 0; })
           .map(function (m) {
-            return {
-              id: m.id, name_en: m.name_en, name_ja: m.name_ja,
-              price: m.price, qty: qty[m.id]
-            };
+            // Only the id and the count: the server reads the price and
+            // the name from the Menu tab, so the page cannot set a price.
+            return { id: m.id, qty: qty[m.id] };
           });
 
         if (items.length === 0)              { showError('err_NO_ITEMS');  return; }
