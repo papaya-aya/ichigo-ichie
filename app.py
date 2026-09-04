@@ -819,7 +819,8 @@ def calendar_view():
                   SUM(o.qty_other)    AS qty_other,
                   SUM(o.qty_original+o.qty_matcha+o.qty_hojicha+o.qty_other) AS total,
                   MAX(o.delivered)    AS delivered,
-                  MAX(o.deliverer)    AS deliverer
+                  MAX(o.deliverer)    AS deliverer,
+                  MAX(o.note)         AS note
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
               AND (o.is_pickup IS NULL OR o.is_pickup = 0)
@@ -910,7 +911,8 @@ def public_calendar(token):
                   SUM(o.qty_other)    AS qty_other,
                   SUM(o.qty_original+o.qty_matcha+o.qty_hojicha+o.qty_other) AS total,
                   MAX(o.delivered)    AS delivered,
-                  MAX(o.deliverer)    AS deliverer
+                  MAX(o.deliverer)    AS deliverer,
+                  MAX(o.note)         AS note
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
               AND (o.is_pickup IS NULL OR o.is_pickup = 0)
@@ -2916,7 +2918,8 @@ def orders_day(date):
     orders = production.orders_for_date(g.db, date)
     order_rows = [{**dict(o), "total": production.order_total(o)} for o in orders]
     clients = g.db.execute(
-        "SELECT id, name FROM clients WHERE active = 1 ORDER BY name").fetchall()
+        "SELECT id, name, default_pickup FROM clients"
+        " WHERE active = 1 ORDER BY name").fetchall()
     employees = g.db.execute(
         "SELECT id, name FROM employees WHERE active=1 ORDER BY name").fetchall()
     totals = production.day_totals(g.db, date)
@@ -2943,6 +2946,7 @@ def orders_day(date):
         totals=totals, flavors=FLAVORS,
         weekday=WEEKDAY_NAMES[wday],
         delivery_suggestions=delivery_suggestions,
+        popup_clients=[c["id"] for c in clients if c["default_pickup"]],
         back=back,
     )
 

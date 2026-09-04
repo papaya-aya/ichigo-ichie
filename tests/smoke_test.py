@@ -179,6 +179,36 @@ def main():
     if not ok:
         failures.append("bad template")
 
+    # ---- order notes reach the calendar -----------------------------------
+    print("\norder notes")
+    con.execute("UPDATE orders SET note='取りに来る 9時' WHERE client_id=1")
+    con.commit()
+    body = cl.get("/calendar?month=2026-09").get_data(as_text=True)
+    checks = [
+        ("note text on calendar", "取りに来る 9時" in body),
+        ("note styled",           'class="ot-note"' in body),
+        ("wraps on mobile",       ".ot-note{max-width:100%" in body),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(label)
+
+    # ---- a pop-up client is offered as pop-up ------------------------------
+    print("\npop-up clients")
+    con.execute("UPDATE clients SET default_pickup=1 WHERE name='Shoji'")
+    con.commit()
+    form = cl.get("/owner/orders/2026-09-05").get_data(as_text=True)
+    shoji = con.execute("SELECT id FROM clients WHERE name='Shoji'").fetchone()
+    ok = f"popupClients  = [{shoji['id']}]" in form.replace("  ", "  ")
+    if not ok:                      # tolerate whitespace differences
+        import re as _re
+        m = _re.search(r"const popupClients\s*=\s*\[([^\]]*)\]", form)
+        ok = bool(m) and str(shoji["id"]) in m.group(1)
+    print(f"  {'ok  ' if ok else 'FAIL'} {'order form pre-ticks pop-up':<32}")
+    if not ok:
+        failures.append("popup client default")
+
     # ---- availability needs no approval -----------------------------------
     print("\navailability")
     emp2 = harness.flask_app.test_client()

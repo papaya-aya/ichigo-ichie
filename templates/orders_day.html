@@ -164,6 +164,7 @@
   <script>
   (function () {
     const suggestions   = {{ delivery_suggestions | tojson }};
+    const popupClients  = {{ popup_clients | tojson }};
     const sel           = document.getElementById('add-client');
     const inp           = document.getElementById('add-delivery-date');
     const newField      = document.getElementById('new-client-field');
@@ -178,6 +179,12 @@
       } else {
         newField.style.display = 'none';
         inp.value = suggestions[this.value] || base;
+      }
+      // Clients who only ever sell as pop-up start with the box ticked.
+      const cb = document.getElementById('add-is-pickup');
+      if (cb) {
+        cb.checked = popupClients.indexOf(parseInt(this.value, 10)) !== -1;
+        window.toggleAddPickup(cb);
       }
     });
 

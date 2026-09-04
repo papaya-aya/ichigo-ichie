@@ -220,8 +220,15 @@ def migrate_db():
     # 2026-07-05: rename clients to match Mercury system names.
     conn.execute("UPDATE clients SET name='Blue Willow Teaspot' WHERE name='BWT'")
     conn.execute("UPDATE clients SET name='Asha Tea' WHERE name='Asha'")
-    # 2026-07-31: Shoji self-picks up — no driver needed.
-    conn.execute("UPDATE clients SET default_deliverer='pick-up' WHERE name='Shoji'")
+    # 2026-09-04: Shoji is pop-up stock, not a pick-up delivery. Flag the client
+    # so new orders default to pop-up, clear the old pick-up deliverer, and mark
+    # existing Shoji orders as pop-up so they price and report consistently.
+    conn.execute("UPDATE clients SET default_pickup=1, default_deliverer=''"
+                 " WHERE name='Shoji'")
+    conn.execute(
+        "UPDATE orders SET is_pickup=1, deliverer='', delivery_date=NULL"
+        " WHERE client_id = (SELECT id FROM clients WHERE name='Shoji')"
+    )
     # 2026-08-11: Asha Tea and Thao sell on consignment — sales are reported
     # monthly by the client rather than derived from delivered quantity.
     conn.execute(

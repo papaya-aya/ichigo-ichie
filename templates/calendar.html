@@ -131,7 +131,9 @@ function copyPubLink() {
               <tbody>
                 {% for o in day.shift.orders %}
                 <tr>
-                  <td class="ot-client">{{ o.client_name }}</td>
+                  <td class="ot-client">{{ o.client_name }}
+                    {% if o.note %}<span class="ot-note" title="{{ o.note }}">📝 {{ o.note }}</span>{% endif %}
+                  </td>
                   {% if ns.orig   %}<td class="ot-original">{{ o.qty_original  or '—' }}</td>{% endif %}
                   {% if ns.matcha %}<td class="ot-matcha">{{   o.qty_matcha    or '—' }}</td>{% endif %}
                   {% if ns.hoji   %}<td class="ot-hojicha">{{  o.qty_hojicha   or '—' }}</td>{% endif %}
@@ -224,6 +226,7 @@ function copyPubLink() {
                     ({% if c.qty_original %}O:{{ c.qty_original }} {% endif %}{% if c.qty_matcha %}<span style="color:#2d6a40">M:{{ c.qty_matcha }}</span> {% endif %}{% if c.qty_hojicha %}<span style="color:#6b3a1f">H:{{ c.qty_hojicha }}</span> {% endif %}{% if c.qty_other %}X:{{ c.qty_other }} {% endif %}= {{ c.total }})
                   </span>
                   {% if c.delivered %}<span class="ok" style="font-size:0.75rem">✓</span>{% endif %}
+                  {% if c.note %}<span class="ot-note">📝 {{ c.note }}</span>{% endif %}
                 </span>
               {% endfor %}
             </span>
@@ -340,7 +343,17 @@ function copyPubLink() {
 .order-table tfoot .ot-matcha  {color:#2d6a40;font-weight:700}
 .order-table tfoot .ot-hojicha {color:#6b3a1f;font-weight:700}
 
+/* ── Order notes ── */
+.ot-note{
+  display:block; font-weight:400; font-size:.72rem; line-height:1.35;
+  color:#8a6d00; background:#fff8e6; border:1px solid #ffe6a8;
+  border-radius:4px; padding:.08rem .32rem; margin-top:.15rem;
+  white-space:normal; overflow-wrap:anywhere; max-width:16rem;
+}
+.delivery-client .ot-note{max-width:100%}
+
 @media(max-width:700px){
+  .ot-note{max-width:100%; font-size:.75rem}
   .day-group{flex-wrap:wrap}
   .shift-date{display:flex;gap:.5rem;align-items:center;width:100%}
   .day-rows{width:100%}
