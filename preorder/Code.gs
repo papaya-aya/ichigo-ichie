@@ -81,6 +81,52 @@ var SETTING_NOTES = {
   contact_ig: 'Instagram handle, without the @.'
 };
 
+// How often each setting actually changes, which drives the colour coding
+// on the Settings tab: 'each' = every pop-up, 'venue' = only when the
+// location moves, 'rare' = set once and leave alone.
+var SETTING_TIMING = {
+  popup_date: 'each', popup_hours: 'each',
+  preorder_closes_at: 'each', preorder_closes_label: 'each',
+  shop_open: 'each',
+  popup_venue: 'venue', pickup_location: 'venue',
+  max_pieces_per_customer: 'rare', set_size: 'rare', set_price: 'rare',
+  tip_presets: 'rare', allow_custom_tip: 'rare', max_custom_tip: 'rare',
+  currency: 'rare', shop_name: 'rare', contact_email: 'rare', contact_ig: 'rare'
+};
+
+var TIMING_LABEL = {
+  each:  '毎回変更',
+  venue: '会場が変わるときだけ',
+  rare:  '基本そのまま'
+};
+
+var TIMING_COLOR = {
+  each:  '#FCEDF0',   // pink: touch this before every pop-up
+  venue: '#FBF3E2',   // amber: only when the location changes
+  rare:  '#FFFFFF'
+};
+
+// Shown in the "入力例" column so nobody has to guess the format.
+var SETTING_EXAMPLES = {
+  shop_open: 'TRUE',
+  preorder_closes_at: '9/23/2026 23:59:59',
+  preorder_closes_label: 'Wednesday, September 23',
+  popup_venue: 'Enchanted Popup Market',
+  pickup_location: '1250 22nd St, Dogpatch, SF',
+  popup_date: 'Saturday, September 26',
+  popup_hours: '11:00 AM – 3:00 PM',
+  max_pieces_per_customer: '24',
+  set_size: '4',
+  set_price: '30',
+  tip_presets: '0, 10, 15, 20',
+  allow_custom_tip: 'TRUE',
+  max_custom_tip: '200',
+  currency: '$',
+  shop_name: 'Ichigo Ichie',
+  contact_email: 'IchigoIchieSweets@gmail.com',
+  contact_ig: 'ichigoichie151515'
+};
+
 // Starting menu. Edit the Menu tab after the first run, not this.
 var DEFAULT_MENU = [
   { id: 'original', name_en: 'Original Strawberry Daifuku',
@@ -294,6 +340,59 @@ function checkSetup() {
     Logger.log('  - ' + m.name_en + '  ' + cfg.currency + m.price.toFixed(2));
   });
   Logger.log('Confirmations from: ' + Session.getEffectiveUser().getEmail());
+  Logger.log('Settings needing a change each pop-up: ' +
+             Object.keys(SETTING_TIMING).filter(function (k) {
+               return SETTING_TIMING[k] === 'each'; }).join(', '));
+}
+
+
+/**
+ * Colour-codes the Settings tab by how often each row actually changes, and
+ * fills in a "when" and "example" column. Safe to run whenever — it only
+ * rewrites the guidance columns, never the values.
+ *
+ * Run it from the editor after adding a setting, or if the colours are lost.
+ */
+function formatSettingsTab() {
+  ensureConfigSheets_();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SETTINGS_SHEET);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  sheet.getRange(1, 4).setValue('変更のタイミング');
+  sheet.getRange(1, 5).setValue('入力例');
+  sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#F1EAE7');
+
+  var keys = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < keys.length; i++) {
+    var key = trimStr_(keys[i][0]).toLowerCase();
+    var row = i + 2;
+    var timing = SETTING_TIMING[key] || 'rare';
+
+    sheet.getRange(row, 4).setValue(TIMING_LABEL[timing]);
+    sheet.getRange(row, 5).setValue(SETTING_EXAMPLES[key] || '');
+    sheet.getRange(row, 1, 1, 5).setBackground(TIMING_COLOR[timing]);
+
+    // The example column holds things like "Saturday, September 26", which
+    // Sheets would otherwise store as a date.
+    sheet.getRange(row, 5).setNumberFormat('@');
+
+    // Clean up any value cell Sheets already turned into a timestamp, so the
+    // sheet shows the same words the site does.
+    if (key !== 'preorder_closes_at') {
+      var cell = sheet.getRange(row, 2);
+      var v = cell.getValue();
+      if (v instanceof Date && isFinite(v.getTime())) {
+        cell.setNumberFormat('@');
+        cell.setValue(Utilities.formatDate(v, Session.getScriptTimeZone(),
+                                           'EEEE, MMMM d'));
+      }
+    }
+  }
+
+  sheet.setColumnWidth(4, 170);
+  sheet.setColumnWidth(5, 240);
+  sheet.setFrozenRows(1);
 }
 
 
@@ -381,6 +480,7 @@ function menu_() {
  */
 function ensureConfigSheets_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var seededSettings = false;
 
   if (!ss.getSheetByName(SETTINGS_SHEET)) {
     var s = ss.insertSheet(SETTINGS_SHEET);
@@ -398,6 +498,7 @@ function ensureConfigSheets_() {
     s.setColumnWidth(2, 260);
     s.setColumnWidth(3, 420);
     s.getRange(1, 1, 1, SETTINGS_HEADERS.length).setFontWeight('bold');
+    seededSettings = true;
   }
 
   if (!ss.getSheetByName(MENU_SHEET)) {
@@ -413,6 +514,10 @@ function ensureConfigSheets_() {
     m.setColumnWidth(5, 420);
     m.getRange(1, 1, 1, MENU_HEADERS.length).setFontWeight('bold');
   }
+
+  // Do this after both tabs exist, and only on a fresh sheet, so it never
+  // fights someone's own formatting later on.
+  if (seededSettings) formatSettingsTab();
 }
 
 
