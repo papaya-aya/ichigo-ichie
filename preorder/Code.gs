@@ -1,5 +1,5 @@
 /**
- * Ichigo Ichie — pop-up preorder web app (Google Apps Script)
+ * Ichigo Ichie -- pop-up preorder web app (Google Apps Script)
  *
  * Setup:
  *   1. Open the target Google Sheet > Extensions > Apps Script.
@@ -12,7 +12,7 @@
  * The menu and every setting live in two tabs of the spreadsheet, "Menu"
  * and "Settings", which are created and filled in automatically the first
  * time the site is opened. Editing a cell there takes effect on the next
- * page load — no redeploy. The values below are only the starting point
+ * page load -- no redeploy. The values below are only the starting point
  * used to build those tabs, and the fallback if a cell is left blank.
  *
  * Code changes are different: those need
@@ -28,7 +28,7 @@ var DEFAULTS = {
   // Pre-orders also close by themselves at this moment, so nobody can
   // order after the cut-off if the switch above is forgotten. Blank the
   // cell in the Settings tab to rely on shop_open alone.
-  // Read in the SCRIPT's timezone — Project settings > Time zone.
+  // Read in the SCRIPT's timezone -- Project settings > Time zone.
   preorder_closes_at: new Date(2026, 7, 26, 23, 59, 59),
   preorder_closes_label: 'Wednesday, August 26',
 
@@ -36,7 +36,7 @@ var DEFAULTS = {
   popup_venue: 'Enchanted Popup Market',
   pickup_location: '1250 22nd St, Dogpatch, SF',
   popup_date: 'Saturday, August 29',
-  popup_hours: '11:00 AM – 3:00 PM',
+  popup_hours: '11:00 AM \u2013 3:00 PM',
 
   // Hard cap on total pieces in one order.
   max_pieces_per_customer: 24,
@@ -95,9 +95,9 @@ var SETTING_TIMING = {
 };
 
 var TIMING_LABEL = {
-  each:  '毎回変更',
-  venue: '会場が変わるときだけ',
-  rare:  '基本そのまま'
+  each:  '\u6bce\u56de\u5909\u66f4',
+  venue: '\u4f1a\u5834\u304c\u5909\u308f\u308b\u3068\u304d\u3060\u3051',
+  rare:  '\u57fa\u672c\u305d\u306e\u307e\u307e'
 };
 
 var TIMING_COLOR = {
@@ -106,7 +106,7 @@ var TIMING_COLOR = {
   rare:  '#FFFFFF'
 };
 
-// Shown in the "入力例" column so nobody has to guess the format.
+// Shown in the "example" column so nobody has to guess the format.
 var SETTING_EXAMPLES = {
   shop_open: 'TRUE',
   preorder_closes_at: '9/23/2026 23:59:59',
@@ -114,7 +114,7 @@ var SETTING_EXAMPLES = {
   popup_venue: 'Enchanted Popup Market',
   pickup_location: '1250 22nd St, Dogpatch, SF',
   popup_date: 'Saturday, September 26',
-  popup_hours: '11:00 AM – 3:00 PM',
+  popup_hours: '11:00 AM \u2013 3:00 PM',
   max_pieces_per_customer: '24',
   set_size: '4',
   set_price: '30',
@@ -130,19 +130,19 @@ var SETTING_EXAMPLES = {
 // Starting menu. Edit the Menu tab after the first run, not this.
 var DEFAULT_MENU = [
   { id: 'original', name_en: 'Original Strawberry Daifuku',
-    name_ja: 'いちご大福', price: 8,
+    name_ja: '\u3044\u3061\u3054\u5927\u798f', price: 8,
     description_en: 'A whole strawberry and white bean paste in hand-pounded mochi.',
     badge: '', active: true },
   { id: 'matcha', name_en: 'Matcha Strawberry Daifuku',
-    name_ja: '抹茶いちご大福', price: 8,
+    name_ja: '\u62b9\u8336\u3044\u3061\u3054\u5927\u798f', price: 8,
     description_en: 'Uji matcha folded into the mochi for a gentle, grassy bitterness.',
     badge: '', active: true },
   { id: 'hojicha', name_en: 'Hojicha Strawberry Daifuku',
-    name_ja: 'ほうじ茶いちご大福', price: 8,
-    description_en: 'Roasted hojicha in the mochi — toasty and warm against the berry.',
+    name_ja: '\u307b\u3046\u3058\u8336\u3044\u3061\u3054\u5927\u798f', price: 8,
+    description_en: 'Roasted hojicha in the mochi \u2014 toasty and warm against the berry.',
     badge: '', active: true },
   { id: 'ube', name_en: 'Ube Strawberry Daifuku',
-    name_ja: '紅芋いちご大福', price: 8,
+    name_ja: '\u7d05\u828b\u3044\u3061\u3054\u5927\u798f', price: 8,
     description_en: 'Purple yam and strawberry, back only for this weekend.',
     badge: "This weekend's special", active: true }
 ];
@@ -184,7 +184,7 @@ function doGet() {
 
 /**
  * Everything the page needs before it can render, read fresh from the
- * spreadsheet on every load — which is why a menu or settings edit shows
+ * spreadsheet on every load -- which is why a menu or settings edit shows
  * up without redeploying.
  */
 function getShopState() {
@@ -322,7 +322,7 @@ function submitOrder(orderObj) {
  * function dropdown, press Run, read the Execution log). It also creates
  * the Menu and Settings tabs, so it is the quickest way to set them up.
  *
- * Never called by the web app — safe to leave in place.
+ * Never called by the web app -- safe to leave in place.
  */
 function checkSetup() {
   var cfg = config_();
@@ -348,7 +348,7 @@ function checkSetup() {
 
 /**
  * Colour-codes the Settings tab by how often each row actually changes, and
- * fills in a "when" and "example" column. Safe to run whenever — it only
+ * fills in a "when" and "example" column. Safe to run whenever -- it only
  * rewrites the guidance columns, never the values.
  *
  * Run it from the editor after adding a setting, or if the colours are lost.
@@ -359,8 +359,8 @@ function formatSettingsTab() {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
 
-  sheet.getRange(1, 4).setValue('変更のタイミング');
-  sheet.getRange(1, 5).setValue('入力例');
+  sheet.getRange(1, 4).setValue('\u5909\u66f4\u306e\u30bf\u30a4\u30df\u30f3\u30b0');
+  sheet.getRange(1, 5).setValue('\u5165\u529b\u4f8b');
   sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#F1EAE7');
 
   var keys = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
@@ -390,8 +390,17 @@ function formatSettingsTab() {
     }
   }
 
+  // A key for the colours, so they mean something to someone who was not
+  // told what they mean.
+  sheet.getRange(1, 7).setValue('\u8272\u306e\u610f\u5473').setFontWeight('bold');
+  sheet.getRange(2, 7).setValue(TIMING_LABEL.each).setBackground(TIMING_COLOR.each);
+  sheet.getRange(3, 7).setValue(TIMING_LABEL.venue).setBackground(TIMING_COLOR.venue);
+  sheet.getRange(4, 7).setValue(TIMING_LABEL.rare).setBackground(TIMING_COLOR.rare);
+  sheet.getRange(2, 7, 3, 1).setBorder(true, true, true, true, true, false);
+
   sheet.setColumnWidth(4, 170);
   sheet.setColumnWidth(5, 240);
+  sheet.setColumnWidth(7, 200);
   sheet.setFrozenRows(1);
 }
 
@@ -532,7 +541,7 @@ function preordersOpen_(cfg) {
 
 function pickupWindow_(cfg) {
   return [cfg.popup_date, cfg.popup_hours]
-    .filter(function (p) { return p; }).join(' · ');
+    .filter(function (p) { return p; }).join(' \u00b7 ');
 }
 
 
@@ -577,7 +586,7 @@ function priceOrder_(items, cfg) {
 
 /**
  * Turns the customer's tip choice into dollars, or null if the choice is
- * one the page could not have produced. Never trust the amount itself —
+ * one the page could not have produced. Never trust the amount itself --
  * a percentage is recomputed here from the subtotal.
  */
 function resolveTip_(tipObj, subtotal, cfg) {
@@ -598,7 +607,7 @@ function resolveTip_(tipObj, subtotal, cfg) {
 
 /**
  * Next order number. Takes the highest of the stored counter and anything
- * already on the sheet, so a number is never reused — not after rows are
+ * already on the sheet, so a number is never reused -- not after rows are
  * deleted, and not if the script property is ever cleared.
  *
  * Call only while holding the script lock.
@@ -676,11 +685,11 @@ function sendConfirmation_(orderNumber, name, email, pickup, items, price,
   }
   lines.push('Total: ' + money_(total, cfg));
   lines.push('');
-  lines.push('PICKUP — any time during the pop-up');
+  lines.push('PICKUP \u2014 any time during the pop-up');
   lines.push(pickup);
   lines.push(cfg.popup_venue + ', ' + cfg.pickup_location);
   lines.push('');
-  lines.push('Payment due at pickup — Venmo, credit card or cash.');
+  lines.push('Payment due at pickup \u2014 Venmo, credit card or cash.');
   lines.push('');
   lines.push('Questions? Email ' + cfg.contact_email + ' or DM us on Instagram @' +
              cfg.contact_ig + '.');
@@ -690,7 +699,7 @@ function sendConfirmation_(orderNumber, name, email, pickup, items, price,
 
   MailApp.sendEmail({
     to: email,
-    subject: cfg.shop_name + ' — Order #' + orderNumber + ' confirmed',
+    subject: cfg.shop_name + ' \u2014 Order #' + orderNumber + ' confirmed',
     body: lines.join('\n'),
     name: cfg.shop_name
   });
