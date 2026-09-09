@@ -387,6 +387,11 @@ function ensureConfigSheets_() {
     s.appendRow(SETTINGS_HEADERS);
     Object.keys(DEFAULTS).forEach(function (key) {
       s.appendRow([key, DEFAULTS[key], SETTING_NOTES[key] || '']);
+      // Every value except the cut-off is text. Without this, Sheets reads
+      // "Saturday, August 29" as a date and stores a timestamp instead.
+      if (key !== 'preorder_closes_at') {
+        s.getRange(s.getLastRow(), 2).setNumberFormat('@');
+      }
     });
     s.setFrozenRows(1);
     s.setColumnWidth(1, 190);
@@ -607,6 +612,12 @@ function num_(v, dflt) {
 
 
 function str_(v, dflt) {
+  // Sheets turns anything date-shaped into a real date, so "Saturday,
+  // August 29" typed into a cell comes back as a timestamp. Render it the
+  // way it was meant to read, rather than printing the raw Date.
+  if (v instanceof Date && isFinite(v.getTime())) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), 'EEEE, MMMM d');
+  }
   var s = trimStr_(v);
   return s === '' ? dflt : s;
 }
