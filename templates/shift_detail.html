@@ -6,8 +6,39 @@
 <p><a href="{{ url_for('owner_schedule', month=inst.date[:7]) }}">← Back to schedule</a></p>
 {% endif %}
 <h1>{{ weekday }} {{ inst.date }} · {{ inst.label }}</h1>
-<p class="subtitle">Shift hours {{ inst.start_time }}–{{ inst.end_time }} ·
-  target {{ inst.min_people }}–{{ inst.max_people }} people</p>
+<p class="subtitle">Shift hours {{ inst.start_time }}–{{ inst.end_time }}
+  {% if inst.end_is_custom %}<span class="pill" style="background:var(--pink-soft);color:var(--pink);font-size:.75rem">changed for this day</span>{% endif %}
+  · target {{ inst.min_people }}–{{ inst.max_people }} people</p>
+
+<div class="card" style="padding:.75rem 1rem">
+  {% if inst.end_is_custom %}
+  {# Declared first so the button below can reference it — forms cannot nest #}
+  <form id="reset-end" method="post">
+    <input type="hidden" name="action" value="set_end_time">
+    <input type="hidden" name="back" value="{{ back }}">
+    <input type="hidden" name="end_time" value="">
+  </form>
+  {% endif %}
+  <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:flex-end">
+    <input type="hidden" name="action" value="set_end_time">
+    <input type="hidden" name="back" value="{{ back }}">
+    <label class="field" style="width:9rem">
+      <span style="font-size:.82rem">Finish this shift at</span>
+      <input type="time" name="end_time" value="{{ inst.end_time }}"
+             min="{{ inst.start_time }}">
+    </label>
+    <button type="submit">Change finish time</button>
+    {% if inst.end_is_custom %}
+    <button form="reset-end" type="submit" class="btn-ghost"
+            title="Go back to the usual time">Reset to {{ inst.template_end_time }}</button>
+    {% endif %}
+  </form>
+  <p class="help" style="margin-bottom:0">
+    Changes the finish time for <b>this day only</b> — the weekly {{ inst.label }} pattern
+    is untouched. Anyone assigned past the new time is shortened to match, and the
+    suggested team size and pay recalculate from the new length.
+  </p>
+</div>
 
 <div class="card">
   <h2 style="margin-top:0">Production &amp; demand

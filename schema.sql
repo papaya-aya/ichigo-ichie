@@ -111,6 +111,8 @@ ALTER TABLE clients  ADD COLUMN IF NOT EXISTS unit_price        NUMERIC NOT NULL
 ALTER TABLE clients  ADD COLUMN IF NOT EXISTS contact_email     TEXT    NOT NULL DEFAULT '';
 ALTER TABLE clients  ADD COLUMN IF NOT EXISTS default_deliverer TEXT    NOT NULL DEFAULT '';
 ALTER TABLE clients  ADD COLUMN IF NOT EXISTS is_consignment    INTEGER NOT NULL DEFAULT 0;
+-- Per-day override of the template's finish time. NULL means use the template.
+ALTER TABLE shift_instances ADD COLUMN IF NOT EXISTS end_time TEXT;
 -- Clients whose orders are pop-up stock by default, not a delivery.
 ALTER TABLE clients  ADD COLUMN IF NOT EXISTS default_pickup    INTEGER NOT NULL DEFAULT 0;
 

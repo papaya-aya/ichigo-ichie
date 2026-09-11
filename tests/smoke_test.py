@@ -265,6 +265,37 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- per-day shift finish time ----------------------------------------
+    print("\nshift finish time")
+
+    def inst_end():
+        return con.execute("SELECT end_time FROM shift_instances WHERE id=1"
+                           ).fetchone()["end_time"]
+
+    cl.post("/owner/schedule/1", data={"action": "set_end_time",
+                                       "end_time": "08:30"})
+    ends = [r["end_time"] for r in con.execute(
+        "SELECT end_time FROM assignments WHERE shift_instance_id=1")]
+    ok = inst_end() == "08:30" and all(e == "08:30" for e in ends)
+    print(f"  {'ok  ' if ok else 'FAIL'} {'sets it and trims assignments':<32}")
+    if not ok:
+        failures.append("shift end time")
+
+    # A finish before the start would make the shift negative-length.
+    cl.post("/owner/schedule/1", data={"action": "set_end_time",
+                                       "end_time": "05:00"})
+    ok = inst_end() == "08:30"
+    print(f"  {'ok  ' if ok else 'FAIL'} {'rejects an end before start':<32}")
+    if not ok:
+        failures.append("shift end validation")
+
+    # Blank clears the override and the template time applies again.
+    cl.post("/owner/schedule/1", data={"action": "set_end_time", "end_time": ""})
+    ok = inst_end() is None
+    print(f"  {'ok  ' if ok else 'FAIL'} {'blank resets to the template':<32}")
+    if not ok:
+        failures.append("shift end reset")
+
     # ---- whole-day delivery assignment ------------------------------------
     print("\nday deliverer")
     con.execute("INSERT INTO orders (client_id,date,delivery_date,is_pickup,"

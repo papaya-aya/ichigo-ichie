@@ -127,16 +127,34 @@ def month_label(month_str):
     return f"{_calendar.month_name[m]} {y}"
 
 
+def apply_shift_override(row):
+    """Lay a shift's own finish time over the one inherited from its template.
+
+    Selected as `end_override` rather than `end_time` on purpose: two columns
+    with the same name resolve differently under psycopg2 and sqlite3, so the
+    merge happens here in Python where it behaves the same either way.
+    """
+    if row is None:
+        return None
+    d = dict(row)
+    override = d.pop("end_override", None)
+    d["template_end_time"] = d.get("end_time")
+    d["end_is_custom"] = bool(override)
+    if override:
+        d["end_time"] = override
+    return d
+
+
 def instances_for_month(month_str):
     """Shift instances in the month, joined with template info, date-ordered."""
-    return g.db.execute(
-        """SELECT si.id AS instance_id, si.date, t.*
+    return [apply_shift_override(r) for r in g.db.execute(
+        """SELECT si.id AS instance_id, si.date, si.end_time AS end_override, t.*
              FROM shift_instances si
              JOIN shift_templates t ON t.id = si.template_id
             WHERE si.date LIKE ?
             ORDER BY si.date, t.start_time""",
         (month_str + "-%",),
-    ).fetchall()
+    ).fetchall()]
 
 
 def strawberry_price():
@@ -2841,12 +2859,12 @@ def orders_month():
 @app.route("/owner/orders/<date>", methods=["GET", "POST"])
 @require_owner
 def orders_day(date):
-    inst = g.db.execute(
-        """SELECT si.id AS instance_id, si.date, t.*
+    inst = apply_shift_override(g.db.execute(
+        """SELECT si.id AS instance_id, si.date, si.end_time AS end_override, t.*
              FROM shift_instances si JOIN shift_templates t ON t.id = si.template_id
             WHERE si.date = ?""",
         (date,),
-    ).fetchone()
+    ).fetchone())
 
     if request.method == "POST":
         action = request.form.get("action")
@@ -3632,12 +3650,12 @@ def auto_assign_month():
 @app.route("/owner/schedule/<int:instance_id>", methods=["GET", "POST"])
 @require_owner
 def shift_detail(instance_id):
-    inst = g.db.execute(
-        """SELECT si.id AS instance_id, si.date, t.*
+    inst = apply_shift_override(g.db.execute(
+        """SELECT si.id AS instance_id, si.date, si.end_time AS end_override, t.*
              FROM shift_instances si JOIN shift_templates t ON t.id = si.template_id
             WHERE si.id = ?""",
         (instance_id,),
-    ).fetchone()
+    ).fetchone())
     if inst is None:
         flash("Shift not found.", "error")
         return redirect(url_for("owner_schedule"))
@@ -3649,7 +3667,51 @@ def shift_detail(instance_id):
         action = request.form.get("action")
         default_mgr = weekday_manager_id(inst["weekday"])
 
-        if action == "auto":
+        if action == "set_end_time":
+            raw = request.form.get("end_time", "").strip()
+            if not raw:
+                # Blank clears the override and restores the template's time.
+                g.db.execute(
+                    "UPDATE shift_instances SET end_time = NULL WHERE id = ?",
+                    (instance_id,))
+                g.db.commit()
+                flash("Finish time reset to the usual "
+                      f"{inst['end_time']} for this shift.", "success")
+            else:
+                try:
+                    new_end = to_minutes(raw)
+                    start = to_minutes(inst["start_time"])
+                except (ValueError, AttributeError):
+                    new_end = start = None
+                if new_end is None:
+                    flash("That finish time isn't a valid time.", "error")
+                elif new_end <= start:
+                    flash(f"The finish time must be after {inst['start_time']}.",
+                          "error")
+                else:
+                    g.db.execute(
+                        "UPDATE shift_instances SET end_time = ? WHERE id = ?",
+                        (raw, instance_id))
+                    # Nobody can be assigned past the end of the shift.
+                    trimmed = 0
+                    for a in g.db.execute(
+                        "SELECT employee_id, end_time FROM assignments"
+                        " WHERE shift_instance_id = ?", (instance_id,)
+                    ).fetchall():
+                        if to_minutes(a["end_time"]) > new_end:
+                            g.db.execute(
+                                """UPDATE assignments SET end_time = ?
+                                    WHERE shift_instance_id = ? AND employee_id = ?""",
+                                (raw, instance_id, a["employee_id"]))
+                            trimmed += 1
+                    g.db.commit()
+                    msg = f"This shift now finishes at {raw}."
+                    if trimmed:
+                        msg += (f" {trimmed} assignment(s) that ran later were "
+                                f"shortened to match.")
+                    flash(msg, "success")
+
+        elif action == "auto":
             # Smart auto-assign: fills shift to min/max using scheduler
             chosen = auto_assign(inst, candidates)
             chosen_ids = {c["employee_id"] for c in chosen}
@@ -3928,12 +3990,13 @@ def shift_report(instance_id):
             flash("Only the assigned manager can submit a shift report.", "error")
             return redirect(url_for("my_shifts"))
 
-    inst = g.db.execute(
-        """SELECT si.id AS instance_id, si.date, t.label, t.start_time, t.end_time, t.weekday
+    inst = apply_shift_override(g.db.execute(
+        """SELECT si.id AS instance_id, si.date, si.end_time AS end_override,
+                  t.label, t.start_time, t.end_time, t.weekday
              FROM shift_instances si JOIN shift_templates t ON t.id = si.template_id
             WHERE si.id = ?""",
         (instance_id,),
-    ).fetchone()
+    ).fetchone())
 
     # All workers assigned to this shift
     workers = g.db.execute(
