@@ -155,6 +155,8 @@ document.addEventListener('click', function(ev) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  // Net 7 — collection was running too long to be comfortable on cash.
+  const dueDate = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   const emailPart = email ? ' Send to ' + email + '.' : '';
   const deliveries = JSON.parse(tr.dataset.deliveries || '[]');
   const memoPart = deliveries.length
@@ -164,7 +166,8 @@ document.addEventListener('click', function(ev) {
   const prompt =
     'Create an invoice for ' + name + ' for the period ' + from + ' to ' + to +
     ' for ' + pcs + ' daifuku at $' + price.toFixed(2) + ' each, totaling $' + amount +
-    '. Use today (' + today + ') as the invoice date. Payment terms: Net 15.' +
+    '. Use today (' + today + ') as the invoice date. Payment terms: Net 7,' +
+    ' due ' + dueDate + '.' +
     ' Send from the checking account. Enable payment by credit card.' +
     ' Enable reminders.' + memoPart + emailPart;
 
