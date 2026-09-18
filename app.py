@@ -2817,12 +2817,21 @@ def add_client():
     if not name:
         flash("Client name required.", "error")
     else:
-        try:
+        existing = g.db.execute(
+            "SELECT id, active FROM clients WHERE name = ?", (name,)
+        ).fetchone()
+        if existing and existing["active"]:
+            flash(f"Client {name} already exists.", "error")
+        elif existing:
+            g.db.execute(
+                "UPDATE clients SET active = 1 WHERE id = ?", (existing["id"],)
+            )
+            g.db.commit()
+            flash(f"Reactivated client {name}.", "success")
+        else:
             g.db.execute("INSERT INTO clients (name) VALUES (?)", (name,))
             g.db.commit()
             flash(f"Added client {name}.", "success")
-        except Exception:
-            flash(f"Client {name} already exists.", "error")
     return redirect(url_for("owner_dashboard"))
 
 
