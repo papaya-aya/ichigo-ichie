@@ -115,6 +115,26 @@ stub.set_setting = lambda c, k, v: c.execute(
     "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
 stub.init_db = _init
 stub.migrate_db = lambda: None
+
+
+def _get_or_create_client(conn, name):
+    existing = conn.execute(
+        "SELECT id, active FROM clients WHERE name = ?", (name,)
+    ).fetchone()
+    if existing and existing["active"]:
+        return existing["id"], "active"
+    if existing:
+        conn.execute("UPDATE clients SET active = 1 WHERE id = ?", (existing["id"],))
+        conn.commit()
+        return existing["id"], "reactivated"
+    row = conn.execute(
+        "INSERT INTO clients (name) VALUES (?) RETURNING id", (name,)
+    ).fetchone()
+    conn.commit()
+    return row["id"], "created"
+
+
+stub.get_or_create_client = _get_or_create_client
 sys.modules["db"] = stub
 
 import app as appmod                                          # noqa: E402

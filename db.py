@@ -429,3 +429,27 @@ def set_setting(conn, key, value):
 
 def now_iso():
     return datetime.now().isoformat(timespec="seconds")
+
+
+def get_or_create_client(conn, name):
+    """Look up a client by name, reactivating a retired one if found.
+
+    clients.name is UNIQUE, so a plain INSERT fails for any client that was
+    previously retired (active=0) rather than deleted. Returns (client_id,
+    status), where status is 'created', 'reactivated', or 'active' (already
+    exists and is active — the caller should treat that as an error).
+    """
+    existing = conn.execute(
+        "SELECT id, active FROM clients WHERE name = ?", (name,)
+    ).fetchone()
+    if existing and existing["active"]:
+        return existing["id"], "active"
+    if existing:
+        conn.execute("UPDATE clients SET active = 1 WHERE id = ?", (existing["id"],))
+        conn.commit()
+        return existing["id"], "reactivated"
+    row = conn.execute(
+        "INSERT INTO clients (name) VALUES (?) RETURNING id", (name,)
+    ).fetchone()
+    conn.commit()
+    return row["id"], "created"

@@ -1256,12 +1256,13 @@ def recurring_add_client():
     if not name:
         flash("Client name required.", "error")
     else:
-        try:
-            g.db.execute("INSERT INTO clients (name) VALUES (?)", (name,))
-            g.db.commit()
-            flash(f"Added client {name}.", "success")
-        except Exception:
+        _, status = database.get_or_create_client(g.db, name)
+        if status == "active":
             flash(f"Client '{name}' already exists.", "error")
+        elif status == "reactivated":
+            flash(f"Reactivated client {name}.", "success")
+        else:
+            flash(f"Added client {name}.", "success")
     return redirect(url_for("recurring_orders"))
 
 
@@ -2817,20 +2818,12 @@ def add_client():
     if not name:
         flash("Client name required.", "error")
     else:
-        existing = g.db.execute(
-            "SELECT id, active FROM clients WHERE name = ?", (name,)
-        ).fetchone()
-        if existing and existing["active"]:
+        _, status = database.get_or_create_client(g.db, name)
+        if status == "active":
             flash(f"Client {name} already exists.", "error")
-        elif existing:
-            g.db.execute(
-                "UPDATE clients SET active = 1 WHERE id = ?", (existing["id"],)
-            )
-            g.db.commit()
+        elif status == "reactivated":
             flash(f"Reactivated client {name}.", "success")
         else:
-            g.db.execute("INSERT INTO clients (name) VALUES (?)", (name,))
-            g.db.commit()
             flash(f"Added client {name}.", "success")
     return redirect(url_for("owner_dashboard"))
 
@@ -2885,13 +2878,8 @@ def orders_day(date):
                 if not new_client_name:
                     flash("Enter a name for the new client.", "error")
                     return redirect(url_for("orders_day", date=date))
-                try:
-                    row = g.db.execute(
-                        "INSERT INTO clients (name) VALUES (?) RETURNING id",
-                        (new_client_name,),
-                    ).fetchone()
-                    client_id = row["id"]
-                except Exception:
+                client_id, status = database.get_or_create_client(g.db, new_client_name)
+                if status == "active":
                     flash(f"A client named '{new_client_name}' already exists.", "error")
                     return redirect(url_for("orders_day", date=date))
             if not client_id:
@@ -2911,7 +2899,9 @@ def orders_day(date):
                      is_pickup, database.now_iso()),
                 )
                 g.db.commit()
-                if new_client_name:
+                if new_client_name and status == "reactivated":
+                    flash(f"Client '{new_client_name}' reactivated and order added.", "success")
+                elif new_client_name:
                     flash(f"Client '{new_client_name}' created and order added.", "success")
                 else:
                     flash("Order added.", "success")
