@@ -353,6 +353,41 @@ def migrate_db():
         )
         conn.commit()
 
+    # 2026-09-18: strawberries for Friday's production are now bought on
+    # Thursday instead of Friday. Move any already-seeded future Friday
+    # purchase runs to the Thursday of the same week (one-time); past runs
+    # are left alone so already-completed payroll doesn't change. Moving the
+    # date, not the row, keeps any assignment or availability tied to it.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='move_friday_purchases_to_thursday'"
+    ).fetchone():
+        from datetime import date as _date, timedelta as _td
+        today_iso = _date.today().isoformat()
+        upcoming = conn.execute(
+            "SELECT id, purchase_instances.date AS date FROM purchase_instances"
+            " WHERE purchase_instances.date >= ?",
+            (today_iso,),
+        ).fetchall()
+        for run in upcoming:
+            d = _date.fromisoformat(run["date"])
+            if d.weekday() == 4:  # Friday
+                thursday = (d - _td(days=1)).isoformat()
+                clash = conn.execute(
+                    "SELECT 1 FROM purchase_instances WHERE purchase_instances.date = ?",
+                    (thursday,),
+                ).fetchone()
+                if not clash:
+                    conn.execute(
+                        "UPDATE purchase_instances SET date = ? WHERE id = ?",
+                        (thursday, run["id"]),
+                    )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('move_friday_purchases_to_thursday', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     conn.close()
 
 

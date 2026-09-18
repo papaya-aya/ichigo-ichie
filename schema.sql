@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS consignment_sales (
   UNIQUE(client_id, month)
 );
 
--- Strawberry purchase runs. Seeded on Sunday / Wednesday / Friday, but the
+-- Strawberry purchase runs. Seeded on Sunday / Wednesday / Thursday, but the
 -- owner may add or delete individual dates, so the table is the source of
 -- truth rather than the weekday rule.
 CREATE TABLE IF NOT EXISTS purchase_instances (

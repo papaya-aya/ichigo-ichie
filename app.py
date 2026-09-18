@@ -1658,8 +1658,9 @@ def apply_recurring_assignments():
 # Salary report + popup entries
 # ---------------------------------------------------------------------------
 
-# Strawberry purchase runs happen on Sunday, Wednesday and Friday.
-PURCHASE_WEEKDAYS = (6, 2, 4)
+# Strawberry purchase runs happen on Sunday (for Monday's production),
+# Wednesday (for Wednesday's) and Thursday (for Friday's, bought a day early).
+PURCHASE_WEEKDAYS = (6, 2, 3)
 
 
 # --- importing the owner's unexpected-cost spreadsheet ---------------------
@@ -1807,7 +1808,7 @@ def parse_cost_sheet(text):
 
 
 def ensure_purchase_instances(month):
-    """Seed Sun/Wed/Fri runs for a month, but only the first time it is opened.
+    """Seed Sun/Wed/Thu runs for a month, but only the first time it is opened.
 
     After that the table is authoritative, so dates the owner deleted stay
     deleted and dates they added stay added.
@@ -2119,7 +2120,7 @@ def _compute_salary(date_from, date_to):
         (date_from, date_to),
     ).fetchall()
 
-    # --- scheduled purchase runs the owner assigned (Sun/Wed/Fri) ---
+    # --- scheduled purchase runs the owner assigned (Sun/Wed/Thu) ---
     # These are the primary record; an ad-hoc request for the same person and
     # date is skipped below so a run is never paid twice.
     assigned_runs = set()
