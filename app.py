@@ -864,8 +864,14 @@ def calendar_view():
 
     # --- union of all dates with anything to show ---
     purchases_by_date = purchases_by_date_for_month(month)
+    notes_by_date = {
+        r["date"]: r["note"] for r in g.db.execute(
+            "SELECT date, note FROM day_notes WHERE date LIKE ? AND note != ''",
+            (month + "-%",),
+        ).fetchall()
+    }
     all_dates = sorted(set(list(shifts_by_date) + list(deliveries_by_date)
-                          + list(purchases_by_date)))
+                          + list(purchases_by_date) + list(notes_by_date)))
 
     days = []
     for d in all_dates:
@@ -879,6 +885,7 @@ def calendar_view():
             "shift":    shifts_by_date.get(d),
             "delivery": deliveries_by_date.get(d),
             "purchase": purchases_by_date.get(d),
+            "note":     notes_by_date.get(d, ""),
         })
 
     public_token = database.get_setting(g.db, "public_calendar_token") or ""

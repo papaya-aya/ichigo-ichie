@@ -98,6 +98,10 @@ function copyPubLink() {
     {# ── Right side: shift + delivery stacked ── #}
     <div class="day-rows">
 
+      {% if day.note %}
+      <div class="day-note">📝 {{ day.note }}</div>
+      {% endif %}
+
       {% if day.shift %}
       {# Production shift row #}
       <div class="day-content shift-content">
@@ -342,6 +346,13 @@ function copyPubLink() {
 .order-table tfoot .ot-original{color:#c0437a;font-weight:700}
 .order-table tfoot .ot-matcha  {color:#2d6a40;font-weight:700}
 .order-table tfoot .ot-hojicha {color:#6b3a1f;font-weight:700}
+
+/* ── Day note ── */
+.day-note{
+  font-size:.82rem; line-height:1.4; color:#8a6d00; background:#fff8e6;
+  border:1px solid #ffe6a8; border-radius:6px; padding:.35rem .6rem;
+  white-space:normal; overflow-wrap:anywhere;
+}
 
 /* ── Order notes ── */
 .ot-note{
