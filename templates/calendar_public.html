@@ -25,6 +25,10 @@
 
     <div class="day-rows">
 
+      {% if day.note %}
+      <div class="day-note">📝 {{ day.note }}</div>
+      {% endif %}
+
       {% if day.shift %}
       <div class="day-content shift-content">
         <div class="shift-meta">
@@ -146,6 +150,11 @@
 .shift-dayname{display:block;font-weight:700;color:var(--pink);font-size:.88rem;text-transform:uppercase}
 .shift-daynum{display:block;font-size:1.4rem;font-weight:700;line-height:1.1}
 .day-rows{flex:1;display:flex;flex-direction:column;gap:.35rem}
+.day-note{
+  font-size:.82rem; line-height:1.4; color:#8a6d00; background:#fff8e6;
+  border:1px solid #ffe6a8; border-radius:6px; padding:.35rem .6rem;
+  white-space:normal; overflow-wrap:anywhere;
+}
 .day-content{display:flex;align-items:flex-start;gap:1rem;padding:.65rem .9rem;border-radius:var(--radius)}
 .shift-content{background:var(--card);border:1px solid var(--pink-line)}
 .delivery-content{background:#f5fbf7;border:1px solid #c3e6cc}

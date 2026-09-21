@@ -962,9 +962,16 @@ def public_calendar(token):
         info["n_done"]  += 1 if r["delivered"] else 0
 
     purchases_by_date = purchases_by_date_for_month(month)
+    notes_by_date = {
+        r["date"]: r["note"] for r in g.db.execute(
+            "SELECT date, note FROM day_notes WHERE date LIKE ? AND note != ''",
+            (month + "-%",),
+        ).fetchall()
+    }
     all_dates = sorted(set(list(shifts_by_date.keys())
                           + list(deliveries_by_date.keys())
-                          + list(purchases_by_date.keys())))
+                          + list(purchases_by_date.keys())
+                          + list(notes_by_date.keys())))
     days = []
     for d in all_dates:
         y, mo, dy = (int(x) for x in d.split("-"))
@@ -977,6 +984,7 @@ def public_calendar(token):
             "shift":    shifts_by_date.get(d),
             "delivery": deliveries_by_date.get(d),
             "purchase": purchases_by_date.get(d),
+            "note":     notes_by_date.get(d, ""),
         })
 
     return render_template(
