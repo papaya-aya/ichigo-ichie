@@ -19,6 +19,17 @@
     {% if totals.total %}<span class="pill">{{ totals.total }} pcs total</span>{% endif %}
   </h2>
 
+  <form method="post" style="margin-bottom:1rem">
+    <input type="hidden" name="action" value="note">
+    <input type="hidden" name="back" value="{{ back }}">
+    <label class="field">
+      <span style="font-size:0.85rem">Notes for the day</span>
+      <textarea name="day_note" rows="2" placeholder="Optional — anything about the whole day"
+                style="width:100%; resize:vertical">{{ day_note }}</textarea>
+    </label>
+    <button type="submit" class="btn-ghost btn-sm" style="margin-top:0.35rem">Save note</button>
+  </form>
+
   {% if orders %}
   {# Declare one form per order row OUTSIDE the table (form inside tr is invalid HTML) #}
   {% for o in orders %}

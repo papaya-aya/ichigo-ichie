@@ -267,3 +267,10 @@ CREATE TABLE IF NOT EXISTS recurring_orders (
   delivery_offset INTEGER NOT NULL DEFAULT 0,
   UNIQUE(client_id, weekday)
 );
+
+-- Free-form note for a whole production date, independent of any one order.
+CREATE TABLE IF NOT EXISTS day_notes (
+  date       TEXT PRIMARY KEY,
+  note       TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);

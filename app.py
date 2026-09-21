@@ -2928,6 +2928,15 @@ def orders_day(date):
                          (int(request.form.get("order_id")), date))
             g.db.commit()
             flash("Order removed.", "success")
+        elif action == "note":
+            note = request.form.get("day_note", "").strip()
+            g.db.execute(
+                """INSERT INTO day_notes (date, note, updated_at) VALUES (?, ?, ?)
+                   ON CONFLICT (date) DO UPDATE SET note = ?, updated_at = ?""",
+                (date, note, database.now_iso(), note, database.now_iso()),
+            )
+            g.db.commit()
+            flash("Note saved.", "success")
         back = request.form.get("back", "")
         dest = url_for("orders_day", date=date, back=back) if back else url_for("orders_day", date=date)
         return redirect(dest)
@@ -2941,6 +2950,10 @@ def orders_day(date):
     employees = g.db.execute(
         "SELECT id, name FROM employees WHERE active=1 ORDER BY name").fetchall()
     totals = production.day_totals(g.db, date)
+    day_note_row = g.db.execute(
+        "SELECT note FROM day_notes WHERE date = ?", (date,)
+    ).fetchone()
+    day_note = day_note_row["note"] if day_note_row else ""
 
     # Build per-client suggested delivery dates from recurring offsets
     from datetime import timedelta as _td
@@ -2963,6 +2976,7 @@ def orders_day(date):
         employees=employees,
         totals=totals, flavors=FLAVORS,
         weekday=WEEKDAY_NAMES[wday],
+        day_note=day_note,
         delivery_suggestions=delivery_suggestions,
         popup_clients=[c["id"] for c in clients if c["default_pickup"]],
         back=back,
