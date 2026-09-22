@@ -388,6 +388,40 @@ def migrate_db():
         )
         conn.commit()
 
+    # 2026-09-22: Tiny Croissanterie is pop-up stock, not a recurring delivery
+    # client. Drop its standing recurring-order template so October and later
+    # months stop generating deliveries, and convert any October-or-later
+    # orders already created (via the recurring-orders "apply" step) into
+    # pop-up stock, same as the Shoji conversion above.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='tiny_croissanterie_popup_oct_2026'"
+    ).fetchone():
+        client = conn.execute(
+            "SELECT id FROM clients WHERE name='Tiny Croissanterie'"
+        ).fetchone()
+        if client:
+            conn.execute(
+                "UPDATE clients SET default_pickup=1, default_deliverer=''"
+                " WHERE id = ?",
+                (client["id"],),
+            )
+            conn.execute(
+                "DELETE FROM recurring_orders WHERE client_id = ?",
+                (client["id"],),
+            )
+            conn.execute(
+                """UPDATE orders SET is_pickup=1, deliverer='', delivery_date=NULL
+                    WHERE client_id = ?
+                      AND COALESCE(delivery_date, orders.date) >= '2026-10-01'""",
+                (client["id"],),
+            )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('tiny_croissanterie_popup_oct_2026', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     conn.close()
 
 
