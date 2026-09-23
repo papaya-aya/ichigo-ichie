@@ -422,6 +422,38 @@ def migrate_db():
         )
         conn.commit()
 
+    # 2026-09-23: Teance is no longer a client, but orders generated from its
+    # old recurring template are still on the calendar. Delete Teance orders
+    # produced on or after 2026-10-01 — September and earlier are left
+    # untouched.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='cleanup_teance_from_oct_2026'"
+    ).fetchone():
+        client = conn.execute(
+            "SELECT id FROM clients WHERE name='Teance'"
+        ).fetchone()
+        if client:
+            params = (client["id"], "2026-10-01")
+            conn.execute(
+                """DELETE FROM popup_sales WHERE order_id IN (
+                     SELECT id FROM orders
+                      WHERE client_id = ?
+                        AND orders.date >= ?)""",
+                params,
+            )
+            conn.execute(
+                """DELETE FROM orders
+                    WHERE client_id = ?
+                      AND orders.date >= ?""",
+                params,
+            )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('cleanup_teance_from_oct_2026', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     conn.close()
 
 
