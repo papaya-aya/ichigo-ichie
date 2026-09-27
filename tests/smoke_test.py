@@ -351,6 +351,42 @@ def main():
     if not ok:
         failures.append("missing amount column")
 
+    # ---- shift report approval preview -----------------------------------
+    # The owner must see the manager's reported hours and the pay they imply
+    # before approving. Yumi (manager) reports 06:30–10:00, Saku 06:45–09:30.
+    print("\nshift report preview")
+    con.execute("INSERT INTO shift_reports (id,shift_instance_id,submitted_by,"
+                "status,submitted_at) VALUES (90,1,1,'pending','x')")
+    con.execute("INSERT INTO shift_report_hours (report_id,employee_id,"
+                "actual_start,actual_end) VALUES (90,1,'06:30','10:00')")
+    con.execute("INSERT INTO shift_report_hours (report_id,employee_id,"
+                "actual_start,actual_end) VALUES (90,2,'06:45','09:30')")
+    con.commit()
+    with harness.flask_app.test_request_context():
+        from flask import g
+        g.db = harness.stub.get_db()
+        pv = harness.appmod._shift_report_preview(90, 1, "2026-09-02")
+        pieces = harness.appmod.production.day_totals(g.db, "2026-09-02")["total"]
+        pr = harness.appmod.piece_rate()
+    ph = 3.5 + 2.75
+    rate = pr * pieces / ph
+    yumi = next(p for p in pv["people"] if p["name"] == "Yumi")
+    body = cl.get("/owner/approvals").get_data(as_text=True)
+    checks = [
+        ("day has pieces",        pieces > 0),
+        ("reported hours used",   abs(pv["person_hours"] - ph) < 0.005),
+        ("manager pay +5%",       abs(yumi["pay"] - 3.5 * rate * 1.05) < 0.005),
+        ("pool fully paid out",   abs(pv["total_pay"] - pr * pieces
+                                      - 3.5 * rate * 0.05) < 0.005),
+        ("finish shown",          pv["finish"] == "10:00" and "10:00" in body),
+        ("page shows reported",   "06:30–10:00" in body),
+        ("page shows pay",        f"${yumi['pay']:.2f}" in body),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(label)
+
     print("\nfailures:", failures or "none")
     return 1 if failures else 0
 

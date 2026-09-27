@@ -3375,6 +3375,7 @@ def approvals():
     pending_shift_reports = g.db.execute(
         """SELECT sr.id, sr.submitted_at, sr.strawberry_stock, sr.anko_stock, sr.memo,
                   si.id AS instance_id, si.date, t.label, t.weekday,
+                  t.end_time, si.end_time AS end_override,
                   COALESCE(e.name, '(unknown employee)') AS submitter
              FROM shift_reports sr
              LEFT JOIN shift_instances si ON si.id = sr.shift_instance_id
@@ -3383,6 +3384,10 @@ def approvals():
             WHERE sr.status = 'pending'
             ORDER BY si.date"""
     ).fetchall()
+    pending_shift_reports = [apply_shift_override(r) for r in pending_shift_reports]
+    for r in pending_shift_reports:
+        r["preview"] = (_shift_report_preview(r["id"], r["instance_id"], r["date"])
+                        if r["instance_id"] else None)
 
     decided_shift_reports = g.db.execute(
         """SELECT sr.id, sr.status, sr.decided_at, sr.strawberry_stock, sr.anko_stock, sr.memo,
@@ -4169,6 +4174,94 @@ def shift_report(instance_id):
         all_employees=all_employees,
         extra_existing=extra_existing,
     )
+
+
+def _span_hours(start, end):
+    """Hours between two HH:MM strings, or None if either is missing or malformed."""
+    try:
+        return (to_minutes(end) - to_minutes(start)) / 60.0
+    except (AttributeError, ValueError, TypeError):
+        return None
+
+
+def _shift_report_preview(report_id, instance_id, shift_date):
+    """What approving a report would pay, for the owner to check before approving.
+
+    Display only — mirrors _compute_salary: the day's piece pool (piece rate ×
+    pieces made) split over total person-hours, manager +5%. On approval the
+    reported times overwrite the assignment times, so they are used here in
+    place of the scheduled ones.
+    """
+    reported = {
+        r["employee_id"]: r
+        for r in g.db.execute(
+            """SELECT srh.employee_id, srh.actual_start, srh.actual_end, e.name
+                 FROM shift_report_hours srh
+                 JOIN employees e ON e.id = srh.employee_id
+                WHERE srh.report_id = ?""",
+            (report_id,),
+        ).fetchall()
+    }
+    assigned = g.db.execute(
+        """SELECT a.employee_id, e.name, a.start_time, a.end_time,
+                  a.actual_start, a.actual_end, a.is_manager
+             FROM assignments a JOIN employees e ON e.id = a.employee_id
+            WHERE a.shift_instance_id = ?
+            ORDER BY a.is_manager DESC, e.name""",
+        (instance_id,),
+    ).fetchall()
+
+    people = []
+    for a in assigned:
+        rep = reported.get(a["employee_id"])
+        start = rep["actual_start"] if rep else (a["actual_start"] or a["start_time"])
+        end   = rep["actual_end"]   if rep else (a["actual_end"]   or a["end_time"])
+        people.append({
+            "name":        a["name"],
+            "is_manager":  bool(a["is_manager"]),
+            "sched":       f"{a['start_time']}–{a['end_time']}",
+            "reported":    bool(rep),
+            "window":      f"{start}–{end}",
+            "end":         end if rep else None,
+            "hours":       _span_hours(start, end),
+            "paid":        True,
+        })
+    # Added in the report but not assigned: approval only updates existing
+    # assignments, so these hours are not paid.
+    assigned_ids = {a["employee_id"] for a in assigned}
+    for eid, rep in reported.items():
+        if eid not in assigned_ids:
+            people.append({
+                "name":       rep["name"],
+                "is_manager": False,
+                "sched":      "—",
+                "reported":   True,
+                "window":     f"{rep['actual_start']}–{rep['actual_end']}",
+                "end":        rep["actual_end"],
+                "hours":      _span_hours(rep["actual_start"], rep["actual_end"]),
+                "paid":       False,
+            })
+
+    person_hours = sum(p["hours"] or 0 for p in people if p["paid"])
+    pieces = production.day_totals(g.db, shift_date)["total"] if shift_date else 0
+    rate = (piece_rate() * pieces / person_hours) if (person_hours > 0 and pieces > 0) else 0.0
+    total_pay = 0.0
+    for p in people:
+        if p["paid"] and p["hours"] is not None:
+            p["pay"] = p["hours"] * rate * (1.05 if p["is_manager"] else 1.0)
+            total_pay += p["pay"]
+        else:
+            p["pay"] = None
+
+    ends = [p["end"] for p in people if p["end"]]
+    return {
+        "people":       people,
+        "finish":       max(ends) if ends else None,
+        "person_hours": person_hours,
+        "pieces":       pieces,
+        "rate":         rate,
+        "total_pay":    total_pay,
+    }
 
 
 @app.route("/owner/shift-report/<int:report_id>/decide", methods=["POST"])

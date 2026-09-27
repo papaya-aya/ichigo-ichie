@@ -165,6 +165,60 @@
           </form>
         </td>
       </tr>
+      {% set pv = r.preview %}
+      {% if pv %}
+      <tr>
+        <td colspan="8" style="background:var(--pink-soft); padding:.6rem .8rem">
+          <div style="font-size:.9em; margin-bottom:.4rem">
+            <strong>Actual finish:</strong>
+            {% if pv.finish %}{{ pv.finish }}{% else %}<span class="muted">not reported</span>{% endif %}
+            <span class="muted">(scheduled {{ r.end_time or '—' }})</span>
+          </div>
+          <div style="overflow-x:auto">
+          <table style="margin:0; font-size:.88em; background:var(--card, #fff)">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Scheduled</th>
+                <th>Reported</th>
+                <th style="text-align:right">Hours</th>
+                <th style="text-align:right">Pay</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in pv.people %}
+              <tr>
+                <td>{{ p.name }}{% if p.is_manager %} <span class="pill">👑 +5%</span>{% endif %}</td>
+                <td class="muted">{{ p.sched }}</td>
+                <td>
+                  {% if p.reported %}<strong>{{ p.window }}</strong>
+                  {% else %}<span class="muted">{{ p.window }} · not in report</span>{% endif %}
+                </td>
+                <td style="text-align:right">{{ '%.2f'|format(p.hours) if p.hours is not none else '—' }}</td>
+                <td style="text-align:right">
+                  {% if p.pay is not none %}${{ '%.2f'|format(p.pay) }}
+                  {% elif not p.paid %}<span class="muted" style="font-size:.85em">not assigned — not paid on approval</span>
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3"><strong>Total</strong></td>
+                <td style="text-align:right"><strong>{{ '%.2f'|format(pv.person_hours) }}</strong></td>
+                <td style="text-align:right"><strong>${{ '%.2f'|format(pv.total_pay) }}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+          </div>
+          <div class="muted" style="font-size:.82em; margin-top:.3rem">
+            {{ pv.pieces }} pieces made ·
+            {% if pv.rate %}${{ '%.2f'|format(pv.rate) }}/h after approval{% else %}no pieces recorded for this day yet, so pay shows $0{% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
