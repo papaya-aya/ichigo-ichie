@@ -1769,6 +1769,15 @@ def apply_recurring_assignments():
 # Wednesday (for Wednesday's) and Thursday (for Friday's, bought a day early).
 PURCHASE_WEEKDAYS = (6, 2, 3)
 
+# An order noted as a sample was given away, so it earns nothing. Bound as a
+# parameter rather than written into the SQL: psycopg2 reads a bare % as a
+# format specifier and crashes.
+SAMPLE_MATCH = "%sample%"
+
+
+def is_sample(note):
+    return "sample" in (note or "").lower()
+
 
 # --- importing the owner's unexpected-cost spreadsheet ---------------------
 # Header names accepted for each field, matched case-insensitively.
@@ -2580,17 +2589,22 @@ def monthly_summary():
     order_rows = g.db.execute(
         """SELECT c.id AS client_id, c.name, c.unit_price, c.is_consignment,
                   c.default_deliverer,
-                  SUM(CASE WHEN o.is_pickup = 1 THEN
+                  SUM(CASE WHEN o.is_pickup = 1
+                             AND LOWER(COALESCE(o.note, '')) NOT LIKE ? THEN
                         o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
                       ELSE 0 END) AS popup_pcs,
-                  SUM(CASE WHEN o.is_pickup = 1 THEN 0 ELSE
+                  SUM(CASE WHEN o.is_pickup = 1
+                             OR LOWER(COALESCE(o.note, '')) LIKE ? THEN 0 ELSE
                         o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
-                      END) AS other_pcs
+                      END) AS other_pcs,
+                  SUM(CASE WHEN LOWER(COALESCE(o.note, '')) LIKE ? THEN
+                        o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
+                      ELSE 0 END) AS sample_pcs
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) BETWEEN ? AND ?
             GROUP BY c.id, c.name, c.unit_price, c.is_consignment, c.default_deliverer
             ORDER BY c.name""",
-        (date_from, date_to),
+        (SAMPLE_MATCH, SAMPLE_MATCH, SAMPLE_MATCH, date_from, date_to),
     ).fetchall()
 
     entered = {
@@ -2621,7 +2635,11 @@ def monthly_summary():
         (date_from, date_to),
     ).fetchall():
         made = int(p["pcs"] or 0)
-        if p["amount"] is not None:
+        if is_sample(p["note"]):
+            # Given away — it still cost labour to make, but earns nothing.
+            revenue = 0.0
+            basis   = f"{made} given away as samples"
+        elif p["amount"] is not None:
             revenue = round(float(p["amount"]), 2)
             basis   = "exact amount entered"
         elif p["pcs_sold"] is not None:
@@ -2641,6 +2659,7 @@ def monthly_summary():
             "pcs_sold":   p["pcs_sold"],
             "amount":     p["amount"],
             "recorded":   p["amount"] is not None or p["pcs_sold"] is not None,
+            "is_sample":  is_sample(p["note"]),
             "revenue":    revenue,
             "basis":      basis,
         })
@@ -2669,13 +2688,17 @@ def monthly_summary():
                      + (" (pick-up)" if is_pickup_client else ""))
         if popup_pcs:
             basis += f" · {popup_pcs} pop-up pcs (see below)"
+        sample_pcs = int(r["sample_pcs"] or 0)
+        if sample_pcs:
+            basis += f" · {sample_pcs} sample pcs, not charged"
 
         revenue = round(popup_rev + other_rev, 2)
         total_sales += revenue
         sales_rows.append({
             "client_id":      r["client_id"],
             "name":           r["name"],
-            "pcs":            popup_pcs + other_pcs,
+            "pcs":            popup_pcs + other_pcs + sample_pcs,
+            "sample_pcs":     sample_pcs,
             "popup_pcs":      popup_pcs,
             "other_pcs":      other_pcs,
             "unit_price":     price,

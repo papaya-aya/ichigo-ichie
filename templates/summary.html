@@ -62,6 +62,8 @@
           {{ r.pcs or '—' }}
           {% if r.popup_pcs %}<br><span class="muted" style="font-size:.75rem">
             {{ r.popup_pcs }} pop-up</span>{% endif %}
+          {% if r.sample_pcs %}<br><span class="muted" style="font-size:.75rem">
+            {{ r.sample_pcs }} sample, free</span>{% endif %}
         </td>
         <td style="text-align:right">
           {% if r.is_consignment %}<span class="muted">—</span>

@@ -9,6 +9,7 @@ Exits non-zero if anything fails.
 """
 import os
 import sys
+from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import harness                                                # noqa: E402
@@ -69,10 +70,15 @@ def main():
     # ---- employee views ---------------------------------------------------
     print("\nemployee views")
     con = harness._con
+    # /my-deliveries only shows runs from the last week onwards, so these
+    # dates must be relative to today or the check silently rots.
+    own_run   = (date.today() + timedelta(days=2)).isoformat()
+    other_run = (date.today() + timedelta(days=4)).isoformat()
+    con.execute("UPDATE purchase_instances SET date=? WHERE id=2", (own_run,))
     con.execute("INSERT INTO purchase_assignments (purchase_instance_id,"
                 "employee_id,completed,created_at) VALUES (2,1,0,'x')")
     con.execute("INSERT INTO purchase_instances (id,date,created_at)"
-                " VALUES (3,'2026-09-06','x')")
+                " VALUES (3,?,'x')", (other_run,))
     con.execute("INSERT INTO purchase_assignments (purchase_instance_id,"
                 "employee_id,completed,created_at) VALUES (3,2,0,'x')")
     con.commit()
@@ -85,7 +91,7 @@ def main():
     r = emp.get("/my-deliveries")
     body = r.get_data(as_text=True)
     ok = (r.status_code == 200 and "strawberry runs" in body.lower()
-          and "2026-09-04" in body and "2026-09-06" not in body)
+          and own_run in body and other_run not in body)
     print(f"  {'ok  ' if ok else 'FAIL'} {'my-deliveries lists own runs':<32}")
     if not ok:
         failures.append("my-deliveries runs")
@@ -319,6 +325,40 @@ def main():
     print(f"  {'ok  ' if ok else 'FAIL'} {'skips pop-up orders':<32}")
     if not ok:
         failures.append("day deliverer pop-up")
+
+    # ---- samples earn nothing ---------------------------------------------
+    print("\nsamples")
+    import re as _re
+
+    def sales_total():
+        body = cl.get("/owner/summary?month=2026-09").get_data(as_text=True)
+        m = _re.search(r'sum-label">Sales</span>\s*<span class="sum-value">'
+                       r'\$([\d,\.]+)', body)
+        return float(m.group(1).replace(",", "")), body
+
+    base, _ = sales_total()
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,qty_original,"
+                "note,created_at)"
+                " VALUES (1,'2026-09-09','2026-09-09',100,'Sample for a cafe','x')")
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,is_pickup,"
+                "qty_original,note,created_at)"
+                " VALUES (2,'2026-09-11','2026-09-11',1,80,'samples','x')")
+    con.commit()
+    after, body = sales_total()
+    ok = abs(after - base) < 0.005 and "given away as samples" in body
+    print(f"  {'ok  ' if ok else 'FAIL'} {'noted samples add no revenue':<32}")
+    if not ok:
+        failures.append("sample revenue")
+
+    # A normal order on the same client must still be charged.
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,qty_original,"
+                "note,created_at)"
+                " VALUES (1,'2026-09-16','2026-09-16',100,'','x')")
+    con.commit()
+    ok = abs(sales_total()[0] - (base + 520.0)) < 0.005
+    print(f"  {'ok  ' if ok else 'FAIL'} {'ordinary orders still charged':<32}")
+    if not ok:
+        failures.append("non-sample revenue")
 
     # ---- cost-spreadsheet parser -----------------------------------------
     print("\ncost sheet parser")
