@@ -71,9 +71,14 @@
         {% endfor %}
         <td style="text-align:right; font-weight:600">{{ o.total }}</td>
         <td style="text-align:center">
-          <input form="upd-{{ o.id }}" type="checkbox" name="is_pickup" value="1"
-                 {% if o.is_pickup %}checked{% endif %}
-                 onchange="toggleRowPickup(this, '{{ o.id }}')">
+          {% set kind = 'delivery' if not o.is_pickup
+                        else (o.pickup_kind or 'popup') %}
+          <select form="upd-{{ o.id }}" name="channel" style="width:7rem"
+                  onchange="toggleRowChannel(this, '{{ o.id }}')">
+            <option value="delivery" {% if kind == 'delivery' %}selected{% endif %}>🚚 Delivery</option>
+            <option value="popup"    {% if kind == 'popup' %}selected{% endif %}>🎪 Pop-up</option>
+            <option value="pickup"   {% if kind == 'pickup' %}selected{% endif %}>🛍️ Pick-up</option>
+          </select>
         </td>
         <td id="td-deliver-on-{{ o.id }}">
           <input form="upd-{{ o.id }}" type="date" name="delivery_date"
@@ -158,13 +163,13 @@
         Note
         <input type="text" name="note" placeholder="optional">
       </label>
-      <label class="field" style="align-self:flex-end; white-space:nowrap">
-        <span style="font-size:0.92rem">&nbsp;</span>
-        <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer; padding:0.3rem 0">
-          <input type="checkbox" name="is_pickup" value="1" id="add-is-pickup"
-                 onchange="toggleAddPickup(this)">
-          Pop-up (no delivery)
-        </label>
+      <label class="field" style="width:9rem">
+        How it goes out
+        <select name="channel" id="add-channel" onchange="toggleAddChannel(this)">
+          <option value="delivery">🚚 Delivery</option>
+          <option value="popup">🎪 Pop-up</option>
+          <option value="pickup">🛍️ Pick-up</option>
+        </select>
       </label>
       <div class="field">
         <span style="visibility:hidden; font-size:0.92rem">x</span>
@@ -191,27 +196,30 @@
         newField.style.display = 'none';
         inp.value = suggestions[this.value] || base;
       }
-      // Clients who only ever sell as pop-up start with the box ticked.
-      const cb = document.getElementById('add-is-pickup');
-      if (cb) {
-        cb.checked = popupClients.indexOf(parseInt(this.value, 10)) !== -1;
-        window.toggleAddPickup(cb);
+      // Clients who only ever sell as pop-up start on that channel.
+      const ch = document.getElementById('add-channel');
+      if (ch) {
+        ch.value = popupClients.indexOf(parseInt(this.value, 10)) !== -1
+          ? 'popup' : 'delivery';
+        window.toggleAddChannel(ch);
       }
     });
 
-    window.toggleAddPickup = function (cb) {
-      const hide = cb.checked;
+    // Neither a pop-up nor a pick-up needs a driver or a delivery date.
+    window.toggleAddChannel = function (sel) {
+      const hide = sel.value !== 'delivery';
       deliverField.style.opacity  = hide ? '0.35' : '';
       delivererField.style.opacity = hide ? '0.35' : '';
       deliverField.querySelector('input').disabled  = hide;
       delivererField.querySelector('select').disabled = hide;
     };
 
-    window.toggleRowPickup = function (cb, id) {
-      const hide = cb.checked;
+    window.toggleRowChannel = function (sel, id) {
+      const hide = sel.value !== 'delivery';
       document.getElementById('td-deliver-on-' + id).querySelector('input').disabled  = hide;
       document.getElementById('td-deliverer-'  + id).querySelector('select').disabled = hide;
-      document.getElementById('row-' + id).classList.toggle('row-pickup', hide);
+      document.getElementById('row-' + id).classList.toggle('row-pickup', sel.value === 'pickup');
+      document.getElementById('row-' + id).classList.toggle('row-popup', sel.value === 'popup');
     };
   })();
   </script>

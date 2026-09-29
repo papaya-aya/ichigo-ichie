@@ -115,6 +115,10 @@ ALTER TABLE clients  ADD COLUMN IF NOT EXISTS is_consignment    INTEGER NOT NULL
 ALTER TABLE shift_instances ADD COLUMN IF NOT EXISTS end_time TEXT;
 -- Clients whose orders are pop-up stock by default, not a delivery.
 ALTER TABLE clients  ADD COLUMN IF NOT EXISTS default_pickup    INTEGER NOT NULL DEFAULT 0;
+-- is_pickup means "no driver needed". This says which kind: a pop-up we sell
+-- ourselves, or an order the client collects. Both skip delivery, but they
+-- price differently.
+ALTER TABLE orders   ADD COLUMN IF NOT EXISTS pickup_kind TEXT NOT NULL DEFAULT 'popup';
 
 -- Actual sales reported by consignment clients, entered per month by the owner.
 CREATE TABLE IF NOT EXISTS consignment_sales (

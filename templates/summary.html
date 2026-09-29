@@ -47,7 +47,7 @@
         <th>Client</th>
         <th style="text-align:right">Pieces</th>
         <th style="text-align:right">Rate</th>
-        <th style="text-align:right">Reported sales</th>
+        <th style="text-align:right" title="Consignment: what they reported selling. Anyone else: a flat monthly amount that replaces the per-piece total.">Reported / flat</th>
         <th style="text-align:right">Revenue</th>
         <th>Basis</th>
       </tr>
@@ -62,6 +62,8 @@
           {{ r.pcs or '—' }}
           {% if r.popup_pcs %}<br><span class="muted" style="font-size:.75rem">
             {{ r.popup_pcs }} pop-up</span>{% endif %}
+          {% if r.pickup_pcs %}<br><span class="muted" style="font-size:.75rem">
+            {{ r.pickup_pcs }} pick-up</span>{% endif %}
           {% if r.sample_pcs %}<br><span class="muted" style="font-size:.75rem">
             {{ r.sample_pcs }} sample, free</span>{% endif %}
         </td>
@@ -76,11 +78,10 @@
           {% endif %}
         </td>
         <td style="text-align:right">
-          {% if r.is_consignment %}
-            <input type="number" name="cons_{{ r.client_id }}" min="0" step="0.01"
-                   value="{{ '%.2f'|format(r.gross) if r.gross else '' }}"
-                   placeholder="0.00" style="width:7rem; text-align:right">
-          {% else %}<span class="muted">—</span>{% endif %}
+          <input type="number" name="cons_{{ r.client_id }}" min="0" step="0.01"
+                 value="{{ '%.2f'|format(r.gross) if r.gross else '' }}"
+                 placeholder="—" style="width:7rem; text-align:right"
+                 title="{% if r.is_consignment %}What the client reported selling; we keep 80%.{% else %}A flat amount for the month. Fill this in and it replaces the per-piece calculation.{% endif %}">
         </td>
         <td style="text-align:right; font-weight:600">${{ '%.2f'|format(r.revenue) }}</td>
         <td class="muted" style="font-size:.82rem">{{ r.basis }}</td>

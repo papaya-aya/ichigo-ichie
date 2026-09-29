@@ -314,6 +314,40 @@ def migrate_db():
         )
         conn.commit()
 
+    # 2026-09-29: September corrections (one-time).
+    #  - George and Grace collected their orders, so they are pick-ups, not
+    #    pop-ups, and price at the pick-up rate.
+    #  - W San Francisco was a single wholesale lot billed at $500 for the
+    #    month, not a per-piece sale. Recorded as a flat monthly amount.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='sept_2026_channel_fixes'"
+    ).fetchone():
+        conn.execute(
+            """UPDATE orders SET is_pickup=1, pickup_kind='pickup',
+                                 deliverer='', delivery_date=NULL
+                WHERE client_id IN (SELECT id FROM clients
+                                     WHERE name IN ('George', 'Grace'))
+                  AND COALESCE(delivery_date, orders.date) LIKE ?""",
+            ("2026-09-%",),
+        )
+        wsf = conn.execute(
+            "SELECT id FROM clients WHERE name = 'W San Francisco'"
+        ).fetchone()
+        if wsf:
+            conn.execute(
+                """INSERT INTO consignment_sales (client_id, month, amount)
+                        VALUES (?, '2026-09', 500)
+                   ON CONFLICT (client_id, month)
+                     DO UPDATE SET amount = EXCLUDED.amount""",
+                (wsf["id"],),
+            )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('sept_2026_channel_fixes', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     # 2026-08-26: the owner's Expense & Sales Ledger itemises every card and
     # cash purchase, so the aggregated Amex rows seeded from the bank exports
     # are the same money counted twice. Drop those and let the ledger own them.

@@ -360,6 +360,62 @@ def main():
     if not ok:
         failures.append("non-sample revenue")
 
+    # ---- pick-up as its own channel ---------------------------------------
+    print("\npick-up channel")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (9,'Grace',1)")
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,is_pickup,"
+                "pickup_kind,qty_original,created_at)"
+                " VALUES (9,'2026-09-09','2026-09-09',1,'popup',100,'x')")
+    con.commit()
+    as_popup = sales_total()[0]
+    con.execute("UPDATE orders SET pickup_kind='pickup' WHERE client_id=9")
+    con.commit()
+    as_pickup, body = sales_total()
+    # 100 x 7.20 less 10% waste = 648; 100 x 6.50 pick-up = 650
+    ok = abs((as_pickup - as_popup) - 2.00) < 0.005
+    print(f"  {'ok  ' if ok else 'FAIL'} {'priced at the pick-up rate':<32}")
+    if not ok:
+        failures.append("pick-up rate")
+
+    # A pick-up needs no driver, so it must not reach the delivery queries.
+    needing = {r["name"] for r in con.execute(
+        """SELECT c.name FROM orders o JOIN clients c ON c.id=o.client_id
+            WHERE COALESCE(o.delivery_date,o.date) LIKE '2026-09-%'
+              AND (o.is_pickup IS NULL OR o.is_pickup=0)""")}
+    ok = "Grace" not in needing
+    print(f"  {'ok  ' if ok else 'FAIL'} {'never asks for a driver':<32}")
+    if not ok:
+        failures.append("pick-up driver")
+
+    # Saving one through the order form.
+    cl.post("/owner/orders/2026-09-09", data={
+        "action": "add", "client_id": "9", "channel": "pickup",
+        "qty_original": "40", "delivery_date": "2026-09-09"},
+        follow_redirects=True)
+    row = con.execute("SELECT is_pickup, pickup_kind FROM orders"
+                      " WHERE client_id=9 AND qty_original=40").fetchone()
+    ok = row is not None and row["is_pickup"] == 1 and row["pickup_kind"] == "pickup"
+    print(f"  {'ok  ' if ok else 'FAIL'} {'order form saves the channel':<32}")
+    if not ok:
+        failures.append("pick-up form")
+
+    # ---- flat monthly amount ----------------------------------------------
+    print("\nflat monthly amount")
+    before = sales_total()[0]
+    con.execute("INSERT INTO clients (id,name,active,unit_price)"
+                " VALUES (10,'W San Francisco',1,5.00)")
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,qty_original,"
+                "created_at) VALUES (10,'2026-09-10','2026-09-10',300,'x')")
+    con.execute("INSERT INTO consignment_sales (client_id,month,amount)"
+                " VALUES (10,'2026-09',500)")
+    con.commit()
+    after, body = sales_total()
+    # 300 pcs would be $1500 per-piece; the flat figure replaces it.
+    ok = abs((after - before) - 500.0) < 0.005 and "flat amount entered" in body
+    print(f"  {'ok  ' if ok else 'FAIL'} {'replaces the per-piece total':<32}")
+    if not ok:
+        failures.append("flat amount")
+
     # ---- cost-spreadsheet parser -----------------------------------------
     print("\ncost sheet parser")
     parse = harness.appmod.parse_cost_sheet
