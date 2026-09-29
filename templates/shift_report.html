@@ -68,7 +68,7 @@
         <tr data-wid="{{ w.employee_id }}">
           <td>
             {{ w.name }}
-            {% if w.is_manager %}<span class="pill">👑</span>{% endif %}
+            {% if w.is_manager == 2 %}<span class="pill">⭐</span>{% elif w.is_manager %}<span class="pill">👑</span>{% endif %}
           </td>
           <td class="muted">{{ w.sched_start }}–{{ w.sched_end }}</td>
           <td>

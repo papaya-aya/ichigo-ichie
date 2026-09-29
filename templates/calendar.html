@@ -172,7 +172,7 @@ function copyPubLink() {
               {% elif early %}{% set time_note = 'until ' ~ p.end %}
               {% elif late  %}{% set time_note = 'from '  ~ p.start %}
               {% else %}{% set time_note = '' %}{% endif %}
-              {% set label %}{{ p.name }}{% if p.is_manager %} 👑{% endif %}{% if time_note %} <span style="font-weight:400;font-size:.78em;opacity:.75">({{ time_note }})</span>{% endif %}{% endset %}
+              {% set label %}{{ p.name }}{% if p.is_manager == 2 %} ⭐{% elif p.is_manager %} 👑{% endif %}{% if time_note %} <span style="font-weight:400;font-size:.78em;opacity:.75">({{ time_note }})</span>{% endif %}{% endset %}
               {% if current_emp_id and p.employee_id == current_emp_id %}
                 <span class="pill shift-me">{{ label }}</span>
               {% else %}

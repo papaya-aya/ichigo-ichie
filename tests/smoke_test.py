@@ -387,6 +387,54 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- chief manager ---------------------------------------------------
+    # Selectable only on shifts from 2026-10-01, and paid +5% like a manager.
+    print("\nchief manager")
+    con.execute("INSERT INTO shift_instances (id,template_id,date)"
+                " VALUES (2,1,'2026-10-07')")
+    con.commit()
+
+    def save_roles(instance_id, yumi_role):
+        cl.post(f"/owner/schedule/{instance_id}", data={
+            "action": "save", "include": ["1", "2"],
+            "role_1": str(yumi_role), "role_2": "0"})
+        return {r["employee_id"]: r["is_manager"] for r in con.execute(
+            "SELECT employee_id, is_manager FROM assignments"
+            " WHERE shift_instance_id=?", (instance_id,)).fetchall()}
+
+    sept_page = cl.get("/owner/schedule/1").get_data(as_text=True)
+    oct_page  = cl.get("/owner/schedule/2").get_data(as_text=True)
+    oct_roles  = save_roles(2, 2)
+    sept_roles = save_roles(1, 2)
+    save_roles(1, 1)
+    con.execute("UPDATE assignments SET is_manager=2"
+                " WHERE shift_instance_id=1 AND employee_id=1")
+    con.commit()
+    with harness.flask_app.test_request_context():
+        from flask import g
+        g.db = harness.stub.get_db()
+        pv = harness.appmod._shift_report_preview(90, 1, "2026-09-02")
+    chief = next(p for p in pv["people"] if p["name"] == "Yumi")
+    # Only a manager, not a chief manager, may submit the shift report.
+    chief_report = emp.get("/my-shift/1/report")
+    con.execute("UPDATE assignments SET is_manager=1"
+                " WHERE shift_instance_id=1 AND employee_id=1")
+    con.commit()
+    mgr_report = emp.get("/my-shift/1/report")
+    checks = [
+        ("option hidden before Oct",  "Chief manager" not in sept_page),
+        ("option shown from Oct",     "Chief manager" in oct_page),
+        ("Oct shift saves chief",     oct_roles == {1: 2, 2: 0}),
+        ("Sept shift clamps to mgr",  sept_roles == {1: 1, 2: 0}),
+        ("chief pay +5%",             abs(chief["pay"] - yumi["pay"]) < 0.005),
+        ("chief cannot file report",  chief_report.status_code == 302),
+        ("manager can file report",   mgr_report.status_code == 200),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(label)
+
     print("\nfailures:", failures or "none")
     return 1 if failures else 0
 

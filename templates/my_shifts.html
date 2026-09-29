@@ -78,14 +78,16 @@
         </td>
         <td><b>{{ s.window }}</b></td>
         <td>
-          {% if s.is_manager %}
+          {% if s.is_manager == 2 %}
+            <span class="pill">⭐ Chief manager</span>
+          {% elif s.is_manager %}
             <span class="pill">👑 Manager</span>
           {% else %}
             <span class="muted">—</span>
           {% endif %}
         </td>
         <td>
-          {% if s.is_manager %}
+          {% if s.is_manager == 1 %}
             {% if s.confirmed %}
               <span class="ok">✓ Hours confirmed</span>
               <a class="btn btn-ghost btn-sm" style="margin-left:.3rem" href="{{ url_for('shift_report', instance_id=s.instance_id) }}">Edit</a>
@@ -194,7 +196,8 @@
         </td>
         <td style="text-align:right"><b>${{ "%.2f"|format(s.pay) }}</b></td>
         <td>
-          {% if s.is_manager %}<span class="pill">👑 +5%</span>
+          {% if s.is_manager == 2 %}<span class="pill">⭐ Chief +5%</span>
+          {% elif s.is_manager %}<span class="pill">👑 +5%</span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
       </tr>

@@ -137,7 +137,7 @@
         Check the <a href="{{ url_for('approvals') }}">approvals</a> page.</p>
     {% else %}
     <table>
-      <thead><tr><th>Include</th><th>Name</th><th>Available</th><th>Assign window</th><th title="Manager gets +5% pay">Manager 👑</th></tr></thead>
+      <thead><tr><th>Include</th><th>Name</th><th>Available</th><th>Assign window</th><th title="Manager and chief manager get +5% pay">Role</th></tr></thead>
       <tbody>
         {% for c in candidates %}
         <tr>
@@ -153,8 +153,11 @@
                    min="{{ inst.start_time }}" max="{{ inst.end_time }}">
           </td>
           <td style="text-align:center">
-            <input type="checkbox" name="manager" value="{{ c.employee_id }}"
-                   {% if c.is_manager %}checked{% endif %}>
+            <select name="role_{{ c.employee_id }}" aria-label="Role">
+              <option value="0">—</option>
+              <option value="1"{% if c.is_manager == 1 %} selected{% endif %}>Manager 👑</option>
+              {% if chief_allowed %}<option value="2"{% if c.is_manager == 2 %} selected{% endif %}>Chief manager ⭐</option>{% endif %}
+            </select>
           </td>
         </tr>
         {% endfor %}
@@ -168,7 +171,7 @@
     <h2 style="margin-top:0">Add someone without availability</h2>
     <p class="muted" style="margin-top:-.4rem; font-size:.88rem">These people didn't submit availability for this shift. Tick the box to add them manually.</p>
     <table>
-      <thead><tr><th>Add?</th><th>Name</th><th>Assign window</th><th title="Manager gets +5% pay">Manager 👑</th></tr></thead>
+      <thead><tr><th>Add?</th><th>Name</th><th>Assign window</th><th title="Manager and chief manager get +5% pay">Role</th></tr></thead>
       <tbody>
         {% for e in other_employees %}
         <tr>
@@ -182,7 +185,11 @@
                    min="{{ inst.start_time }}" max="{{ inst.end_time }}">
           </td>
           <td style="text-align:center">
-            <input type="checkbox" name="manager" value="{{ e.employee_id }}">
+            <select name="role_{{ e.employee_id }}" aria-label="Role">
+              <option value="0">—</option>
+              <option value="1">Manager 👑</option>
+              {% if chief_allowed %}<option value="2">Chief manager ⭐</option>{% endif %}
+            </select>
           </td>
         </tr>
         {% endfor %}

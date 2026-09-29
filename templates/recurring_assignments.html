@@ -52,7 +52,7 @@
         <td class="muted">
           {{ ra.start_time or ra.tmpl_start }}–{{ ra.end_time or ra.tmpl_end }}
         </td>
-        <td style="text-align:center">{% if ra.is_manager %}👑{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td style="text-align:center">{% if ra.is_manager == 2 %}⭐ Chief{% elif ra.is_manager %}👑{% else %}<span class="muted">—</span>{% endif %}</td>
         <td>
           <form method="post" action="{{ url_for('delete_recurring_assignment') }}" class="inline-form"
                 onsubmit="return confirm('Remove this standing assignment?')">
@@ -124,7 +124,11 @@
       <label class="field" style="align-self:flex-end">
         <span style="visibility:hidden; font-size:.9rem">x</span>
         <label style="display:flex; align-items:center; gap:.4rem; cursor:pointer; padding:.3rem 0; white-space:nowrap">
-          <input type="checkbox" name="is_manager" value="1"> Manager 👑
+          <select name="is_manager" aria-label="Role" title="Chief manager applies to shifts from {{ chief_from }}; earlier shifts get manager">
+            <option value="0">Crew</option>
+            <option value="1">Manager 👑</option>
+            <option value="2">Chief manager ⭐</option>
+          </select>
         </label>
       </label>
 

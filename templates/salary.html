@@ -3,7 +3,7 @@
 <h1>Salary report</h1>
 <p class="subtitle">
   Production rate = (${{ piece_rate }} × daifuku) ÷ total person-hours.
-  Manager +5%. Gusto hours = (wage + transport) ÷ ${{ gusto_rate }}/hr.
+  Manager and chief manager +5%. Gusto hours = (wage + transport) ÷ ${{ gusto_rate }}/hr.
 </p>
 
 {# ── Date-range picker ──────────────────────────────────────────────────── #}
@@ -231,7 +231,8 @@
         </td>
         <td style="text-align:right"><b>${{ "%.2f"|format(s.pay) }}</b></td>
         <td>
-          {% if s.is_manager %}<span class="pill" title="+5%">👑 Mgr</span>
+          {% if s.is_manager == 2 %}<span class="pill" title="+5%">⭐ Chief</span>
+          {% elif s.is_manager %}<span class="pill" title="+5%">👑 Mgr</span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
       </tr>

@@ -31,6 +31,21 @@ database.migrate_db()
 
 WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
+# assignments.is_manager / recurring_assignments.is_manager hold a role level:
+# 0 = crew, 1 = manager, 2 = chief manager. Both manager levels get +5% pay.
+ROLE_MANAGER = 1
+ROLE_CHIEF   = 2
+# Chief manager can only be assigned on shifts from this date onward.
+CHIEF_MANAGER_FROM = "2026-10-01"
+
+
+def role_for_date(role, date):
+    """Clamp a requested role to what is allowed on this shift date."""
+    role = max(0, min(_int(str(role or 0)), ROLE_CHIEF))
+    if role == ROLE_CHIEF and date < CHIEF_MANAGER_FROM:
+        return ROLE_MANAGER
+    return role
+
 
 # ---------------------------------------------------------------------------
 # Request lifecycle
@@ -620,7 +635,7 @@ def my_shifts():
             "label":         r["label"],
             "shift_hours":   f"{r['shift_start']}–{r['shift_end']}",
             "window":        window,
-            "is_manager":    bool(r["is_manager"]),
+            "is_manager":    r["is_manager"] or 0,
             "confirmed":     bool(r["actual_start"]),
             "instance_id":   r["instance_id"],
             "report_status": r["report_status"],
@@ -671,7 +686,7 @@ def my_shifts():
             "pieces":      pieces,
             "rate":        round(rate, 2),
             "pay":         round(pay, 2),
-            "is_manager":  bool(r["is_manager"]),
+            "is_manager":  r["is_manager"] or 0,
         })
         total_hours += hrs
         total_pay   += pay
@@ -1538,6 +1553,7 @@ def recurring_assignments():
         by_template=by_template,
         weekday_names=WEEKDAY_NAMES,
         next_month=next_month_str(),
+        chief_from=CHIEF_MANAGER_FROM,
     )
 
 
@@ -1550,7 +1566,7 @@ def add_recurring_assignment():
     end_date    = request.form.get("end_date", "").strip() or None
     start_time  = request.form.get("start_time", "").strip() or None
     end_time    = request.form.get("end_time", "").strip() or None
-    is_manager  = 1 if request.form.get("is_manager") else 0
+    is_manager  = max(0, min(_int(request.form.get("is_manager", "0")), ROLE_CHIEF))
     if not emp_id or not template_id or not start_date:
         flash("Employee, shift, and start date are required.", "error")
         return redirect(url_for("recurring_assignments"))
@@ -1639,16 +1655,17 @@ def apply_recurring_assignments():
                 start = ra["start_time"] or ra["tmpl_start"]
                 end   = ra["end_time"]   or ra["tmpl_end"]
 
+            role = role_for_date(ra["is_manager"], inst["date"])
             existing = g.db.execute(
                 "SELECT id, is_manager FROM assignments WHERE shift_instance_id=? AND employee_id=?",
                 (inst["instance_id"], emp_id),
             ).fetchone()
             if existing:
-                # Promote to manager if the recurring assignment says so and they aren't already.
-                if ra["is_manager"] and not existing["is_manager"]:
+                # Promote if the recurring assignment gives a higher role than they have.
+                if role > (existing["is_manager"] or 0):
                     g.db.execute(
-                        "UPDATE assignments SET is_manager=1 WHERE id=?",
-                        (existing["id"],),
+                        "UPDATE assignments SET is_manager=? WHERE id=?",
+                        (role, existing["id"]),
                     )
                 skipped += 1
             else:
@@ -1656,7 +1673,7 @@ def apply_recurring_assignments():
                     """INSERT INTO assignments
                          (shift_instance_id, employee_id, start_time, end_time, is_manager)
                        VALUES (?, ?, ?, ?, ?)""",
-                    (inst["instance_id"], emp_id, start, end, ra["is_manager"]),
+                    (inst["instance_id"], emp_id, start, end, role),
                 )
                 added += 1
 
@@ -2075,7 +2092,7 @@ def _compute_salary(date_from, date_to):
             "pieces":      inst["pieces"],
             "rate":        round(inst["rate"], 2),
             "pay":         round(pay, 2),
-            "is_manager":  bool(r["is_manager"]),
+            "is_manager":  r["is_manager"] or 0,
         })
         employees_data[eid]["total_hours"] += hrs
         employees_data[eid]["total_pay"]   += pay
@@ -3777,9 +3794,10 @@ def shift_detail(instance_id):
 
         elif action == "save":
             chosen_ids = [int(x) for x in request.form.getlist("include")]
-            manager_ids = {int(x) for x in request.form.getlist("manager")}
-            if default_mgr:
-                manager_ids.add(default_mgr)
+            roles = {cid: role_for_date(request.form.get(f"role_{cid}"), inst["date"])
+                     for cid in chosen_ids}
+            if default_mgr in roles:
+                roles[default_mgr] = max(roles[default_mgr], ROLE_MANAGER)
             # All active employees (for manual assignments)
             all_emp = {r["id"]: r["name"] for r in g.db.execute(
                 "SELECT id, name FROM employees WHERE active=1"
@@ -3797,7 +3815,7 @@ def shift_detail(instance_id):
                 g.db.execute(
                     "INSERT INTO assignments (shift_instance_id, employee_id, start_time, end_time, is_manager)"
                     " VALUES (?, ?, ?, ?, ?)",
-                    (instance_id, cid, start, end, 1 if cid in manager_ids else 0),
+                    (instance_id, cid, start, end, roles[cid]),
                 )
             g.db.commit()
             for e in errors:
@@ -3835,7 +3853,7 @@ def shift_detail(instance_id):
             "included":       a is not None,
             "assigned_start": a["start"]      if a else c["start"],
             "assigned_end":   a["end"]        if a else c["end"],
-            "is_manager":     bool(a["is_manager"]) if a else False,
+            "is_manager":     (a["is_manager"] or 0) if a else 0,
         })
 
     # All active employees NOT already in cand_rows (for manual add)
@@ -3867,6 +3885,7 @@ def shift_detail(instance_id):
         shift_report=shift_report,
         totals=totals, orders=orders, staff=staff, flavors=FLAVORS,
         strawberry_price=STRAWBERRY_PRICE,
+        chief_allowed=inst["date"] >= CHIEF_MANAGER_FROM,
         back=back,
     )
 
@@ -4218,7 +4237,7 @@ def _shift_report_preview(report_id, instance_id, shift_date):
         end   = rep["actual_end"]   if rep else (a["actual_end"]   or a["end_time"])
         people.append({
             "name":        a["name"],
-            "is_manager":  bool(a["is_manager"]),
+            "is_manager":  a["is_manager"] or 0,
             "sched":       f"{a['start_time']}–{a['end_time']}",
             "reported":    bool(rep),
             "window":      f"{start}–{end}",
@@ -4233,7 +4252,7 @@ def _shift_report_preview(report_id, instance_id, shift_date):
         if eid not in assigned_ids:
             people.append({
                 "name":       rep["name"],
-                "is_manager": False,
+                "is_manager": 0,
                 "sched":      "—",
                 "reported":   True,
                 "window":     f"{rep['actual_start']}–{rep['actual_end']}",

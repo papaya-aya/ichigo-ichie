@@ -55,7 +55,7 @@
     <div class="shift-people">
       {% if row.people %}
         {% for p in row.people %}
-          <span class="pill shift-other">{{ p.name }}{% if p.is_manager %} 👑{% endif %}</span>
+          <span class="pill shift-other">{{ p.name }}{% if p.is_manager == 2 %} ⭐{% elif p.is_manager %} 👑{% endif %}</span>
         {% endfor %}
         {% if row.n_assigned < row.inst.min_people %}
           <span class="warn" style="font-size:0.8rem">need {{ row.inst.min_people - row.n_assigned }} more</span>

@@ -88,7 +88,7 @@
         <div class="shift-people">
           {% if day.shift.people %}
             {% for p in day.shift.people %}
-              <span class="pill shift-other">{{ p.name }}{% if p.is_manager %} 👑{% endif %}</span>
+              <span class="pill shift-other">{{ p.name }}{% if p.is_manager == 2 %} ⭐{% elif p.is_manager %} 👑{% endif %}</span>
             {% endfor %}
           {% else %}
             <span class="muted" style="font-size:0.85rem">Not yet assigned</span>
