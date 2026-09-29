@@ -274,3 +274,6 @@ CREATE TABLE IF NOT EXISTS day_notes (
   note       TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL
 );
+
+-- Default chief manager per weekday, applied only to shifts from 2026-10-01.
+ALTER TABLE weekday_managers ADD COLUMN IF NOT EXISTS chief_employee_id INTEGER REFERENCES employees(id);

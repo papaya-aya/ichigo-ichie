@@ -236,10 +236,10 @@
 
 <div class="card">
   <h2 style="margin-top:0">Weekly managers</h2>
-  <p class="muted" style="margin-top:-.3rem">Default manager per production day. They are auto-marked 👑 when shifts are assigned.</p>
+  <p class="muted" style="margin-top:-.3rem">Default manager and chief manager per production day. They are auto-marked 👑 / ⭐ when shifts are assigned. The chief manager applies to shifts from {{ chief_from }} only.</p>
   <form method="post" action="{{ url_for('set_weekday_managers') }}">
     <table>
-      <thead><tr><th>Day</th><th>Manager</th></tr></thead>
+      <thead><tr><th>Day</th><th>Manager 👑</th><th>Chief manager ⭐</th></tr></thead>
       <tbody>
         {% for wd, day in [(0,'Monday'),(1,'Tuesday'),(2,'Wednesday'),(4,'Friday')] %}
         <tr>
@@ -250,6 +250,17 @@
               {% for e in employees if e.active %}
                 <option value="{{ e.id }}"
                   {% if weekday_managers.get(wd) == e.id %}selected{% endif %}>
+                  {{ e.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select name="chief_{{ wd }}" style="width:12rem">
+              <option value="">— none —</option>
+              {% for e in employees if e.active %}
+                <option value="{{ e.id }}"
+                  {% if weekday_chiefs.get(wd) == e.id %}selected{% endif %}>
                   {{ e.name }}
                 </option>
               {% endfor %}

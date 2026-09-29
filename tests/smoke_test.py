@@ -421,7 +421,21 @@ def main():
                 " WHERE shift_instance_id=1 AND employee_id=1")
     con.commit()
     mgr_report = emp.get("/my-shift/1/report")
+    # Weekly default chief manager (Wednesday = Yumi): chief from Oct,
+    # manager before.
+    cl.post("/owner/settings/weekday-managers",
+            data={"mgr_2": "", "chief_2": "1"})
+    input_page = cl.get("/owner").get_data(as_text=True)
+    wk_oct  = save_roles(2, 0)
+    wk_sept = save_roles(1, 0)
+    cl.post("/owner/settings/weekday-managers", data={})
+    wm_left = con.execute("SELECT COUNT(*) FROM weekday_managers").fetchone()[0]
+    save_roles(1, 1)
     checks = [
+        ("weekly chief on Input",     'name="chief_2"' in input_page),
+        ("weekly chief from Oct",     wk_oct == {1: 2, 2: 0}),
+        ("weekly chief mgr pre-Oct",  wk_sept == {1: 1, 2: 0}),
+        ("weekly defaults clear",     wm_left == 0),
         ("option hidden before Oct",  "Chief manager" not in sept_page),
         ("option shown from Oct",     "Chief manager" in oct_page),
         ("Oct shift saves chief",     oct_roles == {1: 2, 2: 0}),
