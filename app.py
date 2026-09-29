@@ -39,6 +39,28 @@ ROLE_CHIEF   = 2
 CHIEF_MANAGER_FROM = "2026-10-01"
 
 
+# Managers get +5% on top of their share of the piece pool. Chief managers
+# don't: instead their 15-minute early start (anko checks and production)
+# counts as worked time.
+MANAGER_BONUS = 1.05
+EARLY_START_MINUTES = 15
+
+
+def pay_multiplier(role):
+    return MANAGER_BONUS if role == ROLE_MANAGER else 1.0
+
+
+def paid_start(start_time, actual_start, role):
+    """Start time that pay is counted from. Reported times are used as-is.
+    Until then, a chief manager's shift counts from 15 minutes before their
+    scheduled start."""
+    if actual_start:
+        return actual_start
+    if role == ROLE_CHIEF:
+        return to_hhmm(max(0, to_minutes(start_time) - EARLY_START_MINUTES))
+    return start_time
+
+
 def role_for_date(role, date):
     """Clamp a requested role to what is allowed on this shift date."""
     role = max(0, min(_int(str(role or 0)), ROLE_CHIEF))
@@ -655,7 +677,7 @@ def my_shifts():
 
     # Shifts in the pay period
     pay_rows = g.db.execute(
-        """SELECT COALESCE(a.actual_start, a.start_time) AS a_start,
+        """SELECT a.start_time,
                   COALESCE(a.actual_end,   a.end_time)   AS a_end,
                   a.actual_start, a.is_manager,
                   si.id AS instance_id, si.date, t.weekday, t.label
@@ -674,21 +696,25 @@ def my_shifts():
     for r in pay_rows:
         # total person-hours across the whole shift (for rate calc)
         all_assigned = g.db.execute(
-            """SELECT COALESCE(actual_start, start_time) AS s,
+            """SELECT start_time, actual_start, is_manager,
                       COALESCE(actual_end,   end_time)   AS e
                  FROM assignments WHERE shift_instance_id = ?""",
             (r["instance_id"],),
         ).fetchall()
-        total_ph = sum((to_minutes(a["e"]) - to_minutes(a["s"])) / 60.0 for a in all_assigned)
+        total_ph = sum(
+            (to_minutes(a["e"]) - to_minutes(
+                paid_start(a["start_time"], a["actual_start"], a["is_manager"]))) / 60.0
+            for a in all_assigned)
         pieces = production.day_totals(g.db, r["date"])["total"]
         rate   = (pr * pieces / total_ph) if (total_ph > 0 and pieces > 0) else 0.0
-        hrs    = (to_minutes(r["a_end"]) - to_minutes(r["a_start"])) / 60.0
-        pay    = hrs * rate * (1.05 if r["is_manager"] else 1.0)
+        a_start = paid_start(r["start_time"], r["actual_start"], r["is_manager"])
+        hrs    = (to_minutes(r["a_end"]) - to_minutes(a_start)) / 60.0
+        pay    = hrs * rate * pay_multiplier(r["is_manager"])
         shifts_pay.append({
             "date":        r["date"],
             "weekday":     WEEKDAY_NAMES[r["weekday"]],
             "label":       r["label"],
-            "time_window": f"{r['a_start']}–{r['a_end']}",
+            "time_window": f"{a_start}–{r['a_end']}",
             "confirmed":   bool(r["actual_start"]),
             "hours":       round(hrs, 2),
             "pieces":      pieces,
@@ -2039,7 +2065,6 @@ def _compute_salary(date_from, date_to):
     # --- regular shift assignments ---
     rows = g.db.execute(
         """SELECT a.employee_id, e.name,
-                  COALESCE(a.actual_start, a.start_time) AS a_start,
                   COALESCE(a.actual_end,   a.end_time)   AS a_end,
                   a.start_time, a.end_time,
                   a.actual_start, a.actual_end,
@@ -2068,7 +2093,8 @@ def _compute_salary(date_from, date_to):
                 "pieces": 0,
                 "rate": 0.0,
             }
-        hrs = (to_minutes(r["a_end"]) - to_minutes(r["a_start"])) / 60.0
+        a_start = paid_start(r["start_time"], r["actual_start"], r["is_manager"])
+        hrs = (to_minutes(r["a_end"]) - to_minutes(a_start)) / 60.0
         instance_info[iid]["person_hours"] += hrs
 
     for iid, info in instance_info.items():
@@ -2090,9 +2116,10 @@ def _compute_salary(date_from, date_to):
                 "total_transport": 0.0,
             }
         inst = instance_info[r["instance_id"]]
-        hrs  = (to_minutes(r["a_end"]) - to_minutes(r["a_start"])) / 60.0
+        a_start = paid_start(r["start_time"], r["actual_start"], r["is_manager"])
+        hrs  = (to_minutes(r["a_end"]) - to_minutes(a_start)) / 60.0
         base = hrs * inst["rate"]
-        pay  = base * 1.05 if r["is_manager"] else base
+        pay  = base * pay_multiplier(r["is_manager"])
         strawberries = r["strawberries_bought"] or 0
         strawberry_cost = strawberries * STRAWBERRY_PRICE
         confirmed = bool(r["actual_start"])
@@ -2100,7 +2127,7 @@ def _compute_salary(date_from, date_to):
             "date":        inst["date"],
             "weekday":     inst["weekday"],
             "label":       inst["label"],
-            "time_window": f"{r['a_start']}–{r['a_end']}",
+            "time_window": f"{a_start}–{r['a_end']}",
             "confirmed":   confirmed,
             "hours":       round(hrs, 2),
             "pieces":      inst["pieces"],
@@ -4199,7 +4226,7 @@ def shift_report(instance_id):
         flash("Report submitted — inventory & memo sent to Slack. The owner will confirm hours.", "success")
         return redirect(url_for("my_shifts"))
 
-    manager_early = to_hhmm(max(0, to_minutes(inst["start_time"]) - 15))
+    manager_early = to_hhmm(max(0, to_minutes(inst["start_time"]) - EARLY_START_MINUTES))
     return render_template(
         "shift_report.html",
         inst=inst, weekday=WEEKDAY_NAMES[inst["weekday"]],
@@ -4223,7 +4250,7 @@ def _shift_report_preview(report_id, instance_id, shift_date):
     """What approving a report would pay, for the owner to check before approving.
 
     Display only — mirrors _compute_salary: the day's piece pool (piece rate ×
-    pieces made) split over total person-hours, manager +5%. On approval the
+    pieces made) split over total person-hours, manager +5% (not chief). On approval the
     reported times overwrite the assignment times, so they are used here in
     place of the scheduled ones.
     """
@@ -4249,7 +4276,8 @@ def _shift_report_preview(report_id, instance_id, shift_date):
     people = []
     for a in assigned:
         rep = reported.get(a["employee_id"])
-        start = rep["actual_start"] if rep else (a["actual_start"] or a["start_time"])
+        start = rep["actual_start"] if rep else paid_start(
+            a["start_time"], a["actual_start"], a["is_manager"])
         end   = rep["actual_end"]   if rep else (a["actual_end"]   or a["end_time"])
         people.append({
             "name":        a["name"],
@@ -4283,7 +4311,7 @@ def _shift_report_preview(report_id, instance_id, shift_date):
     total_pay = 0.0
     for p in people:
         if p["paid"] and p["hours"] is not None:
-            p["pay"] = p["hours"] * rate * (1.05 if p["is_manager"] else 1.0)
+            p["pay"] = p["hours"] * rate * pay_multiplier(p["is_manager"])
             total_pay += p["pay"]
         else:
             p["pay"] = None

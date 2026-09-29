@@ -388,7 +388,8 @@ def main():
             failures.append(label)
 
     # ---- chief manager ---------------------------------------------------
-    # Selectable only on shifts from 2026-10-01, and paid +5% like a manager.
+    # Selectable only on shifts from 2026-10-01. No +5%: instead paid from
+    # 15 minutes before the scheduled start.
     print("\nchief manager")
     con.execute("INSERT INTO shift_instances (id,template_id,date)"
                 " VALUES (2,1,'2026-10-07')")
@@ -431,16 +432,38 @@ def main():
     cl.post("/owner/settings/weekday-managers", data={})
     wm_left = con.execute("SELECT COUNT(*) FROM weekday_managers").fetchone()[0]
     save_roles(1, 1)
+    # Unreported Oct shift, Yumi chief 06:45–09:30, Saku crew 06:45–09:30:
+    # Yumi counts from 06:30, so 3.0 h of 5.75 person-hours in the pool.
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,qty_original,"
+                "created_at) VALUES (1,'2026-10-07','2026-10-07',100,'x')")
+    con.commit()
+    with harness.flask_app.test_request_context():
+        from flask import g
+        g.db = harness.stub.get_db()
+        sal = harness.appmod._compute_salary("2026-10-07", "2026-10-07")
+        oct_pieces = harness.appmod.production.day_totals(
+            g.db, "2026-10-07")["total"]
+    oct_shift = {e["name"]: e["shifts"][0] for e in sal["employees"]}
+    oct_rate = pr * oct_pieces / 5.75
     checks = [
         ("weekly chief on Input",     'name="chief_2"' in input_page),
         ("weekly chief from Oct",     wk_oct == {1: 2, 2: 0}),
         ("weekly chief mgr pre-Oct",  wk_sept == {1: 1, 2: 0}),
         ("weekly defaults clear",     wm_left == 0),
-        ("option hidden before Oct",  "Chief manager" not in sept_page),
-        ("option shown from Oct",     "Chief manager" in oct_page),
+        ("option hidden before Oct",  ">Chief manager ⭐<" not in sept_page),
+        ("option shown from Oct",     ">Chief manager ⭐<" in oct_page),
         ("Oct shift saves chief",     oct_roles == {1: 2, 2: 0}),
         ("Sept shift clamps to mgr",  sept_roles == {1: 1, 2: 0}),
-        ("chief pay +5%",             abs(chief["pay"] - yumi["pay"]) < 0.005),
+        ("chief reported: no +5%",    abs(chief["pay"] - 3.5 * rate) < 0.005),
+        ("chief pool fully paid out", abs(pv["total_pay"] - pr * pieces) < 0.005),
+        ("chief counts 15 min early", oct_shift["Yumi"]["hours"] == 3.0
+                                      and oct_shift["Yumi"]["time_window"]
+                                      == "06:30–09:30"),
+        ("chief early pay, no +5%",   oct_pieces > 0 and abs(
+                                      oct_shift["Yumi"]["pay"] - 3.0 * oct_rate)
+                                      < 0.005),
+        ("crew share of pool",        abs(oct_shift["Saku"]["pay"]
+                                          - 2.75 * oct_rate) < 0.005),
         ("chief cannot file report",  chief_report.status_code == 302),
         ("manager can file report",   mgr_report.status_code == 200),
     ]

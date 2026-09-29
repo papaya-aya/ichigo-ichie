@@ -188,7 +188,7 @@
             <tbody>
               {% for p in pv.people %}
               <tr>
-                <td>{{ p.name }}{% if p.is_manager == 2 %} <span class="pill">⭐ Chief +5%</span>{% elif p.is_manager %} <span class="pill">👑 +5%</span>{% endif %}</td>
+                <td>{{ p.name }}{% if p.is_manager == 2 %} <span class="pill" title="Paid from 15 min early, no +5%">⭐ Chief +15 min</span>{% elif p.is_manager %} <span class="pill">👑 +5%</span>{% endif %}</td>
                 <td class="muted">{{ p.sched }}</td>
                 <td>
                   {% if p.reported %}<strong>{{ p.window }}</strong>

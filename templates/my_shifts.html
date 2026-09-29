@@ -196,7 +196,7 @@
         </td>
         <td style="text-align:right"><b>${{ "%.2f"|format(s.pay) }}</b></td>
         <td>
-          {% if s.is_manager == 2 %}<span class="pill">⭐ Chief +5%</span>
+          {% if s.is_manager == 2 %}<span class="pill" title="Paid from 15 min early, no +5%">⭐ Chief +15 min</span>
           {% elif s.is_manager %}<span class="pill">👑 +5%</span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>

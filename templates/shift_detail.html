@@ -137,7 +137,7 @@
         Check the <a href="{{ url_for('approvals') }}">approvals</a> page.</p>
     {% else %}
     <table>
-      <thead><tr><th>Include</th><th>Name</th><th>Available</th><th>Assign window</th><th title="Manager and chief manager get +5% pay">Role</th></tr></thead>
+      <thead><tr><th>Include</th><th>Name</th><th>Available</th><th>Assign window</th><th title="Manager gets +5% pay. Chief manager is paid from 15 min before shift start instead">Role</th></tr></thead>
       <tbody>
         {% for c in candidates %}
         <tr>
@@ -171,7 +171,7 @@
     <h2 style="margin-top:0">Add someone without availability</h2>
     <p class="muted" style="margin-top:-.4rem; font-size:.88rem">These people didn't submit availability for this shift. Tick the box to add them manually.</p>
     <table>
-      <thead><tr><th>Add?</th><th>Name</th><th>Assign window</th><th title="Manager and chief manager get +5% pay">Role</th></tr></thead>
+      <thead><tr><th>Add?</th><th>Name</th><th>Assign window</th><th title="Manager gets +5% pay. Chief manager is paid from 15 min before shift start instead">Role</th></tr></thead>
       <tbody>
         {% for e in other_employees %}
         <tr>
