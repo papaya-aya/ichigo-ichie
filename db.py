@@ -454,6 +454,24 @@ def migrate_db():
         )
         conn.commit()
 
+    # 2026-09-29: piece rate goes from $2.10 to $2.20 for shifts on or after
+    # 2026-09-19 (one-time). Earlier shifts keep settings.piece_rate. Pay is
+    # computed live, so already-approved shifts from 9/19 pick this up.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='piece_rate_220_from_2026_09_19'"
+    ).fetchone():
+        conn.execute(
+            "INSERT INTO piece_rates (start_date, rate, created_at)"
+            " VALUES (?, ?, ?) ON CONFLICT (start_date) DO NOTHING",
+            ("2026-09-19", "2.20", now_iso()),
+        )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('piece_rate_220_from_2026_09_19', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     conn.close()
 
 

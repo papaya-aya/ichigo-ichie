@@ -137,13 +137,19 @@
   <div class="card">
     <h2 style="margin-top:0">Pay rates &amp; fees</h2>
     <p class="help">All dollar amounts used in the salary calculation.</p>
-    <form method="post" action="{{ url_for('set_piece_rate') }}" class="row-actions" style="margin-bottom:0.5rem">
+    <form method="post" action="{{ url_for('set_piece_rate') }}" class="row-actions" style="margin-bottom:0.2rem; flex-wrap:wrap">
       <span style="min-width:12rem" class="muted">Piece rate</span>
       <span>$</span><input type="number" name="piece_rate" step="0.01" min="0.01"
              value="{{ piece_rate }}" style="width:5.5rem">
-      <span class="muted">/ daifuku</span>
+      <span class="muted">/ daifuku, for shifts from</span>
+      <input type="date" name="start_date" value="{{ today }}" required>
       <button type="submit" class="btn-ghost btn-sm">Save</button>
     </form>
+    <p class="help" style="margin:0 0 0.6rem">
+      {% for start, rate in piece_rate_history -%}
+        ${{ "%.2f"|format(rate) }}{% if start %} from {{ start }}{% elif not loop.last %} before {{ piece_rate_history[1][0] }}{% endif %}{% if not loop.last %} · {% endif %}
+      {%- endfor %}. Changing the rate recalculates pay for every shift from that date, approved ones included.
+    </p>
     <form method="post" action="{{ url_for('set_gusto_rate') }}" class="row-actions" style="margin-bottom:0.5rem">
       <span style="min-width:12rem" class="muted">Gusto base rate</span>
       <span>$</span><input type="number" name="gusto_rate" step="0.01" min="0.01"

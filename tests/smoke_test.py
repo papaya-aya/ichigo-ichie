@@ -472,6 +472,51 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- piece rate by date ----------------------------------------------
+    # $2.10 base, $2.20 for shifts from 2026-09-19 (as seeded by migrate_db).
+    # Pay is computed live, so the 9/2 shift keeps 2.10 even though it is
+    # approved, and the 10/7 shift picks up 2.20.
+    print("\npiece rate by date")
+    con.execute("UPDATE settings SET value='2.10' WHERE key='piece_rate'")
+    con.commit()
+    cl.post("/owner/settings/piece-rate",
+            data={"piece_rate": "2.20", "start_date": "2026-09-19"})
+    con.execute("UPDATE assignments SET actual_start='06:45', actual_end='09:30'"
+                " WHERE shift_instance_id=1")
+    con.commit()
+    with harness.flask_app.test_request_context():
+        from flask import g
+        g.db = harness.stub.get_db()
+        am = harness.appmod
+        rates = (am.piece_rate("2026-09-18"), am.piece_rate("2026-09-19"),
+                 am.piece_rate("2026-10-07"))
+        sep = am._compute_salary("2026-09-02", "2026-09-02")
+        oct_ = am._compute_salary("2026-10-07", "2026-10-07")
+        sep_pieces = am.production.day_totals(g.db, "2026-09-02")["total"]
+    sep_rate = next(e for e in sep["employees"] if e["name"] == "Saku")["shifts"][0]["rate"]
+    oct_saku = next(e for e in oct_["employees"] if e["name"] == "Saku")["shifts"][0]
+    salary_page = cl.get("/owner/salary?from=2026-09-01&to=2026-10-31")
+    salary_body = salary_page.get_data(as_text=True)
+    input_body = cl.get("/owner").get_data(as_text=True)
+    checks = [
+        ("2.10 before 9/19",          rates[0] == 2.10),
+        ("2.20 from 9/19",            rates[1] == 2.20 and rates[2] == 2.20),
+        ("approved Sept shift 2.10",  abs(sep_rate - round(2.10 * sep_pieces / 5.5, 2))
+                                      < 0.005),
+        ("Oct hourly rate at 2.20",   abs(oct_saku["rate"] - round(2.20 * oct_pieces / 5.75, 2))
+                                      < 0.005
+                                      and abs(oct_saku["pay"] - 2.75 * 2.20 * oct_pieces / 5.75)
+                                      < 0.005),
+        ("salary shows both rates",   salary_page.status_code == 200
+                                      and "$2.10 before 2026-09-19" in salary_body
+                                      and "$2.20 from 2026-09-19" in salary_body),
+        ("Input shows rate history",  "$2.20 from 2026-09-19" in input_body),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(label)
+
     print("\nfailures:", failures or "none")
     return 1 if failures else 0
 

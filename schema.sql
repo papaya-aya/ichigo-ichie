@@ -277,3 +277,11 @@ CREATE TABLE IF NOT EXISTS day_notes (
 
 -- Default chief manager per weekday, applied only to shifts from 2026-10-01.
 ALTER TABLE weekday_managers ADD COLUMN IF NOT EXISTS chief_employee_id INTEGER REFERENCES employees(id);
+
+-- Piece rate changes by date. A shift uses the latest row whose start_date is
+-- on or before its date. Dates before the first row use settings.piece_rate.
+CREATE TABLE IF NOT EXISTS piece_rates (
+  start_date TEXT PRIMARY KEY,
+  rate       NUMERIC NOT NULL,
+  created_at TEXT NOT NULL
+);

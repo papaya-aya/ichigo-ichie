@@ -259,11 +259,40 @@ def target_productivity():
         return 6.5
 
 
-def piece_rate():
+def piece_rate(on=None):
+    """Piece rate for a shift date (default today): the latest piece_rates row
+    starting on or before it, else the base settings.piece_rate."""
+    on = on or date.today().isoformat()
+    row = g.db.execute(
+        "SELECT rate FROM piece_rates WHERE start_date <= ?"
+        " ORDER BY start_date DESC LIMIT 1", (on,),
+    ).fetchone()
     try:
+        if row:
+            return float(row["rate"])
         return float(database.get_setting(g.db, "piece_rate", "2.00"))
     except (TypeError, ValueError):
         return 2.0
+
+
+def piece_rate_history():
+    """[(start_date, rate)] oldest first, base rate shown as start_date None."""
+    base = database.get_setting(g.db, "piece_rate", "2.00")
+    rows = g.db.execute(
+        "SELECT start_date, rate FROM piece_rates ORDER BY start_date"
+    ).fetchall()
+    return [(None, float(base))] + [(r["start_date"], float(r["rate"])) for r in rows]
+
+
+def piece_rates_between(date_from, date_to):
+    """(start_date, rate) for every rate in force on some day in the range."""
+    hist = piece_rate_history()
+    out = []
+    for i, (start, rate) in enumerate(hist):
+        end = hist[i + 1][0] if i + 1 < len(hist) else None  # exclusive
+        if (start is None or start <= date_to) and (end is None or end > date_from):
+            out.append((start, rate))
+    return out
 
 
 def popup_rate():
@@ -706,7 +735,7 @@ def my_shifts():
                 paid_start(a["start_time"], a["actual_start"], a["is_manager"]))) / 60.0
             for a in all_assigned)
         pieces = production.day_totals(g.db, r["date"])["total"]
-        rate   = (pr * pieces / total_ph) if (total_ph > 0 and pieces > 0) else 0.0
+        rate   = (piece_rate(r["date"]) * pieces / total_ph) if (total_ph > 0 and pieces > 0) else 0.0
         a_start = paid_start(r["start_time"], r["actual_start"], r["is_manager"])
         hrs    = (to_minutes(r["a_end"]) - to_minutes(a_start)) / 60.0
         pay    = hrs * rate * pay_multiplier(r["is_manager"])
@@ -1115,6 +1144,7 @@ def owner_dashboard():
         clients=clients, target_productivity=target_productivity(),
         upcoming=upcoming, flavors=database.FLAVORS,
         piece_rate=piece_rate(), gusto_rate=gusto_rate(),
+        piece_rate_history=piece_rate_history(), today=today_str,
         strawberry_price_val=strawberry_price(),
         delivery_transport_val=delivery_transport_amount(),
         dash_month=dash_month,
@@ -1537,13 +1567,18 @@ def set_productivity():
 def set_piece_rate():
     try:
         val = float(request.form.get("piece_rate", ""))
+        start = date.fromisoformat(request.form.get("start_date", "")).isoformat()
         if val <= 0:
             raise ValueError
-        database.set_setting(g.db, "piece_rate", f"{val:.2f}")
+        g.db.execute(
+            "INSERT INTO piece_rates (start_date, rate, created_at) VALUES (?, ?, ?)"
+            " ON CONFLICT (start_date) DO UPDATE SET rate = excluded.rate",
+            (start, f"{val:.2f}", database.now_iso()),
+        )
         g.db.commit()
-        flash(f"Piece rate set to ${val:.2f} / daifuku.", "success")
+        flash(f"Piece rate set to ${val:.2f} / daifuku for shifts from {start}.", "success")
     except ValueError:
-        flash("Piece rate must be a positive number.", "error")
+        flash("Piece rate must be a positive number with a start date.", "error")
     return redirect(url_for("owner_dashboard"))
 
 
@@ -2100,7 +2135,7 @@ def _compute_salary(date_from, date_to):
     for iid, info in instance_info.items():
         info["pieces"] = production.day_totals(g.db, info["date"])["total"]
         if info["person_hours"] > 0 and info["pieces"] > 0:
-            info["rate"] = (pr * info["pieces"]) / info["person_hours"]
+            info["rate"] = (piece_rate(info["date"]) * info["pieces"]) / info["person_hours"]
 
     # per-employee data (shifts)
     employees_data = {}
@@ -2313,6 +2348,7 @@ def _compute_salary(date_from, date_to):
     return {
         "employees":        emp_list,
         "piece_rate":       pr,
+        "piece_rates":      piece_rates_between(date_from, date_to),
         "gusto_rate":       gr,
         "strawberry_price": sp_p,
         "delivery_transport": dt_p,
@@ -4307,7 +4343,7 @@ def _shift_report_preview(report_id, instance_id, shift_date):
 
     person_hours = sum(p["hours"] or 0 for p in people if p["paid"])
     pieces = production.day_totals(g.db, shift_date)["total"] if shift_date else 0
-    rate = (piece_rate() * pieces / person_hours) if (person_hours > 0 and pieces > 0) else 0.0
+    rate = (piece_rate(shift_date) * pieces / person_hours) if (person_hours > 0 and pieces > 0) else 0.0
     total_pay = 0.0
     for p in people:
         if p["paid"] and p["hours"] is not None:

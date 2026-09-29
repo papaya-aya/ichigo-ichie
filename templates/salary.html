@@ -2,7 +2,10 @@
 {% block content %}
 <h1>Salary report</h1>
 <p class="subtitle">
-  Production rate = (${{ piece_rate }} × daifuku) ÷ total person-hours.
+  Production rate = (piece rate × daifuku) ÷ total person-hours. Piece rate:
+  {% for start, rate in piece_rates -%}
+    ${{ "%.2f"|format(rate) }}{% if piece_rates|length > 1 %}{% if start %} from {{ start }}{% else %} before {{ piece_rates[1][0] }}{% endif %}{% endif %}{% if not loop.last %}, {% else %}.{% endif %}
+  {%- endfor %}
   Manager +5%. Chief manager: no +5%, but paid from 15 min before shift start. Gusto hours = (wage + transport) ÷ ${{ gusto_rate }}/hr.
 </p>
 
