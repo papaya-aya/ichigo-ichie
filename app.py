@@ -252,6 +252,86 @@ def weekday_default_roles(weekday: int, date: str):
     return roles
 
 
+# Weekly-manager defaults are stamped onto shifts automatically from this date.
+WEEKDAY_DEFAULTS_FROM = CHIEF_MANAGER_FROM
+
+
+def apply_weekday_default_roles(conn, instance_ids=None, from_date=None):
+    """Mark each weekday's default manager / chief manager on shifts they are
+    already assigned to, from WEEKDAY_DEFAULTS_FROM (or a later from_date).
+
+    Nobody is added to a shift: a default who isn't working that day leaves the
+    role unassigned. A role is never lowered, and a role someone else on the
+    shift already holds is left with them. Shifts the owner saved by hand
+    (roles_manual) are skipped. Returns assignments changed."""
+    defaults = {r["weekday"]: r for r in conn.execute(
+        "SELECT weekday, employee_id, chief_employee_id FROM weekday_managers"
+    ).fetchall()}
+    if not defaults:
+        return 0
+    since = max(from_date or WEEKDAY_DEFAULTS_FROM, WEEKDAY_DEFAULTS_FROM)
+    rows = conn.execute(
+        """SELECT a.id, a.shift_instance_id, a.employee_id, a.is_manager,
+                  si.date AS shift_date, t.weekday
+             FROM assignments a
+             JOIN shift_instances si ON si.id = a.shift_instance_id
+             JOIN shift_templates t  ON t.id  = si.template_id
+            WHERE si.date >= ? AND COALESCE(si.roles_manual, 0) = 0""",
+        (since,),
+    ).fetchall()
+    wanted_ids = set(instance_ids) if instance_ids is not None else None
+    shifts = {}
+    for r in rows:
+        if wanted_ids is None or r["shift_instance_id"] in wanted_ids:
+            shifts.setdefault(r["shift_instance_id"], []).append(dict(r))
+
+    changed = 0
+    for people in shifts.values():
+        d = defaults.get(people[0]["weekday"])
+        if not d:
+            continue
+        date = people[0]["shift_date"]
+        wanted = []
+        if d["chief_employee_id"]:
+            wanted.append((d["chief_employee_id"], role_for_date(ROLE_CHIEF, date)))
+        if d["employee_id"]:
+            wanted.append((d["employee_id"], ROLE_MANAGER))
+        for emp_id, role in wanted:
+            a = next((p for p in people if p["employee_id"] == emp_id), None)
+            if a is None or (a["is_manager"] or 0) >= role:
+                continue
+            if any(p["is_manager"] == role for p in people if p is not a):
+                continue
+            conn.execute("UPDATE assignments SET is_manager=? WHERE id=?",
+                         (role, a["id"]))
+            a["is_manager"] = role
+            changed += 1
+    return changed
+
+
+def backfill_weekday_default_roles():
+    """One-time fix for shifts from WEEKDAY_DEFAULTS_FROM that were staffed
+    before defaults were applied automatically. Lives here rather than in
+    db.migrate_db() because it reuses apply_weekday_default_roles()."""
+    conn = database.get_db()
+    try:
+        if not conn.execute(
+            "SELECT 1 FROM settings WHERE key='weekday_roles_backfill_2026_10'"
+        ).fetchone():
+            apply_weekday_default_roles(conn)
+            conn.execute(
+                "INSERT INTO settings (key, value)"
+                " VALUES ('weekday_roles_backfill_2026_10', '1')"
+                " ON CONFLICT (key) DO NOTHING"
+            )
+            conn.commit()
+    finally:
+        conn.close()
+
+
+backfill_weekday_default_roles()
+
+
 def target_productivity():
     try:
         return float(database.get_setting(g.db, "target_productivity", "6.5"))
@@ -1268,8 +1348,12 @@ def set_weekday_managers():
             )
         else:
             g.db.execute("DELETE FROM weekday_managers WHERE weekday=?", (wd,))
+    # Stamp the new defaults onto upcoming shifts that are already staffed.
+    changed = apply_weekday_default_roles(g.db, from_date=date.today().isoformat())
     g.db.commit()
-    flash("Weekly managers saved.", "success")
+    flash("Weekly managers saved."
+          + (f" {changed} upcoming assignment(s) marked 👑 / ⭐." if changed else ""),
+          "success")
     return redirect(url_for("owner_dashboard"))
 
 
@@ -1752,6 +1836,7 @@ def apply_recurring_assignments():
                 )
                 added += 1
 
+    apply_weekday_default_roles(g.db, [i["instance_id"] for i in instances])
     g.db.commit()
     parts = []
     if added:        parts.append(f"{added} assignment(s) added")
@@ -3843,8 +3928,10 @@ def auto_assign_month():
             " VALUES (?, ?, ?, ?)",
             [(iid, c["employee_id"], c["start"], c["end"]) for c in chosen],
         )
+        g.db.execute("UPDATE shift_instances SET roles_manual = 0 WHERE id = ?", (iid,))
         assigned_total += len(chosen)
         shifts_done += 1
+    apply_weekday_default_roles(g.db, [i["instance_id"] for i in instances])
     g.db.commit()
 
     msg = f"{month_label(month)}: staffed {shifts_done} shift(s), {assigned_total} assignment(s)."
@@ -3934,6 +4021,8 @@ def shift_detail(instance_id):
                 [(instance_id, c["employee_id"], c["start"], c["end"],
                   default_roles.get(c["employee_id"], 0)) for c in chosen],
             )
+            g.db.execute("UPDATE shift_instances SET roles_manual = 0 WHERE id = ?",
+                         (instance_id,))
             g.db.commit()
             flash(f"Auto-assigned {len(chosen)} person(s).", "success")
 
@@ -3946,16 +4035,17 @@ def shift_detail(instance_id):
                 [(instance_id, c["employee_id"], c["start"], c["end"],
                   default_roles.get(c["employee_id"], 0)) for c in candidates],
             )
+            g.db.execute("UPDATE shift_instances SET roles_manual = 0 WHERE id = ?",
+                         (instance_id,))
             g.db.commit()
             flash(f"Assigned all {len(candidates)} available person(s).", "success")
 
         elif action == "save":
             chosen_ids = [int(x) for x in request.form.getlist("include")]
+            # The form is pre-filled with the weekly defaults, so what comes
+            # back is the owner's choice for this day and is kept as-is.
             roles = {cid: role_for_date(request.form.get(f"role_{cid}"), inst["date"])
                      for cid in chosen_ids}
-            for mgr_id, role in default_roles.items():
-                if mgr_id in roles:
-                    roles[mgr_id] = max(roles[mgr_id], role)
             # All active employees (for manual assignments)
             all_emp = {r["id"]: r["name"] for r in g.db.execute(
                 "SELECT id, name FROM employees WHERE active=1"
@@ -3975,6 +4065,8 @@ def shift_detail(instance_id):
                     " VALUES (?, ?, ?, ?, ?)",
                     (instance_id, cid, start, end, roles[cid]),
                 )
+            g.db.execute("UPDATE shift_instances SET roles_manual = 1 WHERE id = ?",
+                         (instance_id,))
             g.db.commit()
             for e in errors:
                 flash(e, "error")
@@ -4003,6 +4095,7 @@ def shift_detail(instance_id):
             })
     merged_candidates.sort(key=lambda c: c["name"])
 
+    default_roles = weekday_default_roles(inst["weekday"], inst["date"])
     cand_rows = []
     for c in merged_candidates:
         a = assigned.get(c["employee_id"])
@@ -4011,7 +4104,8 @@ def shift_detail(instance_id):
             "included":       a is not None,
             "assigned_start": a["start"]      if a else c["start"],
             "assigned_end":   a["end"]        if a else c["end"],
-            "is_manager":     (a["is_manager"] or 0) if a else 0,
+            "is_manager":     ((a["is_manager"] or 0) if a
+                               else default_roles.get(c["employee_id"], 0)),
         })
 
     # All active employees NOT already in cand_rows (for manual add)

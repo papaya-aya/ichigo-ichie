@@ -289,3 +289,7 @@ CREATE TABLE IF NOT EXISTS piece_rates (
   rate       NUMERIC NOT NULL,
   created_at TEXT NOT NULL
 );
+
+-- Set when the owner saves a shift's people and roles by hand. Weekly-manager
+-- defaults are then no longer applied to that shift automatically.
+ALTER TABLE shift_instances ADD COLUMN IF NOT EXISTS roles_manual INTEGER NOT NULL DEFAULT 0;

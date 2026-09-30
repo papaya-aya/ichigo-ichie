@@ -8,6 +8,7 @@ None argument, a missing template variable, a column that was never added.
 Exits non-zero if anything fails.
 """
 import os
+import re
 import sys
 from datetime import date, timedelta
 
@@ -518,13 +519,14 @@ def main():
                 " WHERE shift_instance_id=1 AND employee_id=1")
     con.commit()
     mgr_report = emp.get("/my-shift/1/report")
-    # Weekly default chief manager (Wednesday = Yumi): chief from Oct,
-    # manager before.
+    # Weekly default chief manager (Wednesday = Yumi). Saving a shift by hand
+    # keeps the owner's choice even when it differs from the default.
     cl.post("/owner/settings/weekday-managers",
             data={"mgr_2": "", "chief_2": "1"})
     input_page = cl.get("/owner").get_data(as_text=True)
     wk_oct  = save_roles(2, 0)
     wk_sept = save_roles(1, 0)
+    save_roles(2, 2)
     cl.post("/owner/settings/weekday-managers", data={})
     wm_left = con.execute("SELECT COUNT(*) FROM weekday_managers").fetchone()[0]
     save_roles(1, 1)
@@ -543,8 +545,8 @@ def main():
     oct_rate = pr * oct_pieces / 5.75
     checks = [
         ("weekly chief on Input",     'name="chief_2"' in input_page),
-        ("weekly chief from Oct",     wk_oct == {1: 2, 2: 0}),
-        ("weekly chief mgr pre-Oct",  wk_sept == {1: 1, 2: 0}),
+        ("manual role beats default", wk_oct == {1: 0, 2: 0}),
+        ("manual pre-Oct kept too",   wk_sept == {1: 0, 2: 0}),
         ("weekly defaults clear",     wm_left == 0),
         ("option hidden before Oct",  ">Chief manager ⭐<" not in sept_page),
         ("option shown from Oct",     ">Chief manager ⭐<" in oct_page),
@@ -607,6 +609,79 @@ def main():
                                       and "$2.10 before 2026-09-19" in salary_body
                                       and "$2.20 from 2026-09-19" in salary_body),
         ("Input shows rate history",  "$2.20 from 2026-09-19" in input_body),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(label)
+
+    # ---- weekly defaults applied automatically --------------------------
+    # From 2026-10-01 the Wednesday defaults (Saku manager, Yumi chief) are
+    # stamped onto shifts they already work. Nobody is added to a shift, no
+    # role is lowered, and a shift with its own chief keeps it.
+    print("\nweekly defaults auto-applied")
+    con.execute("INSERT INTO weekday_managers (weekday,employee_id,"
+                "chief_employee_id) VALUES (2,2,1)")
+    con.execute("INSERT INTO shift_templates (id,weekday,label,start_time,"
+                "end_time,quantity,min_people,max_people)"
+                " VALUES (9,2,'Wed test','06:45','09:30',80,2,4)")
+    ids = {}
+    for key, d in [(31, "2026-10-14"), (32, "2026-10-21"), (33, "2026-09-23"),
+                   (34, "2026-10-28"), (35, "2026-11-04"), (36, "2026-12-02"),
+                   (37, "2026-12-09")]:
+        ids[key] = con.execute("INSERT INTO shift_instances (template_id,date)"
+                               " VALUES (9,?)", (d,)).lastrowid
+    for iid, eid, role in [(31, 1, 0), (31, 2, 0), (32, 2, 0), (33, 1, 0),
+                           (33, 2, 0), (34, 1, 0), (34, 2, 2)]:
+        con.execute("INSERT INTO assignments (shift_instance_id,employee_id,"
+                    "start_time,end_time,is_manager)"
+                    " VALUES (?,?,'06:45','09:30',?)", (ids[iid], eid, role))
+    for eid in (1, 2):
+        for key in (35, 36):
+            con.execute("INSERT INTO availability (employee_id,shift_instance_id,"
+                        "start_time,end_time,status,submitted_at)"
+                        " VALUES (?,?,'06:45','09:30','approved','x')",
+                        (eid, ids[key]))
+    # 37: owner swapped roles by hand, Saku chief and Yumi manager.
+    for eid, role in [(1, 1), (2, 2)]:
+        con.execute("INSERT INTO assignments (shift_instance_id,employee_id,"
+                    "start_time,end_time,is_manager)"
+                    " VALUES (?,?,'06:45','09:30',?)", (ids[37], eid, role))
+    con.execute("DELETE FROM settings WHERE key='weekday_roles_backfill_2026_10'")
+    con.commit()
+    harness.appmod.backfill_weekday_default_roles()
+    cl.post("/owner/schedule/auto-month", data={"month": "2026-11", "mode": "empty"})
+
+    def roles_of(iid):
+        return {r["employee_id"]: r["is_manager"] for r in con.execute(
+            "SELECT employee_id, is_manager FROM assignments"
+            " WHERE shift_instance_id=?", (ids[iid],)).fetchall()}
+
+    def preselected(iid, eid):
+        page = cl.get(f"/owner/schedule/{ids[iid]}").get_data(as_text=True)
+        m = re.search(rf'name="role_{eid}".*?</select>', page, re.S)
+        sel = m and re.search(r'value="(\d)" selected', m.group(0))
+        return int(sel.group(1)) if sel else 0
+
+    form_defaults = (preselected(36, 1), preselected(36, 2))
+    # Owner makes Saku the only manager on 36 by hand: Yumi (default chief)
+    # is saved as crew and stays crew through later automatic passes.
+    cl.post(f"/owner/schedule/{ids[36]}", data={
+        "action": "save", "include": ["1", "2"], "role_1": "0", "role_2": "1"})
+    harness.appmod.backfill_weekday_default_roles()
+    cl.post("/owner/schedule/auto-month", data={"month": "2026-12", "mode": "empty"})
+    with harness.flask_app.test_request_context():
+        harness.appmod.apply_weekday_default_roles(harness.stub.get_db())
+
+    checks = [
+        ("form pre-fills defaults",   form_defaults == (2, 1)),
+        ("manual save survives auto", roles_of(36) == {1: 0, 2: 1}),
+        ("swapped roles left alone",  roles_of(37) == {1: 1, 2: 2}),
+        ("Oct backfill chief + mgr",  roles_of(31) == {1: 2, 2: 1}),
+        ("absent chief not added",    roles_of(32) == {2: 1}),
+        ("Sept shifts untouched",     roles_of(33) == {1: 0, 2: 0}),
+        ("existing chief kept",       roles_of(34) == {1: 0, 2: 2}),
+        ("auto-month applies roles",  roles_of(35) == {1: 2, 2: 1}),
     ]
     for label, ok in checks:
         print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
