@@ -12,6 +12,13 @@
     {% if is_owner or employee_name %}
     <button class="nav-burger" id="nav-burger" aria-label="Menu" onclick="toggleNav()">☰</button>
     {% endif %}
+    {% if startup_error and is_owner %}
+      <a href="{{ url_for('healthz') }}"
+         style="display:block;background:#fdecef;color:#a3234a;border-bottom:1px solid #f3c9d8;
+                padding:.4rem .9rem;font-size:.85rem;text-decoration:none">
+        ⚠ Something failed when the app started. Parts of it may be out of date — see details.
+      </a>
+    {% endif %}
     <nav id="main-nav">
       {% if is_owner %}
         <a href="{{ url_for('approvals') }}">Approvals</a>

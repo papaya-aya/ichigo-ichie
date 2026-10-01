@@ -12,6 +12,7 @@ import requests as _requests
 from flask import (
     Flask, abort, flash, g, redirect, render_template, request, session, url_for
 )
+from markupsafe import escape
 import secrets
 from werkzeug.security import check_password_hash
 
@@ -26,8 +27,24 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SHIFTO_SECRET", "dev-secret-change-me")
 
 # Initialize DB on startup (works for both local and serverless/Vercel).
-database.init_db()
-database.migrate_db()
+# Anything that throws here used to take down every route, login included,
+# with no way to see why. Record it instead and let the app serve.
+STARTUP_ERROR = None
+
+
+def _run_startup_step(label, fn):
+    global STARTUP_ERROR
+    try:
+        fn()
+    except Exception:                                         # noqa: BLE001
+        import traceback as _tb
+        detail = f"{label} failed:\n{_tb.format_exc()}"
+        STARTUP_ERROR = (STARTUP_ERROR or "") + detail
+        app.logger.error(detail)
+
+
+_run_startup_step("database.init_db()", database.init_db)
+_run_startup_step("database.migrate_db()", database.migrate_db)
 
 WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -329,7 +346,26 @@ def backfill_weekday_default_roles():
         conn.close()
 
 
-backfill_weekday_default_roles()
+_run_startup_step("backfill_weekday_default_roles()",
+                  backfill_weekday_default_roles)
+
+
+@app.context_processor
+def _inject_startup_error():
+    return {"startup_error": STARTUP_ERROR}
+
+
+@app.route("/owner/healthz")
+@require_owner
+def healthz():
+    """What happened during startup. Blank means everything ran."""
+    body = STARTUP_ERROR or "Startup completed with no errors."
+    return (
+        "<!doctype html><meta charset='utf-8'>"
+        "<title>Startup check</title>"
+        "<body style='font:14px ui-monospace,monospace;padding:1.5rem'>"
+        f"<h1 style='font-size:1.1rem'>Startup check</h1><pre>{escape(body)}</pre>"
+    )
 
 
 def target_productivity():
