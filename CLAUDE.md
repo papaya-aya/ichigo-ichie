@@ -14,6 +14,44 @@ failure. Pushing to `main` deploys to production immediately, so a broken page
 is live within a minute. Two 500s reached users because a change was only
 syntax-checked, never run.
 
+## After you push — always
+
+Confirm the site actually came back:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://ichigo-ichie-cyan.vercel.app/login
+```
+
+200 means it is serving. Anything else means the deploy is broken for everyone,
+and `/owner/healthz` says why. A green test suite is not evidence the site is
+up: the whole app was once down for a day while every test passed.
+
+## Never run work at import
+
+`app.py` executes at module load on every cold start. An exception there means
+Flask never builds the app, so **every** route 500s, login included — not just
+the feature that failed. That has happened: a module-level call reached a
+helper defined further down the file and raised NameError.
+
+- No data backfills, migrations or queries at module level.
+- A one-time data fix belongs in `migrate_db()` in `db.py`, behind a settings
+  flag, not in `app.py`.
+- Startup steps go through `_run_startup_step()`, which records the traceback
+  and lets the app serve instead of taking it down.
+- Anything called during import must only use names defined **above** it.
+  Linters do not catch this; only importing the module does.
+
+## Tests pass on empty configuration
+
+The suite ran the function that caused that outage and stayed green, because
+no fixture had a weekday default set, so the code returned early and never
+reached the failing line.
+
+When a feature keys off a setting, a flag or a default, **seed it in
+`tests/harness.py`** so the test exercises the real path. If the feature does
+work at startup, seed it before `app` is imported — see
+`SHIFTO_TEST_STARTUP_WORK`.
+
 ## The database is PostgreSQL, not SQLite
 
 `db.py` talks to Postgres on Vercel via psycopg2, using `DB_HOST` / `DB_PASSWORD`
