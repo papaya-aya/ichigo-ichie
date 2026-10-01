@@ -4140,8 +4140,11 @@ def shift_detail(instance_id):
             "included":       a is not None,
             "assigned_start": a["start"]      if a else c["start"],
             "assigned_end":   a["end"]        if a else c["end"],
-            "is_manager":     ((a["is_manager"] or 0) if a
-                               else default_roles.get(c["employee_id"], 0)),
+            # Only people on the shift hold a role. The weekly default is
+            # offered when the owner ticks someone in, not shown beforehand,
+            # or an absent default reads as that day's chief.
+            "is_manager":     (a["is_manager"] or 0) if a else 0,
+            "default_role":   default_roles.get(c["employee_id"], 0),
         })
 
     # All active employees NOT already in cand_rows (for manual add)

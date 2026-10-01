@@ -153,7 +153,8 @@
                    min="{{ inst.start_time }}" max="{{ inst.end_time }}">
           </td>
           <td style="text-align:center">
-            <select name="role_{{ c.employee_id }}" aria-label="Role">
+            <select name="role_{{ c.employee_id }}" aria-label="Role"
+                    data-default-role="{{ c.default_role }}">
               <option value="0">—</option>
               <option value="1"{% if c.is_manager == 1 %} selected{% endif %}>Manager 👑</option>
               {% if chief_allowed %}<option value="2"{% if c.is_manager == 2 %} selected{% endif %}>Chief manager ⭐</option>{% endif %}
@@ -216,4 +217,16 @@
     <p style="color:var(--red)">✗ Report rejected on {{ shift_report.decided_at[:10] }}. Manager can resubmit.</p>
   {% endif %}
 </div>
+
+<script>
+  // Ticking someone in offers their weekly default role; unticking clears it,
+  // so nobody off the shift appears as its manager or chief.
+  document.querySelectorAll('select[data-default-role]').forEach(function (sel) {
+    var box = sel.closest('tr').querySelector('input[name="include"]');
+    box.addEventListener('change', function () {
+      if (!box.checked) sel.value = '0';
+      else if (sel.value === '0') sel.value = sel.dataset.defaultRole;
+    });
+  });
+</script>
 {% endblock %}

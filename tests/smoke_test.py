@@ -628,7 +628,7 @@ def main():
     ids = {}
     for key, d in [(31, "2026-10-14"), (32, "2026-10-21"), (33, "2026-09-23"),
                    (34, "2026-10-28"), (35, "2026-11-04"), (36, "2026-12-02"),
-                   (37, "2026-12-09")]:
+                   (37, "2026-12-09"), (38, "2026-12-16")]:
         ids[key] = con.execute("INSERT INTO shift_instances (template_id,date)"
                                " VALUES (9,?)", (d,)).lastrowid
     for iid, eid, role in [(31, 1, 0), (31, 2, 0), (32, 2, 0), (33, 1, 0),
@@ -637,7 +637,7 @@ def main():
                     "start_time,end_time,is_manager)"
                     " VALUES (?,?,'06:45','09:30',?)", (ids[iid], eid, role))
     for eid in (1, 2):
-        for key in (35, 36):
+        for key in (35, 36, 38):
             con.execute("INSERT INTO availability (employee_id,shift_instance_id,"
                         "start_time,end_time,status,submitted_at)"
                         " VALUES (?,?,'06:45','09:30','approved','x')",
@@ -663,18 +663,32 @@ def main():
         sel = m and re.search(r'value="(\d)" selected', m.group(0))
         return int(sel.group(1)) if sel else 0
 
-    form_defaults = (preselected(36, 1), preselected(36, 2))
+    def default_offered(iid, eid):
+        page = cl.get(f"/owner/schedule/{ids[iid]}").get_data(as_text=True)
+        m = re.search(rf'name="role_{eid}"[^>]*data-default-role="(\d)"', page)
+        return int(m.group(1)) if m else None
+
+    # Nobody is on 36 yet: no row may show a role, but ticking one in offers
+    # the weekly default.
+    form_defaults = (preselected(36, 1), preselected(36, 2),
+                     default_offered(36, 1), default_offered(36, 2))
     # Owner makes Saku the only manager on 36 by hand: Yumi (default chief)
     # is saved as crew and stays crew through later automatic passes.
     cl.post(f"/owner/schedule/{ids[36]}", data={
         "action": "save", "include": ["1", "2"], "role_1": "0", "role_2": "1"})
+    # 38: Yumi (default chief) is available but not working. Leaving her out
+    # and clearing her role must stick: her row may not read as chief.
+    cl.post(f"/owner/schedule/{ids[38]}", data={
+        "action": "save", "include": ["2"], "role_1": "0", "role_2": "1"})
     harness.appmod.backfill_weekday_default_roles()
     cl.post("/owner/schedule/auto-month", data={"month": "2026-12", "mode": "empty"})
     with harness.flask_app.test_request_context():
         harness.appmod.apply_weekday_default_roles(harness.stub.get_db())
 
     checks = [
-        ("form pre-fills defaults",   form_defaults == (2, 1)),
+        ("form offers defaults",      form_defaults == (0, 0, 2, 1)),
+        ("absent default not chief",  roles_of(38) == {2: 1}
+                                      and preselected(38, 1) == 0),
         ("manual save survives auto", roles_of(36) == {1: 0, 2: 1}),
         ("swapped roles left alone",  roles_of(37) == {1: 1, 2: 2}),
         ("Oct backfill chief + mgr",  roles_of(31) == {1: 2, 2: 1}),
