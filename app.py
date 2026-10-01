@@ -78,6 +78,13 @@ def paid_start(start_time, actual_start, role):
     return start_time
 
 
+def _int(v):
+    try:
+        return max(0, int(v))
+    except (TypeError, ValueError):
+        return 0
+
+
 def role_for_date(role, date):
     """Clamp a requested role to what is allowed on this shift date."""
     role = max(0, min(_int(str(role or 0)), ROLE_CHIEF))
@@ -3290,13 +3297,6 @@ def orders_day(date):
         popup_clients=[c["id"] for c in clients if c["default_pickup"]],
         back=back,
     )
-
-
-def _int(v):
-    try:
-        return max(0, int(v))
-    except (TypeError, ValueError):
-        return 0
 
 
 def date_weekday(iso):

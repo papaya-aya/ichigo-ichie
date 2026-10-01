@@ -688,6 +688,30 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- startup runs clean -----------------------------------------------
+    # Regression: the weekday-roles backfill runs at import and called a helper
+    # defined further down the file, so it raised NameError and took every
+    # route down — login included. It only bites when weekday defaults exist
+    # and a shift is staffed, which no fixture had, so the suite stayed green
+    # while production was off. Import in a fresh process with that seeded.
+    print("\nstartup")
+    import subprocess
+    probe = subprocess.run(
+        [sys.executable, "-c",
+         "import harness, sys;"
+         " sys.exit(1 if harness.appmod.STARTUP_ERROR else 0)"],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+        env={**os.environ, "SHIFTO_TEST_STARTUP_WORK": "1"},
+        capture_output=True, text=True,
+    )
+    ok = probe.returncode == 0
+    print(f"  {'ok  ' if ok else 'FAIL'} {'imports with no startup error':<32}")
+    if not ok:
+        failures.append("startup error")
+        tail = (probe.stdout + probe.stderr).strip().splitlines()
+        for line in tail[-12:]:
+            print("        ", line)
+
     print("\nfailures:", failures or "none")
     return 1 if failures else 0
 

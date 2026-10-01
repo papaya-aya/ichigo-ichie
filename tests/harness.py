@@ -83,6 +83,22 @@ def _init():
                 pass  # column already exists
             continue
         _con.execute(_pg_to_sqlite(stmt))
+    # The weekday-roles backfill runs at import, and only does real work when
+    # defaults exist and shifts are already staffed. Seeding that here — before
+    # app is imported — is what exercises the import-time path.
+    if os.environ.get("SHIFTO_TEST_STARTUP_WORK") == "1":
+        _con.execute("INSERT INTO employees (id,name,pin_hash,active,created_at)"
+                     " VALUES (90,'StartupChief','h',1,'x')")
+        _con.execute("INSERT INTO shift_templates (id,weekday,label,start_time,"
+                     "end_time,quantity,min_people,max_people)"
+                     " VALUES (90,0,'Startup probe','06:45','09:30',40,1,3)")
+        _con.execute("INSERT INTO shift_instances (id,template_id,date)"
+                     " VALUES (90,90,'2026-10-05')")
+        _con.execute("INSERT INTO assignments (shift_instance_id,employee_id,"
+                     "start_time,end_time,is_manager) VALUES (90,90,'06:45','09:30',0)")
+        _con.execute("INSERT INTO weekday_managers (weekday,employee_id,"
+                     "chief_employee_id) VALUES (0,90,90)")
+
     for k, v in [
         ("piece_rate", "2.00"), ("gusto_rate", "20.00"),
         ("strawberry_price", "10.00"), ("delivery_transport", "6.00"),
