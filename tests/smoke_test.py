@@ -327,6 +327,32 @@ def main():
     if not ok:
         failures.append("day deliverer pop-up")
 
+    # ---- zero-piece orders need no delivery -------------------------------
+    # A recurring order left at 0 pcs still creates an order row. It must not
+    # show up as a stop, and its driver must not be paid transport for it.
+    print("\nzero-piece orders")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (11,'Nothing Due',1)")
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,deliverer,"
+                "created_at) VALUES (11,'2026-09-22','2026-09-22','Saku','x')")
+    con.commit()
+    with harness.flask_app.test_request_context():
+        from flask import g
+        g.db = harness.stub.get_db()
+        sal_zero = harness.appmod._compute_salary("2026-09-01", "2026-09-30")
+        due_days = harness.appmod.production.deliveries_by_date_map(g.db, "2026-09")
+        due_stops = harness.appmod.production.deliveries_for_date(g.db, "2026-09-22")
+    month_page = cl.get("/owner/deliveries?month=2026-09").get_data(as_text=True)
+    zero_checks = [
+        ("not a delivery day",      "2026-09-22" not in due_days and not due_stops),
+        ("not on deliveries page",  "Nothing Due" not in month_page),
+        ("no transport pay",        abs(sal_zero["grand_delivery"]
+                                        - sal["grand_delivery"]) < 0.005),
+    ]
+    for label, ok in zero_checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(f"zero-piece {label}")
+
     # ---- samples earn nothing ---------------------------------------------
     print("\nsamples")
     import re as _re

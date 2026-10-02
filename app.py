@@ -580,6 +580,7 @@ def availability():
         all_del = g.db.execute(
             """SELECT DISTINCT COALESCE(delivery_date, date) AS d
                  FROM orders WHERE COALESCE(delivery_date, date) LIKE ?
+                  AND (qty_original + qty_matcha + qty_hojicha + qty_other) > 0
                  ORDER BY d""",
             (month_str + "-%",),
         ).fetchall()
@@ -918,6 +919,7 @@ def my_shifts():
              FROM orders
             WHERE COALESCE(delivery_date, date) BETWEEN ? AND ?
               AND lower(deliverer) = lower(?)
+              AND (qty_original + qty_matcha + qty_hojicha + qty_other) > 0
             GROUP BY COALESCE(delivery_date, date)""",
         (date_from, date_to, emp_name),
     ).fetchall()
@@ -1043,6 +1045,7 @@ def calendar_view():
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
               AND (o.is_pickup IS NULL OR o.is_pickup = 0)
+              AND (o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) > 0
               AND COALESCE(o.delivery_date, o.date) NOT IN (
                     SELECT date FROM delivery_blackout WHERE date LIKE ?
               )
@@ -1142,6 +1145,7 @@ def public_calendar(token):
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
               AND (o.is_pickup IS NULL OR o.is_pickup = 0)
+              AND (o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) > 0
               AND COALESCE(o.delivery_date, o.date) NOT IN (
                     SELECT date FROM delivery_blackout WHERE date LIKE ?
               )
@@ -2439,6 +2443,7 @@ def _compute_salary(date_from, date_to):
              FROM orders
             WHERE COALESCE(delivery_date, date) BETWEEN ? AND ?
               AND deliverer IS NOT NULL AND deliverer != ''
+              AND (qty_original + qty_matcha + qty_hojicha + qty_other) > 0
             GROUP BY deliverer, COALESCE(delivery_date, date)""",
         (date_from, date_to),
     ).fetchall()
@@ -3349,6 +3354,7 @@ def deliveries_month():
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
               AND (o.is_pickup IS NULL OR o.is_pickup = 0)
+              AND (o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) > 0
             GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
         (month + "-%",),
@@ -3372,7 +3378,8 @@ def deliveries_month():
     for r in g.db.execute(
         """SELECT DISTINCT date AS shift_date, COALESCE(delivery_date, date) AS deliver_on
              FROM orders WHERE date LIKE ?
-               AND (is_pickup IS NULL OR is_pickup = 0)""",
+               AND (is_pickup IS NULL OR is_pickup = 0)
+               AND (qty_original + qty_matcha + qty_hojicha + qty_other) > 0""",
         (month + "-%",),
     ).fetchall():
         shift_to_deliver.setdefault(r["shift_date"], set()).add(r["deliver_on"])
@@ -3883,6 +3890,7 @@ def owner_schedule():
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE COALESCE(o.delivery_date, o.date) LIKE ?
               AND (o.is_pickup IS NULL OR o.is_pickup = 0)
+              AND (o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) > 0
             GROUP BY deliver_on, c.name, o.deliverer, o.delivered
             ORDER BY deliver_on, c.name""",
         (month + "-%",),
@@ -4253,6 +4261,7 @@ def my_deliveries():
              FROM orders o JOIN clients c ON c.id = o.client_id
             WHERE lower(o.deliverer) = lower(?)
               AND COALESCE(o.delivery_date, o.date) >= ?
+              AND (o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) > 0
             GROUP BY deliver_on, o.client_id, c.name
             ORDER BY deliver_on, c.name""",
         (emp_name, cutoff),
@@ -4688,6 +4697,7 @@ def invoice():
              FROM orders
             WHERE COALESCE(delivery_date, date) BETWEEN ? AND ?
               AND (is_pickup IS NULL OR is_pickup = 0)
+              AND (qty_original + qty_matcha + qty_hojicha + qty_other) > 0
             GROUP BY client_id, deliver_on
             ORDER BY client_id, deliver_on""",
         (date_from, date_to),
