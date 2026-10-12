@@ -51,6 +51,26 @@ DEFAULT_TARGET_PRODUCTIVITY = "6.5"
 
 # Non-labour costs for Feb–Aug 2026, categorised from the Mercury and Amex
 # exports (Gusto excluded — payroll is computed from shifts, not seeded here).
+# September 2026 non-labour costs, categorised from the Mercury export.
+# Excludes internal transfers, Gusto and the EDD payment (payroll comes from
+# shifts), and the Amex card payment — that is a lump sum for card spend the
+# Amex export itemises separately.
+SEPT_2026_MERCURY_COSTS = [
+    ("2026-09", "Kitchen rent",    "Passione Pizza",        3275.00),
+    ("2026-09", "Ingredients",     "Safeway",                469.47),
+    ("2026-09", "Uncategorised",   "Kosuke Kaneko",          238.22),
+    ("2026-09", "Uncategorised",   "Venmo",                  162.40),
+    ("2026-09", "Ingredients",     "Berkeley Bowl West",     161.18),
+    ("2026-09", "Ingredients",     "The Webstaurant Store",  157.73),
+    ("2026-09", "Ingredients",     "Jade Leaf Matcha",        89.99),
+    ("2026-09", "Ingredients",     "Lucky Supermarkets",      83.72),
+    ("2026-09", "Marketing",       "Krishna Copy Center",     62.29),
+    ("2026-09", "Ingredients",     "Grocery Outlet",          54.90),
+    ("2026-09", "Insurance",       "Next Insurance",          39.59),
+    ("2026-09", "Software & fees", "QuickBooks",              38.00),
+    ("2026-09", "Ingredients",     "Weee!",                   25.88),
+]
+
 NON_LABOUR_COSTS_2026 = [
     ("2026-02", "Software & fees", "Relay Financial", 90.77),
     ("2026-02", "Insurance", "Next Insurance", 36.42),
@@ -310,6 +330,24 @@ def migrate_db():
         conn.execute("UPDATE clients SET active=0 WHERE name='Teance'")
         conn.execute(
             "INSERT INTO settings (key, value) VALUES ('retire_teance_2026', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
+    # 2026-10-12: September non-labour costs from the Mercury export (one-time).
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='seed_sept_2026_mercury'"
+    ).fetchone():
+        for month, category, label, amount in SEPT_2026_MERCURY_COSTS:
+            conn.execute(
+                """INSERT INTO summary_items
+                     (month, kind, category, label, amount, note, created_at)
+                   VALUES (?, 'cost', ?, ?, ?, 'imported from Mercury', ?)""",
+                (month, category, label, amount, now_iso()),
+            )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('seed_sept_2026_mercury', '1')"
             " ON CONFLICT (key) DO NOTHING"
         )
         conn.commit()
