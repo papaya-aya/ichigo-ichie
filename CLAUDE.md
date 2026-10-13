@@ -126,6 +126,30 @@ if not conn.execute(
 - An ad-hoc strawberry request on the same date as an assigned run is skipped so
   it is never paid twice.
 
+### Costs: one source per kind of spend
+
+Each cost reaches the summary from exactly one place. Mixing them double-counts,
+which is easy to do and hard to spot afterwards.
+
+| Spend | Comes from |
+|---|---|
+| Credit cards (Amex, Mercury Credit) and bank transfers | the card and bank exports, imported as one-time seeds in `migrate_db()` |
+| Anything not on a card — cash, reimbursements, labour paid outside Gusto | the owner's Expense & Sales Ledger, via **Sync now** on the summary |
+| Wages | shift assignments, plus employer tax. Never import Gusto payments |
+
+From September 2026 the ledger records only non-card spend. Earlier months
+predate that split: there the ledger owns the card purchases too, and the
+aggregated Amex rows were deleted from the seed to match.
+
+Two things that would double-count, so check before adding either:
+
+- A card purchase typed into the ledger for September 2026 or later.
+- A Gusto or EDD payment entered as a cost. Payroll already comes from shifts.
+
+**Sync replaces only rows it imported itself** (`summary_items.source = 'sheet'`),
+across every month at once. Seeded and hand-typed rows are never touched, so a
+figure that exists in both places stays in both.
+
 ## Do not commit
 
 Secrets, bank or card exports, or the cost spreadsheet URL. **This repo is
