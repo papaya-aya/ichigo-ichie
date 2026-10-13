@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Remove recurring order · Ichigo Ichie{% endblock %}
+{% block content %}
+
+{% if weekday_label %}
+<h1>Remove {{ client_name }} · {{ weekday_label }}</h1>
+<p class="subtitle">Removes this recurring default.</p>
+{% else %}
+<h1>Remove {{ client_name }}</h1>
+<p class="subtitle">
+  Clears all of {{ client_name }}'s recurring defaults
+  {%- if weekdays %} ({% for wd in weekdays %}{{ weekday_names[wd] }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}.
+  If they still have orders afterwards they are retired and kept so closed
+  months still add up; if none are left they are deleted.
+</p>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">
+    {% if weekday_label %}Upcoming {{ weekday_label }} orders{% else %}Upcoming orders on these days{% endif %}
+    · {{ orders|length }}
+  </h2>
+  <p class="help" style="margin-top:0">
+    Orders dated before today are already made and are never touched, whichever you choose.
+  </p>
+  {% if orders %}
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Client</th><th style="text-align:right">Pieces</th></tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr>
+        <td style="white-space:nowrap">{{ o.date }} <span class="muted">{{ o.weekday }}</span></td>
+        <td>{{ o.client_name }}</td>
+        <td style="text-align:right">{{ o.pcs }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No orders from today onward on {% if weekday_label %}this day{% else %}these days{% endif %}.</p>
+  {% endif %}
+</div>
+
+<form method="post" action="{{ action }}" class="row-actions" style="flex-wrap:wrap; gap:.6rem">
+  {% for k, v in hidden.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  {% for o in orders %}<input type="hidden" name="order_id" value="{{ o.id }}">{% endfor %}
+  <button type="submit" name="mode" value="keep" class="btn-ghost">
+    Remove recurring setting only (keep orders)
+  </button>
+  <button type="submit" name="mode" value="orders"
+          style="background:var(--red,#e53935);border-color:var(--red,#e53935)">
+    Also delete {{ orders|length }} upcoming order(s)
+  </button>
+  <a href="{{ url_for('recurring_orders') }}" class="muted" style="align-self:center">Cancel</a>
+</form>
+
+{% endblock %}

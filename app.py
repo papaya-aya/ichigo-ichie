@@ -1497,14 +1497,58 @@ def recurring_add_client():
     return redirect(url_for("recurring_orders"))
 
 
-@app.route("/owner/recurring-orders/client/<int:client_id>/remove", methods=["POST"])
+def _upcoming_orders_on_weekdays(client_id, weekdays):
+    """The client's orders produced today or later on any of `weekdays`.
+
+    Earlier orders are already made and are never offered for deletion.
+    """
+    rows = g.db.execute(
+        """SELECT o.id, o.date, c.name AS client_name,
+                  o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other AS pcs
+             FROM orders o JOIN clients c ON c.id = o.client_id
+            WHERE o.client_id = ? AND o.date >= ?
+            ORDER BY o.date, o.id""",
+        (client_id, date.today().isoformat()),
+    ).fetchall()
+    return [dict(r, weekday=WEEKDAY_NAMES[date_weekday(r["date"])])
+            for r in rows if date_weekday(r["date"]) in weekdays]
+
+
+def _delete_upcoming_orders(client_id, weekdays, shown_ids):
+    """Delete the orders the owner was shown, if they still qualify.
+
+    Only ids listed on the confirmation page are touched, and only while they
+    are still the client's, on one of `weekdays` and dated today or later.
+    """
+    ids = [o["id"] for o in _upcoming_orders_on_weekdays(client_id, weekdays)
+           if o["id"] in shown_ids]
+    for oid in ids:
+        g.db.execute("DELETE FROM popup_sales WHERE order_id = ?", (oid,))
+        g.db.execute("DELETE FROM orders WHERE id = ?", (oid,))
+    return len(ids)
+
+
+def _shown_order_ids():
+    return {int(x) for x in request.form.getlist("order_id") if x.isdigit()}
+
+
+def _orders_deleted_note(n):
+    return f" {n} upcoming order(s) deleted." if n else ""
+
+
+@app.route("/owner/recurring-orders/client/<int:client_id>/remove",
+           methods=["GET", "POST"])
 @require_owner
 def recurring_remove_client(client_id):
     """Retire a client.
 
-    A client with past orders is deactivated rather than deleted, so invoices
-    and summaries for months already closed still resolve. One that was never
-    ordered from is deleted outright.
+    GET shows what would go; POST with a mode does it. mode=keep drops only
+    the recurring defaults. mode=orders also deletes the client's orders from
+    today onward on the weekdays it had recurring defaults for.
+
+    A client with orders left afterwards is deactivated rather than deleted,
+    so invoices and summaries for months already closed still resolve. One
+    with no orders left is deleted outright.
     """
     row = g.db.execute(
         "SELECT name FROM clients WHERE id = ?", (client_id,)
@@ -1514,6 +1558,24 @@ def recurring_remove_client(client_id):
         return redirect(url_for("recurring_orders"))
 
     name = row["name"]
+    weekdays = {r["weekday"] for r in g.db.execute(
+        "SELECT weekday FROM recurring_orders WHERE client_id = ?", (client_id,)
+    ).fetchall()}
+    mode = request.form.get("mode") if request.method == "POST" else None
+    if mode not in ("keep", "orders"):
+        return render_template(
+            "recurring_delete_confirm.html",
+            client_name=name, weekday_label=None,
+            weekday_names=WEEKDAY_NAMES, weekdays=sorted(weekdays),
+            orders=_upcoming_orders_on_weekdays(client_id, weekdays),
+            action=url_for("recurring_remove_client", client_id=client_id),
+            hidden={},
+        )
+
+    deleted = 0
+    if mode == "orders":
+        deleted = _delete_upcoming_orders(client_id, weekdays, _shown_order_ids())
+
     n_orders = g.db.execute(
         "SELECT COUNT(*) AS n FROM orders WHERE client_id = ?", (client_id,)
     ).fetchone()["n"]
@@ -1523,13 +1585,14 @@ def recurring_remove_client(client_id):
 
     if n_orders:
         g.db.execute("UPDATE clients SET active = 0 WHERE id = ?", (client_id,))
-        flash(f"{name} retired. Their {n_orders} past order(s) are kept so "
+        flash(f"{name} retired. Their {n_orders} remaining order(s) are kept so "
               f"closed months still add up, but they no longer appear when "
-              f"entering orders.", "success")
+              f"entering orders." + _orders_deleted_note(deleted), "success")
     else:
         g.db.execute("DELETE FROM consignment_sales WHERE client_id = ?", (client_id,))
         g.db.execute("DELETE FROM clients WHERE id = ?", (client_id,))
-        flash(f"{name} deleted — they had no orders.", "success")
+        flash(f"{name} deleted — they had no orders left."
+              + _orders_deleted_note(deleted), "success")
     g.db.commit()
     return redirect(url_for("recurring_orders"))
 
@@ -1561,17 +1624,44 @@ def save_recurring_order():
     return redirect(url_for("recurring_orders"))
 
 
-@app.route("/owner/recurring-orders/delete", methods=["POST"])
+@app.route("/owner/recurring-orders/delete", methods=["GET", "POST"])
 @require_owner
 def delete_recurring_order():
-    client_id = _int(request.form.get("client_id", "0"))
-    weekday   = _int(request.form.get("weekday",   "0"))
+    """Remove one recurring default (client + weekday).
+
+    GET shows the confirmation; POST with mode=keep removes only the default,
+    mode=orders also deletes that client's orders on that weekday from today
+    onward.
+    """
+    client_id = _int(request.values.get("client_id", "0"))
+    weekday   = _int(request.values.get("weekday",   "0"))
+    client = g.db.execute(
+        "SELECT name FROM clients WHERE id = ?", (client_id,)
+    ).fetchone()
+    if not client or weekday > 6:
+        flash("That recurring order no longer exists.", "error")
+        return redirect(url_for("recurring_orders"))
+
+    mode = request.form.get("mode") if request.method == "POST" else None
+    if mode not in ("keep", "orders"):
+        return render_template(
+            "recurring_delete_confirm.html",
+            client_name=client["name"], weekday_label=WEEKDAY_NAMES[weekday],
+            weekday_names=WEEKDAY_NAMES, weekdays=[weekday],
+            orders=_upcoming_orders_on_weekdays(client_id, {weekday}),
+            action=url_for("delete_recurring_order"),
+            hidden={"client_id": client_id, "weekday": weekday},
+        )
+
+    deleted = 0
+    if mode == "orders":
+        deleted = _delete_upcoming_orders(client_id, {weekday}, _shown_order_ids())
     g.db.execute(
         "DELETE FROM recurring_orders WHERE client_id=? AND weekday=?",
         (client_id, weekday),
     )
     g.db.commit()
-    flash("Recurring order removed.", "success")
+    flash("Recurring order removed." + _orders_deleted_note(deleted), "success")
     return redirect(url_for("recurring_orders"))
 
 

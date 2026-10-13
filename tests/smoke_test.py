@@ -237,7 +237,7 @@ def main():
     print("\nremove client")
     con.execute("INSERT INTO clients (id,name,active) VALUES (9,'NeverUsed',1)")
     con.commit()
-    cl.post("/owner/recurring-orders/client/9/remove")
+    cl.post("/owner/recurring-orders/client/9/remove", data={"mode": "keep"})
     ok = con.execute("SELECT COUNT(*) n FROM clients WHERE id=9"
                      ).fetchone()["n"] == 0
     print(f"  {'ok  ' if ok else 'FAIL'} {'deletes an unused client':<32}")
@@ -247,7 +247,7 @@ def main():
     # A client with history must be kept so closed months still add up.
     n_before = con.execute("SELECT COUNT(*) n FROM orders WHERE client_id=1"
                            ).fetchone()["n"]
-    cl.post("/owner/recurring-orders/client/1/remove")
+    cl.post("/owner/recurring-orders/client/1/remove", data={"mode": "keep"})
     kept = con.execute("SELECT active FROM clients WHERE id=1").fetchone()
     n_after = con.execute("SELECT COUNT(*) n FROM orders WHERE client_id=1"
                           ).fetchone()["n"]
@@ -770,6 +770,97 @@ def main():
         print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
         if not ok:
             failures.append(f"recurring {label}")
+
+    # ---- removing recurring defaults asks about upcoming orders -----------
+    # Removing a recurring default first shows the client's orders from today
+    # onward on that weekday. The owner keeps them or deletes them; orders
+    # before today are never touched either way.
+    print("\nrecurring delete confirm")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (22,'Mon Bakery',1)")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (23,'Gone Cafe',1)")
+    for cid in (22, 23):
+        for wd in (0, 1):
+            con.execute("INSERT INTO recurring_orders (client_id,weekday,"
+                        "qty_original) VALUES (?,?,60)", (cid, wd))
+    # 2027-04-05 Mon (past), 04-12 Mon, 04-13 Tue, 04-19 Mon, 04-21 Wed
+    for cid in (22, 23):
+        for d, q in [("2027-04-05", 11), ("2027-04-12", 12), ("2027-04-13", 13),
+                     ("2027-04-19", 14), ("2027-04-21", 15)]:
+            con.execute("INSERT INTO orders (client_id,date,delivery_date,"
+                        "qty_original,created_at) VALUES (?,?,?,?,'x')",
+                        (cid, d, d, q))
+    con.commit()
+
+    def order_dates(cid):
+        return sorted(r["date"] for r in con.execute(
+            "SELECT date FROM orders WHERE client_id=?", (cid,)).fetchall())
+
+    def rec_days(cid):
+        return sorted(r["weekday"] for r in con.execute(
+            "SELECT weekday FROM recurring_orders WHERE client_id=?",
+            (cid,)).fetchall())
+
+    def form_ids(page):
+        return _re.findall(r'name="order_id" value="(\d+)"', page)
+
+    all_dates = ["2027-04-05", "2027-04-12", "2027-04-13", "2027-04-19",
+                 "2027-04-21"]
+    real_date = harness.appmod.date
+
+    class _AprilDate(real_date):
+        @classmethod
+        def today(cls):
+            return real_date(2027, 4, 12)
+
+    harness.appmod.date = _AprilDate
+    try:
+        # one weekday: the page lists only upcoming Mondays
+        r1 = cl.get("/owner/recurring-orders/delete?client_id=22&weekday=0")
+        p1 = r1.get_data(as_text=True)
+        page_ok = (r1.status_code == 200 and "2027-04-12" in p1
+                   and "2027-04-19" in p1 and "2027-04-05" not in p1
+                   and "2027-04-13" not in p1 and len(form_ids(p1)) == 2
+                   and "Remove recurring setting only" in p1)
+        unchanged_by_get = rec_days(22) == [0, 1] and order_dates(22) == all_dates
+        # a POST with no choice must not delete anything
+        cl.post("/owner/recurring-orders/delete",
+                data={"client_id": 22, "weekday": 0})
+        no_choice_safe = rec_days(22) == [0, 1] and order_dates(22) == all_dates
+        cl.post("/owner/recurring-orders/delete",
+                data={"client_id": 22, "weekday": 1, "mode": "keep"})
+        keep_ok = rec_days(22) == [0] and order_dates(22) == all_dates
+        ids = form_ids(p1)
+        cl.post("/owner/recurring-orders/delete",
+                data={"client_id": 22, "weekday": 0, "mode": "orders",
+                      "order_id": ids})
+        orders_ok = (rec_days(22) == [] and order_dates(22)
+                     == ["2027-04-05", "2027-04-13", "2027-04-21"])
+
+        # whole client: lists Mon + Tue upcoming, never the past Monday
+        p2 = cl.get("/owner/recurring-orders/client/23/remove").get_data(as_text=True)
+        client_page_ok = (len(form_ids(p2)) == 3 and "2027-04-05" not in p2
+                          and "2027-04-21" not in p2)
+        cl.post("/owner/recurring-orders/client/23/remove",
+                data={"mode": "orders", "order_id": form_ids(p2)})
+        kept = con.execute("SELECT active FROM clients WHERE id=23").fetchone()
+        client_ok = (rec_days(23) == [] and kept is not None
+                     and kept["active"] == 0
+                     and order_dates(23) == ["2027-04-05", "2027-04-21"])
+    finally:
+        harness.appmod.date = real_date
+    checks = [
+        ("page lists upcoming day",   page_ok),
+        ("viewing changes nothing",   unchanged_by_get),
+        ("no choice deletes nothing", no_choice_safe),
+        ("keep leaves orders",        keep_ok),
+        ("delete spares past/others", orders_ok),
+        ("client page lists its days", client_page_ok),
+        ("client delete spares past", client_ok),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(f"recurring delete {label}")
 
     # ---- startup runs clean -----------------------------------------------
     # Regression: the weekday-roles backfill runs at import and called a helper

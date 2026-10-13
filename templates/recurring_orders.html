@@ -80,9 +80,8 @@
 <div class="card">
   <h2 style="margin-top:0; display:flex; align-items:center; gap:.6rem">
     {{ client.name }}
-    <form method="post" style="margin-left:auto"
-          action="{{ url_for('recurring_remove_client', client_id=client.id) }}"
-          onsubmit="return confirm('Remove {{ client.name }}?\n\nPast orders are kept and closed months still add up. They stop appearing when you enter new orders, and their recurring defaults are cleared.')">
+    <form method="get" style="margin-left:auto"
+          action="{{ url_for('recurring_remove_client', client_id=client.id) }}">
       <button type="submit" class="btn-ghost btn-sm"
               style="color:var(--red,#e53935);border-color:var(--red,#e53935);font-weight:400">
         Remove client
@@ -132,8 +131,7 @@
         </form>
         <td>
           {% if ro %}
-          <form method="post" action="{{ url_for('delete_recurring_order') }}" class="inline-form"
-                onsubmit="return confirm('Remove this recurring order?')">
+          <form method="get" action="{{ url_for('delete_recurring_order') }}" class="inline-form">
             <input type="hidden" name="client_id" value="{{ client.id }}">
             <input type="hidden" name="weekday"   value="{{ t.weekday }}">
             <button type="submit" class="btn-ghost btn-sm"
