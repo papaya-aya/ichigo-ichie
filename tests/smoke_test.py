@@ -728,6 +728,49 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- recurring apply leaves made days alone ---------------------------
+    # Applying recurring orders to the current month must not touch days
+    # before today: those pieces are already made. A later month syncs fully.
+    print("\nrecurring apply / sync")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (21,'Rec Cafe',1)")
+    con.execute("INSERT INTO recurring_orders (client_id,weekday,qty_original)"
+                " VALUES (21,2,40)")
+    for d in ["2027-02-03", "2027-02-10", "2027-02-17", "2027-02-24",
+              "2027-03-03"]:
+        con.execute("INSERT INTO shift_instances (template_id,date)"
+                    " VALUES (1,?)", (d,))
+    for d in ["2027-02-03", "2027-02-17"]:
+        con.execute("INSERT INTO orders (client_id,date,delivery_date,"
+                    "qty_original,created_at) VALUES (21,?,?,7,'x')", (d, d))
+    con.commit()
+
+    real_date = harness.appmod.date
+
+    class _FrozenDate(real_date):
+        @classmethod
+        def today(cls):
+            return real_date(2027, 2, 10)
+
+    harness.appmod.date = _FrozenDate
+    try:
+        cl.post("/owner/recurring-orders/apply", data={"month": "2027-02"})
+        cl.post("/owner/recurring-orders/apply", data={"month": "2027-03"})
+    finally:
+        harness.appmod.date = real_date
+    rec_qty = {r["date"]: r["qty_original"] for r in con.execute(
+        "SELECT date, qty_original FROM orders WHERE client_id=21").fetchall()}
+    checks = [
+        ("past day qty untouched",   rec_qty.get("2027-02-03") == 7),
+        ("today gets an order",      rec_qty.get("2027-02-10") == 40),
+        ("later day synced",         rec_qty.get("2027-02-17") == 40),
+        ("later day added",          rec_qty.get("2027-02-24") == 40),
+        ("next month synced fully",  rec_qty.get("2027-03-03") == 40),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(f"recurring {label}")
+
     # ---- startup runs clean -----------------------------------------------
     # Regression: the weekday-roles backfill runs at import and called a helper
     # defined further down the file, so it raised NameError and took every

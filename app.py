@@ -1589,6 +1589,13 @@ def apply_recurring_orders():
     for r in rec_rows:
         by_weekday[r["weekday"]].append(r)
 
+    # Days before today are already made: leave their orders exactly as they
+    # are. For the current month this syncs only today onwards; a future month
+    # is synced in full.
+    today_str = date.today().isoformat()
+    skipped = sum(1 for inst in instances if inst["date"] < today_str)
+    instances = [inst for inst in instances if inst["date"] >= today_str]
+
     added = updated = 0
     for inst in instances:
         wday = inst["weekday"]
@@ -1634,7 +1641,10 @@ def apply_recurring_orders():
     parts = []
     if added:   parts.append(f"{added} new order(s) added")
     if updated: parts.append(f"{updated} existing order(s) synced (quantities updated)")
-    flash(f"{month_label(month)}: {', '.join(parts) or 'nothing to change'}.", "success")
+    msg = f"{month_label(month)}: {', '.join(parts) or 'nothing to change'}."
+    if skipped:
+        msg += f" {skipped} past production day(s) left unchanged."
+    flash(msg, "success")
     return redirect(url_for("recurring_orders"))
 
 
