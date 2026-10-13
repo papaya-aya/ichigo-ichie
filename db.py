@@ -572,7 +572,47 @@ def migrate_db():
         )
         conn.commit()
 
+    # 2026-10-12: delete orders of 0 pieces dated today or later (one-time).
+    # Recurring defaults of 0 used to create them, so they cluttered the
+    # production calendar. Earlier orders are never touched, nor is one with a
+    # note or recorded pop-up sales. What was removed is kept in the flag's
+    # value so it can be checked afterwards.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='delete_upcoming_empty_orders_2026_10'"
+    ).fetchone():
+        from datetime import date as _date
+        gone = delete_upcoming_empty_orders(conn, _date.today().isoformat())
+        record = f"{len(gone)} deleted: " + ", ".join(
+            f"{r['date']} {r['client_name']}" for r in gone)
+        print("delete_upcoming_empty_orders_2026_10 —", record)
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('delete_upcoming_empty_orders_2026_10', ?)"
+            " ON CONFLICT (key) DO NOTHING",
+            (record,),
+        )
+        conn.commit()
+
     conn.close()
+
+
+def delete_upcoming_empty_orders(conn, today_iso):
+    """Delete orders produced on or after `today_iso` that total 0 pieces, have
+    no note and no recorded pop-up sales. Returns what was deleted. The caller
+    commits."""
+    rows = conn.execute(
+        """SELECT o.id, o.date AS date, c.name AS client_name
+             FROM orders o JOIN clients c ON c.id = o.client_id
+            WHERE o.date >= ?
+              AND (o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other) = 0
+              AND COALESCE(TRIM(o.note), '') = ''
+              AND NOT EXISTS (SELECT 1 FROM popup_sales ps WHERE ps.order_id = o.id)
+            ORDER BY o.date, c.name""",
+        (today_iso,),
+    ).fetchall()
+    for r in rows:
+        conn.execute("DELETE FROM orders WHERE id = ?", (r["id"],))
+    return rows
 
 
 # ---------------------------------------------------------------------------

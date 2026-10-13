@@ -31,6 +31,14 @@ def orders_for_date(conn, date):
     ).fetchall()
 
 
+def orders_to_show(conn, date):
+    """Orders for a production date with their totals, leaving out any that
+    total 0 pieces: there is nothing to make for them. The order-entry page
+    still lists them so they can be edited or removed."""
+    rows = [{**dict(o), "total": order_total(o)} for o in orders_for_date(conn, date)]
+    return [o for o in rows if o["total"] > 0]
+
+
 def day_totals(conn, date):
     """Per-flavor and grand total pieces ordered for a date."""
     rows = orders_for_date(conn, date)

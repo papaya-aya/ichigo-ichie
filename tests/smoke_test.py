@@ -862,6 +862,99 @@ def main():
         if not ok:
             failures.append(f"recurring delete {label}")
 
+    # ---- zero-piece orders are not shown or created ------------------------
+    # An order of 0 pieces has nothing to make. The calendars and the owner's
+    # schedule leave it out (the order-entry page still lists it), Apply does
+    # not create one, and the one-time cleanup deletes upcoming ones that have
+    # no note — never one dated before today.
+    print("\nzero-piece orders hidden")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (24,'Zero Tea',1)")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (25,'Real Cafe',1)")
+    zero_inst = con.execute("INSERT INTO shift_instances (template_id,date)"
+                            " VALUES (1,'2027-05-05')").lastrowid
+    for cid, q in [(24, 0), (25, 30)]:
+        con.execute("INSERT INTO orders (client_id,date,delivery_date,"
+                    "qty_original,created_at) VALUES (?,?,?,?,'x')",
+                    (cid, "2027-05-05", "2027-05-05", q))
+    con.commit()
+    shown = {
+        "calendar":   cl.get("/calendar?month=2027-05"),
+        "dashboard":  cl.get("/owner?month=2027-05"),
+        "shift page": cl.get(f"/owner/schedule/{zero_inst}"),
+    }
+    con.execute("INSERT INTO settings (key,value) VALUES"
+                " ('public_calendar_token','zerotok') ON CONFLICT(key) DO NOTHING")
+    con.commit()
+    token = con.execute("SELECT value FROM settings"
+                        " WHERE key='public_calendar_token'").fetchone()["value"]
+    shown["public calendar"] = cl.get(f"/public/calendar/{token}?month=2027-05")
+    entry = cl.get("/owner/orders/2027-05-05").get_data(as_text=True)
+    # The dashboard also lists every client by name, so look at its order
+    # lines only there.
+    def order_names(key, page):
+        if key == "dashboard":
+            return " ".join(_re.findall(r'class="order-client">([^<]*)<', page))
+        return page
+    checks = [(f"{k} hides 0-piece order",
+               r.status_code == 200
+               and "Real Cafe" in order_names(k, r.get_data(as_text=True))
+               and "Zero Tea" not in order_names(k, r.get_data(as_text=True)))
+              for k, r in shown.items()]
+    checks.append(("order entry still lists it", "Zero Tea" in entry))
+
+    # Apply creates nothing for a 0-piece default (Wednesday = weekday 2)
+    con.execute("INSERT INTO recurring_orders (client_id,weekday) VALUES (24,2)")
+    con.execute("INSERT INTO shift_instances (template_id,date)"
+                " VALUES (1,'2027-06-02')")
+    con.commit()
+    cl.post("/owner/recurring-orders/apply", data={"month": "2027-06"})
+    n_zero_created = con.execute(
+        "SELECT COUNT(*) n FROM orders WHERE client_id=24 AND date LIKE ?",
+        ("2027-06-%",)).fetchone()["n"]
+    checks.append(("apply skips 0-piece default", n_zero_created == 0))
+
+    # One-time cleanup, run from db.py against this database
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "real_db", os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "db.py"))
+    real_db = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(real_db)
+    con.execute("INSERT INTO clients (id,name,active) VALUES (26,'Cleanup Co',1)")
+    for d, q, note in [("2027-07-01", 0, ""),       # past: keep
+                       ("2027-07-08", 0, None),     # today, empty: delete
+                       ("2027-07-09", 0, "  "),     # blank note: delete
+                       ("2027-07-10", 0, "call first"),  # note: keep
+                       ("2027-07-11", 5, ""),       # has pieces: keep
+                       ("2027-07-12", 0, "")]:      # pop-up sales: keep
+        con.execute("INSERT INTO orders (client_id,date,delivery_date,"
+                    "qty_original,note,created_at) VALUES (26,?,?,?,?,'x')",
+                    (d, d, q, note))
+    sold = con.execute("SELECT id FROM orders WHERE client_id=26"
+                       " AND date='2027-07-12'").fetchone()["id"]
+    con.execute("INSERT INTO popup_sales (order_id,pcs_sold) VALUES (?,3)",
+                (sold,))
+    con.commit()
+    gone = real_db.delete_upcoming_empty_orders(harness.stub.get_db(),
+                                                "2027-07-08")
+    con.commit()
+    left = sorted(r["date"] for r in con.execute(
+        "SELECT date FROM orders WHERE client_id=26").fetchall())
+    checks += [
+        ("cleanup lists what it deletes",
+         [(r["date"], r["client_name"]) for r in gone]
+         == [("2027-07-08", "Cleanup Co"), ("2027-07-09", "Cleanup Co")]),
+        ("cleanup spares past/note/sales",
+         left == ["2027-07-01", "2027-07-10", "2027-07-11", "2027-07-12"]),
+        ("cleanup leaves other clients",
+         con.execute("SELECT COUNT(*) n FROM orders WHERE client_id=24"
+                     " AND date='2027-05-05'").fetchone()["n"] == 1),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(f"zero-piece {label}")
+
     # ---- startup runs clean -----------------------------------------------
     # Regression: the weekday-roles backfill runs at import and called a helper
     # defined further down the file, so it raised NameError and took every

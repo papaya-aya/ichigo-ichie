@@ -1020,8 +1020,7 @@ def calendar_view():
     shifts_by_date = {}
     for inst in instances:
         people  = assigned_people(inst["instance_id"])
-        day_ord = production.orders_for_date(g.db, inst["date"])
-        orders  = [{**dict(o), "total": production.order_total(o)} for o in day_ord]
+        orders  = production.orders_to_show(g.db, inst["date"])
         shifts_by_date[inst["date"]] = {
             "inst":    inst,
             "weekday": WEEKDAY_NAMES[inst["weekday"]],
@@ -1121,8 +1120,7 @@ def public_calendar(token):
     shifts_by_date = {}
     for inst in instances:
         people   = assigned_people(inst["instance_id"])
-        day_ord  = production.orders_for_date(g.db, inst["date"])
-        orders   = [{**dict(o), "total": production.order_total(o)} for o in day_ord]
+        orders   = production.orders_to_show(g.db, inst["date"])
         shifts_by_date[inst["date"]] = {
             "inst":    inst,
             "weekday": WEEKDAY_NAMES[inst["weekday"]],
@@ -1243,8 +1241,7 @@ def owner_dashboard():
     upcoming = []
     for inst in upcoming_instances:
         people  = assigned_people(inst["instance_id"])
-        day_ord = production.orders_for_date(g.db, inst["date"])
-        orders  = [{**dict(o), "total": production.order_total(o)} for o in day_ord]
+        orders  = production.orders_to_show(g.db, inst["date"])
         totals  = production.day_totals(g.db, inst["date"])
         upcoming.append({
             "inst":         inst,
@@ -1715,7 +1712,9 @@ def apply_recurring_orders():
                      fixed_del, existing["id"]),
                 )
                 updated += 1
-            else:
+            elif (rec["qty_original"] + rec["qty_matcha"]
+                  + rec["qty_hojicha"] + rec["qty_other"]) > 0:
+                # A default of 0 pieces means no order that day: don't create one.
                 g.db.execute(
                     """INSERT INTO orders
                          (client_id, date, qty_original, qty_matcha, qty_hojicha, qty_other,
@@ -4273,8 +4272,7 @@ def shift_detail(instance_id):
     ).fetchone()
 
     totals = production.day_totals(g.db, inst["date"])
-    orders = [{**dict(o), "total": production.order_total(o)}
-              for o in production.orders_for_date(g.db, inst["date"])]
+    orders = production.orders_to_show(g.db, inst["date"])
     staff = production.staffing(
         inst, totals["total"], [dict(a) for a in assigned.values()], target_productivity())
     return render_template(
