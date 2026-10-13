@@ -342,6 +342,23 @@ def migrate_db():
         )
         conn.commit()
 
+    # Two serverless cold starts can enter migrate_db() together: both see the
+    # guard flag missing, both insert, and the seed lands twice. Collapse any
+    # such duplicates to one row each. Deliberately unguarded — it is idempotent
+    # and self-healing, so a future race corrects itself on the next boot.
+    conn.execute(
+        """DELETE FROM summary_items
+            WHERE note IN ('imported from Mercury', 'imported from Amex',
+                           'imported from Mercury/Amex')
+              AND id NOT IN (
+                SELECT MIN(id) FROM summary_items
+                 WHERE note IN ('imported from Mercury', 'imported from Amex',
+                                'imported from Mercury/Amex')
+                 GROUP BY month, kind, category, label, amount, note
+              )"""
+    )
+    conn.commit()
+
     # 2026-10-12: September Amex charges (one-time). Separate from the Mercury
     # seed below: the Mercury export shows only the lump payment to the card,
     # not what was bought on it.
@@ -352,8 +369,12 @@ def migrate_db():
             conn.execute(
                 """INSERT INTO summary_items
                      (month, kind, category, label, amount, note, created_at)
-                   VALUES (?, 'cost', ?, ?, ?, 'imported from Amex', ?)""",
-                (month, category, label, amount, now_iso()),
+                   SELECT ?, 'cost', ?, ?, ?, 'imported from Amex', ?
+                    WHERE NOT EXISTS (
+                      SELECT 1 FROM summary_items
+                       WHERE month = ? AND label = ?
+                         AND note = 'imported from Amex')""",
+                (month, category, label, amount, now_iso(), month, label),
             )
         conn.execute(
             "INSERT INTO settings (key, value)"
@@ -370,8 +391,12 @@ def migrate_db():
             conn.execute(
                 """INSERT INTO summary_items
                      (month, kind, category, label, amount, note, created_at)
-                   VALUES (?, 'cost', ?, ?, ?, 'imported from Mercury', ?)""",
-                (month, category, label, amount, now_iso()),
+                   SELECT ?, 'cost', ?, ?, ?, 'imported from Mercury', ?
+                    WHERE NOT EXISTS (
+                      SELECT 1 FROM summary_items
+                       WHERE month = ? AND label = ?
+                         AND note = 'imported from Mercury')""",
+                (month, category, label, amount, now_iso(), month, label),
             )
         conn.execute(
             "INSERT INTO settings (key, value)"
