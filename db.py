@@ -71,6 +71,14 @@ SEPT_2026_MERCURY_COSTS = [
     ("2026-09", "Ingredients",     "Weee!",                   25.88),
 ]
 
+# September 2026 Amex charges. The $1,644.24 payment that month settled
+# August's balance, so September's own card spend is just these four charges.
+SEPT_2026_AMEX_COSTS = [
+    ("2026-09", "Ingredients",     "Safeway (Amex)",      141.87),
+    ("2026-09", "Equipment",       "IKEA East Bay",        44.18),
+    ("2026-09", "Software & fees", "Amazon Prime",         16.60),
+]
+
 NON_LABOUR_COSTS_2026 = [
     ("2026-02", "Software & fees", "Relay Financial", 90.77),
     ("2026-02", "Insurance", "Next Insurance", 36.42),
@@ -330,6 +338,26 @@ def migrate_db():
         conn.execute("UPDATE clients SET active=0 WHERE name='Teance'")
         conn.execute(
             "INSERT INTO settings (key, value) VALUES ('retire_teance_2026', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
+    # 2026-10-12: September Amex charges (one-time). Separate from the Mercury
+    # seed below: the Mercury export shows only the lump payment to the card,
+    # not what was bought on it.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='seed_sept_2026_amex'"
+    ).fetchone():
+        for month, category, label, amount in SEPT_2026_AMEX_COSTS:
+            conn.execute(
+                """INSERT INTO summary_items
+                     (month, kind, category, label, amount, note, created_at)
+                   VALUES (?, 'cost', ?, ?, ?, 'imported from Amex', ?)""",
+                (month, category, label, amount, now_iso()),
+            )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('seed_sept_2026_amex', '1')"
             " ON CONFLICT (key) DO NOTHING"
         )
         conn.commit()
