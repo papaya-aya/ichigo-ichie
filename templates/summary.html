@@ -147,11 +147,13 @@
 <form method="post" action="{{ url_for('monthly_summary', month=month) }}">
   <input type="hidden" name="action" value="save_popups">
 <div class="card">
-  <h2 style="margin-top:0">Pop-ups
-    <span class="pill">{{ popup_rows|length }} event{{ 's' if popup_rows|length != 1 }}</span>
-    <span class="pill">${{ '%.2f'|format(popup_sales_total) }}</span>
-  </h2>
-  <p class="muted" style="margin-top:-.4rem; font-size:.88rem">
+  <details class="fold">
+    <summary>
+      Adjust what a pop-up actually sold
+      <span class="muted">— {{ popup_rows|length }} event{{ 's' if popup_rows|length != 1 }},
+        ${{ '%.2f'|format(popup_sales_total) }}, already counted in Sales above</span>
+    </summary>
+  <p class="muted" style="margin:.7rem 0 0; font-size:.88rem">
     By default a pop-up earns everything made less {{ '%g'|format(popup_waste * 100) }}%
     waste. If a pop-up sold unusually well or badly, record what actually happened —
     either the pieces sold or an exact dollar amount. An exact amount always wins.</p>
@@ -209,6 +211,7 @@
   </div>
   <p class="help">Clear both fields to fall back to the default. Tinted rows are
     still on the default; rows with a white background have recorded actuals.</p>
+  </details>
 </div>
 </form>
 {% endif %}
@@ -509,5 +512,8 @@
 tr.row-uncat{background:#fffbf0}
 .pill-chan{background:#eef2ff;color:#3949ab;font-size:.72rem}
 tr.row-default{background:#fafafa}
+.fold > summary{cursor:pointer; font-weight:600; list-style:revert}
+.fold > summary:hover{color:var(--pink)}
+.fold > summary .muted{font-weight:400; font-size:.86rem}
 </style>
 {% endblock %}
