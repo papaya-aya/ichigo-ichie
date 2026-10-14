@@ -2933,7 +2933,10 @@ def monthly_summary():
 
         popup_rev  = popup_rev_by_client.get(r["client_id"], 0.0)
         # Orders the client collects: no driver, charged at the pick-up rate.
-        pickup_rev = round(pickup_pcs * pick_rate, 2)
+        # A client with its own rate keeps it when collecting — that is how an
+        # employee buying at staff price differs from an ordinary pick-up.
+        pickup_unit = price if price else pick_rate
+        pickup_rev = round(pickup_pcs * pickup_unit, 2)
 
         flat_amount = entered.get(r["client_id"], 0.0)
         flat_override = False
@@ -2971,7 +2974,7 @@ def monthly_summary():
             if popup_pcs:
                 parts.append(f"{popup_pcs} pop-up pcs (see below)")
             if pickup_pcs:
-                parts.append(f"{pickup_pcs} pick-up pcs x ${pick_rate:.2f}")
+                parts.append(f"{pickup_pcs} pick-up pcs x ${pickup_unit:.2f}")
             basis = " · ".join(parts)
             revenue = round(popup_rev + pickup_rev + other_rev, 2)
         if sample_pcs:

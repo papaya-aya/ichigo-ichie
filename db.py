@@ -368,6 +368,33 @@ def migrate_db():
     )
     conn.commit()
 
+    # 2026-10-14: Ashley, Grace and Sakurako collected their September orders,
+    # so they are pick-ups rather than pop-ups — no waste deduction. Ashley and
+    # Grace pay the pick-up rate; Sakurako is staff and pays the employee rate,
+    # which her own unit price carries.
+    if not conn.execute(
+        "SELECT 1 FROM settings WHERE key='sept_2026_pickup_repricing'"
+    ).fetchone():
+        for name, rate in (("Ashley", 6.50), ("Grace", 6.50),
+                           ("Sakurako", 5.50)):
+            conn.execute(
+                "UPDATE clients SET unit_price = ? WHERE name = ?",
+                (rate, name),
+            )
+            conn.execute(
+                """UPDATE orders SET is_pickup = 1, pickup_kind = 'pickup',
+                                     deliverer = '', delivery_date = NULL
+                    WHERE client_id = (SELECT id FROM clients WHERE name = ?)
+                      AND COALESCE(delivery_date, orders.date) LIKE ?""",
+                (name, "2026-09-%"),
+            )
+        conn.execute(
+            "INSERT INTO settings (key, value)"
+            " VALUES ('sept_2026_pickup_repricing', '1')"
+            " ON CONFLICT (key) DO NOTHING"
+        )
+        conn.commit()
+
     # 2026-10-14: Gusto's software fee was excluded along with wages in every
     # earlier import. Only NET and TAX are payroll — the FEE is a subscription.
     for month, amount in GUSTO_FEES_2026:
