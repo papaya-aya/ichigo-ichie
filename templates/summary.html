@@ -40,6 +40,43 @@
 <div class="card">
   <h2 style="margin-top:0">Sales <span class="pill">{{ month_label }}</span></h2>
 
+  <details class="fold" style="margin-bottom:1rem">
+    <summary>Which field do I change to fix a number?</summary>
+    <div class="scroll">
+    <table style="margin-top:.6rem">
+      <thead><tr><th>If this is wrong…</th><th>…change this</th></tr></thead>
+      <tbody>
+        <tr><td>What a client pays per piece</td>
+            <td><b>Rate</b> on that client's row, then <b>Save prices</b></td></tr>
+        <tr><td>A pick-up client's price</td>
+            <td><b>Rate</b> on their row. Left at 0 they fall back to
+                <b>Pick-up $/pc</b> above</td></tr>
+        <tr><td>What staff pay</td>
+            <td><b>Employee $/pc</b> above — one rate for everyone</td></tr>
+        <tr><td>One pop-up sold more or less than usual</td>
+            <td>Open <b>Adjust what a pop-up actually sold</b> below and fill in
+                that event's row</td></tr>
+        <tr><td>Every pop-up, not just one</td>
+            <td><b>Pop-up $/pc</b> and <b>Pop-up waste %</b> above</td></tr>
+        <tr><td>A consignment client (they report what they sold)</td>
+            <td><b>Reported / flat</b> on their row — enter their figure, we keep
+                {{ (consignment_share * 100) | int }}%</td></tr>
+        <tr><td>A client billed one flat sum for the month</td>
+            <td><b>Reported / flat</b> on their row — it replaces their whole
+                per-piece total</td></tr>
+        <tr><td>The piece count itself</td>
+            <td>Fix the order on the <a href="{{ url_for('calendar_view', month=month) }}">Calendar</a>.
+                This page only reads them</td></tr>
+        <tr><td>Something was given away free</td>
+            <td>Put <b>sample</b> in the order's note. It then earns nothing but
+                still counts as made</td></tr>
+        <tr><td>A cost rather than a sale</td>
+            <td><b>Other revenue &amp; costs</b> further down</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </details>
+
   {% if sales_rows %}
   <table>
     <thead>

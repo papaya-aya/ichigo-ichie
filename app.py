@@ -3065,7 +3065,7 @@ def monthly_summary():
         date_from=date_from, date_to=date_to,
         sales_rows=sales_rows, order_sales=order_sales,
         popup_rate=pop_rate, pickup_rate=pick_rate, popup_waste=waste,
-        employee_rate=emp_rate,
+        employee_rate=emp_rate, consignment_share=CONSIGNMENT_SHARE,
         popup_pcs=sum(r["popup_pcs"] for r in sales_rows),
         popup_rows=popup_rows,
         popup_sales_total=round(sum(r["revenue"] for r in popup_rows), 2),
