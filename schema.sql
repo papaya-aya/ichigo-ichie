@@ -168,6 +168,10 @@ CREATE TABLE IF NOT EXISTS popup_sales (
   amount   NUMERIC,                    -- NULL = not recorded
   UNIQUE(order_id)
 );
+-- Ticked by the owner to say this pop-up has been checked against what it
+-- really sold. Independent of the figures: a pop-up can be confirmed correct
+-- at the default, which no recorded amount would otherwise show.
+ALTER TABLE popup_sales ADD COLUMN IF NOT EXISTS reviewed INTEGER NOT NULL DEFAULT 0;
 
 -- Revenue or cost that does not come from orders or payroll — anything the
 -- owner needs to categorise by hand (ingredients, rent, one-off income, an

@@ -426,6 +426,34 @@ def main():
     if not ok:
         failures.append("pick-up form")
 
+    # ---- pop-up checked tick ----------------------------------------------
+    # A tick with no figures must survive: that is how a pop-up is confirmed
+    # correct at the default, which no recorded amount would show.
+    print("\npop-up checked tick")
+    pop = con.execute("SELECT id FROM orders WHERE is_pickup=1"
+                      " AND COALESCE(pickup_kind,'popup')='popup' LIMIT 1").fetchone()
+    if pop:
+        oid = pop["id"]
+        cl.post("/owner/summary?month=2026-09", data={
+            "action": "save_popups", "order_id": str(oid),
+            f"psold_{oid}": "", f"pamt_{oid}": "", f"prev_{oid}": "1"},
+            follow_redirects=True)
+        row = con.execute("SELECT pcs_sold, amount, reviewed FROM popup_sales"
+                          " WHERE order_id=?", (oid,)).fetchone()
+        ok = row is not None and row["reviewed"] == 1 and row["pcs_sold"] is None
+        print(f"  {'ok  ' if ok else 'FAIL'} {'tick survives with no figures':<32}")
+        if not ok:
+            failures.append("popup reviewed tick")
+
+        cl.post("/owner/summary?month=2026-09", data={
+            "action": "save_popups", "order_id": str(oid),
+            f"psold_{oid}": "", f"pamt_{oid}": ""}, follow_redirects=True)
+        ok = con.execute("SELECT COUNT(*) c FROM popup_sales WHERE order_id=?",
+                         (oid,)).fetchone()["c"] == 0
+        print(f"  {'ok  ' if ok else 'FAIL'} {'unticking clears the row':<32}")
+        if not ok:
+            failures.append("popup untick")
+
     # ---- employee channel --------------------------------------------------
     # Staff buy at the employee rate: no waste deduction, no driver, and not
     # listed among the pop-up events.

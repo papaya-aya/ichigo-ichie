@@ -2760,17 +2760,22 @@ def monthly_summary():
                     continue
                 sold   = _num(request.form.get(f"psold_{oid}"))
                 amount = _num(request.form.get(f"pamt_{oid}"))
-                if sold is None and amount is None:
+                reviewed = 1 if request.form.get(f"prev_{oid}") else 0
+                # Only drop the row when there is nothing left to remember —
+                # a tick with no figures still has to survive.
+                if sold is None and amount is None and not reviewed:
                     g.db.execute(
                         "DELETE FROM popup_sales WHERE order_id = ?", (oid,))
                 else:
                     g.db.execute(
-                        """INSERT INTO popup_sales (order_id, pcs_sold, amount)
-                                VALUES (?, ?, ?)
+                        """INSERT INTO popup_sales
+                             (order_id, pcs_sold, amount, reviewed)
+                                VALUES (?, ?, ?, ?)
                            ON CONFLICT (order_id) DO UPDATE
                              SET pcs_sold = EXCLUDED.pcs_sold,
-                                 amount   = EXCLUDED.amount""",
-                        (oid, sold, amount),
+                                 amount   = EXCLUDED.amount,
+                                 reviewed = EXCLUDED.reviewed""",
+                        (oid, sold, amount, reviewed),
                     )
             g.db.commit()
             flash("Pop-up sales saved.", "success")
@@ -2896,7 +2901,7 @@ def monthly_summary():
                   o.client_id, o.note, c.name AS client_name,
                   (o.qty_original + o.qty_matcha
                    + o.qty_hojicha + o.qty_other) AS pcs,
-                  ps.pcs_sold, ps.amount
+                  ps.pcs_sold, ps.amount, ps.reviewed
              FROM orders o
              JOIN clients c ON c.id = o.client_id
              LEFT JOIN popup_sales ps ON ps.order_id = o.id
@@ -2931,6 +2936,7 @@ def monthly_summary():
             "pcs_sold":   p["pcs_sold"],
             "amount":     p["amount"],
             "recorded":   p["amount"] is not None or p["pcs_sold"] is not None,
+            "reviewed":   bool(p["reviewed"]),
             "is_sample":  is_sample(p["note"]),
             "revenue":    revenue,
             "basis":      basis,

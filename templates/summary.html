@@ -86,6 +86,7 @@
         <th style="text-align:right">Rate</th>
         <th style="text-align:right" title="Consignment: what they reported selling. Anyone else: a flat monthly amount that replaces the per-piece total.">Reported / flat</th>
         <th style="text-align:right">Revenue</th>
+        <th style="text-align:center" title="Tick once you have checked this pop-up against what it really sold">Checked</th>
         <th>Basis</th>
       </tr>
     </thead>
@@ -194,9 +195,11 @@
     <summary>
       Adjust what a pop-up actually sold
       {% set adjusted = popup_rows | selectattr('recorded') | list | length %}
+      {% set checked = popup_rows | selectattr('reviewed') | list | length %}
       <span class="muted">— {{ popup_rows|length }} event{{ 's' if popup_rows|length != 1 }},
         ${{ '%.2f'|format(popup_sales_total) }}, already counted in Sales above{% if adjusted %};
-        <b>{{ adjusted }} adjusted</b>{% endif %}</span>
+        <b>{{ adjusted }} adjusted</b>{% endif %};
+        <b>{{ checked }} of {{ popup_rows|length }} checked</b></span>
     </summary>
   <p class="muted" style="margin:.7rem 0 0; font-size:.88rem">
     By default a pop-up earns everything made less {{ '%g'|format(popup_waste * 100) }}%
@@ -239,6 +242,11 @@
         </td>
         <td style="text-align:right; font-weight:600">${{ '%.2f'|format(p.revenue) }}
           {% if p.recorded %}<br><span class="pill pill-adj">adjusted</span>{% endif %}</td>
+        <td style="text-align:center">
+          <input type="checkbox" name="prev_{{ p.order_id }}" value="1"
+                 {% if p.reviewed %}checked{% endif %}
+                 title="Checked against what this pop-up really sold">
+        </td>
         <td class="muted" style="font-size:.8rem">{{ p.basis }}</td>
       </tr>
       {% endfor %}
@@ -247,7 +255,7 @@
       <tr style="border-top:2px solid var(--pink-line)">
         <td colspan="5"><b>Total pop-up revenue</b></td>
         <td style="text-align:right"><b>${{ '%.2f'|format(popup_sales_total) }}</b></td>
-        <td></td>
+        <td></td><td></td>
       </tr>
     </tfoot>
   </table>
@@ -255,7 +263,9 @@
   <div class="row-actions" style="margin-top:.8rem">
     <button type="submit">Save pop-up sales</button>
   </div>
-  <p class="help">Clear both fields to fall back to the default. Tinted rows are
+  <p class="help">Tick <b>Checked</b> once you have compared a pop-up against what
+    it really sold — useful for one that was right at the default, which no figure
+    would otherwise show. Clear both fields to fall back to the default. Tinted rows are
     still on the default; rows with a white background have recorded actuals.</p>
   </details>
 </div>
