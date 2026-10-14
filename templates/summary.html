@@ -64,6 +64,8 @@
             {{ r.popup_pcs }} pop-up</span>{% endif %}
           {% if r.pickup_pcs %}<br><span class="muted" style="font-size:.75rem">
             {{ r.pickup_pcs }} pick-up</span>{% endif %}
+          {% if r.employee_pcs %}<br><span class="muted" style="font-size:.75rem">
+            {{ r.employee_pcs }} employee</span>{% endif %}
           {% if r.sample_pcs %}<br><span class="muted" style="font-size:.75rem">
             {{ r.sample_pcs }} sample, free</span>{% endif %}
         </td>
@@ -109,6 +111,11 @@
     <label class="field" style="width:9rem">
       Pick-up $/pc
       <input type="number" name="pickup_rate" value="{{ '%.2f'|format(pickup_rate) }}"
+             min="0" step="0.01" style="text-align:right">
+    </label>
+    <label class="field" style="width:9rem">
+      Employee $/pc
+      <input type="number" name="employee_rate" value="{{ '%.2f'|format(employee_rate) }}"
              min="0" step="0.01" style="text-align:right">
     </label>
     <label class="field" style="width:9rem">

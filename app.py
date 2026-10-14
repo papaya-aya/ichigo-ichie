@@ -434,6 +434,14 @@ def pickup_rate():
         return 6.50
 
 
+def employee_rate():
+    """Revenue per piece when a member of staff buys at the employee price."""
+    try:
+        return float(database.get_setting(g.db, "employee_rate", "5.50"))
+    except (TypeError, ValueError):
+        return 5.50
+
+
 def popup_waste():
     """Share of a pop-up batch assumed unsold, when actuals aren't recorded."""
     try:
@@ -2018,8 +2026,8 @@ def order_channel(form):
     when pricing. Falls back to the old checkbox so a stale form still saves.
     """
     channel = (form.get("channel") or "").strip().lower()
-    if channel == "pickup":
-        return 1, "pickup"
+    if channel in ("pickup", "employee"):
+        return 1, channel
     if channel == "popup":
         return 1, "popup"
     if channel == "delivery":
@@ -2789,7 +2797,7 @@ def monthly_summary():
             flash(f"Updated {changed} item(s).", "success")
 
         else:
-            for setting in ("popup_rate", "pickup_rate"):
+            for setting in ("popup_rate", "pickup_rate", "employee_rate"):
                 if setting in request.form:
                     try:
                         database.set_setting(
@@ -2839,7 +2847,7 @@ def monthly_summary():
         """SELECT c.id AS client_id, c.name, c.unit_price, c.is_consignment,
                   c.default_deliverer,
                   SUM(CASE WHEN o.is_pickup = 1
-                             AND COALESCE(o.pickup_kind, 'popup') <> 'pickup'
+                             AND COALESCE(o.pickup_kind, 'popup') = 'popup'
                              AND LOWER(COALESCE(o.note, '')) NOT LIKE ? THEN
                         o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
                       ELSE 0 END) AS popup_pcs,
@@ -2848,6 +2856,11 @@ def monthly_summary():
                              AND LOWER(COALESCE(o.note, '')) NOT LIKE ? THEN
                         o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
                       ELSE 0 END) AS pickup_pcs,
+                  SUM(CASE WHEN o.is_pickup = 1
+                             AND COALESCE(o.pickup_kind, 'popup') = 'employee'
+                             AND LOWER(COALESCE(o.note, '')) NOT LIKE ? THEN
+                        o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
+                      ELSE 0 END) AS employee_pcs,
                   SUM(CASE WHEN o.is_pickup = 1
                              OR LOWER(COALESCE(o.note, '')) LIKE ? THEN 0 ELSE
                         o.qty_original + o.qty_matcha + o.qty_hojicha + o.qty_other
@@ -2859,7 +2872,7 @@ def monthly_summary():
             WHERE COALESCE(o.delivery_date, o.date) BETWEEN ? AND ?
             GROUP BY c.id, c.name, c.unit_price, c.is_consignment, c.default_deliverer
             ORDER BY c.name""",
-        (SAMPLE_MATCH, SAMPLE_MATCH, SAMPLE_MATCH, SAMPLE_MATCH,
+        (SAMPLE_MATCH, SAMPLE_MATCH, SAMPLE_MATCH, SAMPLE_MATCH, SAMPLE_MATCH,
          date_from, date_to),
     ).fetchall()
 
@@ -2872,6 +2885,7 @@ def monthly_summary():
     }
 
     pop_rate, pick_rate = popup_rate(), pickup_rate()
+    emp_rate = employee_rate()
     waste = popup_waste()
 
     # ---- pop-ups, one row per event, with optional recorded actuals ----
@@ -2886,7 +2900,7 @@ def monthly_summary():
              JOIN clients c ON c.id = o.client_id
              LEFT JOIN popup_sales ps ON ps.order_id = o.id
             WHERE o.is_pickup = 1
-              AND COALESCE(o.pickup_kind, 'popup') <> 'pickup'
+              AND COALESCE(o.pickup_kind, 'popup') = 'popup'
               AND COALESCE(o.delivery_date, o.date) BETWEEN ? AND ?
             ORDER BY on_date, c.name""",
         (date_from, date_to),
@@ -2933,10 +2947,12 @@ def monthly_summary():
 
         popup_rev  = popup_rev_by_client.get(r["client_id"], 0.0)
         # Orders the client collects: no driver, charged at the pick-up rate.
-        # A client with its own rate keeps it when collecting — that is how an
-        # employee buying at staff price differs from an ordinary pick-up.
+        # A client with its own rate keeps it when collecting. Staff buying at
+        # the employee price are their own channel and ignore the client rate.
         pickup_unit = price if price else pick_rate
         pickup_rev = round(pickup_pcs * pickup_unit, 2)
+        employee_pcs = int(r["employee_pcs"] or 0)
+        employee_rev = round(employee_pcs * emp_rate, 2)
 
         flat_amount = entered.get(r["client_id"], 0.0)
         flat_override = False
@@ -2966,8 +2982,9 @@ def monthly_summary():
                      ) if other_pcs else ""
         sample_pcs = int(r["sample_pcs"] or 0)
         if flat_override:
-            if popup_pcs or pickup_pcs or other_pcs:
-                basis += f" (covers {popup_pcs + pickup_pcs + other_pcs} pcs)"
+            covered = popup_pcs + pickup_pcs + employee_pcs + other_pcs
+            if covered:
+                basis += f" (covers {covered} pcs)"
             revenue = round(flat_amount, 2)
         else:
             parts = [basis] if basis else []
@@ -2975,8 +2992,11 @@ def monthly_summary():
                 parts.append(f"{popup_pcs} pop-up pcs (see below)")
             if pickup_pcs:
                 parts.append(f"{pickup_pcs} pick-up pcs x ${pickup_unit:.2f}")
+            if employee_pcs:
+                parts.append(f"{employee_pcs} employee pcs x ${emp_rate:.2f}")
             basis = " · ".join(parts)
-            revenue = round(popup_rev + pickup_rev + other_rev, 2)
+            revenue = round(popup_rev + pickup_rev + employee_rev
+                             + other_rev, 2)
         if sample_pcs:
             basis += (" · " if basis else "") + \
                      f"{sample_pcs} sample pcs, not charged"
@@ -2985,10 +3005,12 @@ def monthly_summary():
         sales_rows.append({
             "client_id":      r["client_id"],
             "name":           r["name"],
-            "pcs":            popup_pcs + pickup_pcs + other_pcs + sample_pcs,
+            "pcs":            (popup_pcs + pickup_pcs + employee_pcs
+                               + other_pcs + sample_pcs),
             "sample_pcs":     sample_pcs,
             "popup_pcs":      popup_pcs,
             "pickup_pcs":     pickup_pcs,
+            "employee_pcs":   employee_pcs,
             "other_pcs":      other_pcs,
             "unit_price":     price,
             "other_rate":     other_rate,
@@ -3043,6 +3065,7 @@ def monthly_summary():
         date_from=date_from, date_to=date_to,
         sales_rows=sales_rows, order_sales=order_sales,
         popup_rate=pop_rate, pickup_rate=pick_rate, popup_waste=waste,
+        employee_rate=emp_rate,
         popup_pcs=sum(r["popup_pcs"] for r in sales_rows),
         popup_rows=popup_rows,
         popup_sales_total=round(sum(r["revenue"] for r in popup_rows), 2),

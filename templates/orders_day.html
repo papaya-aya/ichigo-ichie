@@ -78,6 +78,7 @@
             <option value="delivery" {% if kind == 'delivery' %}selected{% endif %}>🚚 Delivery</option>
             <option value="popup"    {% if kind == 'popup' %}selected{% endif %}>🎪 Pop-up</option>
             <option value="pickup"   {% if kind == 'pickup' %}selected{% endif %}>🛍️ Pick-up</option>
+            <option value="employee" {% if kind == 'employee' %}selected{% endif %}>🧑‍🍳 Employee</option>
           </select>
         </td>
         <td id="td-deliver-on-{{ o.id }}">
@@ -169,6 +170,7 @@
           <option value="delivery">🚚 Delivery</option>
           <option value="popup">🎪 Pop-up</option>
           <option value="pickup">🛍️ Pick-up</option>
+          <option value="employee">🧑‍🍳 Employee</option>
         </select>
       </label>
       <div class="field">

@@ -426,6 +426,38 @@ def main():
     if not ok:
         failures.append("pick-up form")
 
+    # ---- employee channel --------------------------------------------------
+    # Staff buy at the employee rate: no waste deduction, no driver, and not
+    # listed among the pop-up events.
+    print("\nemployee channel")
+    con.execute("INSERT INTO clients (id,name,active,unit_price)"
+                " VALUES (31,'StaffBuyer',1,0)")
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,is_pickup,"
+                "pickup_kind,qty_original,created_at)"
+                " VALUES (31,'2026-09-12','2026-09-12',1,'employee',100,'x')")
+    con.commit()
+    body = sales_total()[1]
+    ok = "100 employee pcs x $5.50" in body
+    print(f"  {'ok  ' if ok else 'FAIL'} {'priced at the employee rate':<32}")
+    if not ok:
+        failures.append("employee rate")
+
+    ok = "StaffBuyer" not in body.split("Pop-ups")[-1][:1500]
+    print(f"  {'ok  ' if ok else 'FAIL'} {'kept out of the pop-up list':<32}")
+    if not ok:
+        failures.append("employee not popup")
+
+    cl.post("/owner/orders/2026-09-12", data={
+        "action": "add", "client_id": "31", "channel": "employee",
+        "qty_original": "20", "delivery_date": "2026-09-12"},
+        follow_redirects=True)
+    row = con.execute("SELECT is_pickup, pickup_kind FROM orders"
+                      " WHERE client_id=31 AND qty_original=20").fetchone()
+    ok = row is not None and row["pickup_kind"] == "employee"
+    print(f"  {'ok  ' if ok else 'FAIL'} {'order form saves it':<32}")
+    if not ok:
+        failures.append("employee form")
+
     # ---- flat monthly amount ----------------------------------------------
     print("\nflat monthly amount")
     before = sales_total()[0]
