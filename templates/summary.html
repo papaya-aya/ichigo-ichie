@@ -94,6 +94,12 @@
       <tr>
         <td><b>{{ r.name }}</b>
           {% if r.is_consignment %}<span class="pill pill-cons">consignment</span>{% endif %}
+          {% if r.flat_override %}<span class="pill pill-adj"
+            title="A flat monthly amount was entered, replacing the per-piece total">flat amount</span>{% endif %}
+          {% if r.reported %}<span class="pill pill-adj"
+            title="Billed on the figure this client reported selling">reported</span>{% endif %}
+          {% if r.popup_adjusted %}<span class="pill pill-adj"
+            title="At least one pop-up has recorded sales instead of the default">pop-up adjusted</span>{% endif %}
         </td>
         <td style="text-align:right">
           {{ r.pcs or '—' }}
@@ -187,8 +193,10 @@
   <details class="fold">
     <summary>
       Adjust what a pop-up actually sold
+      {% set adjusted = popup_rows | selectattr('recorded') | list | length %}
       <span class="muted">— {{ popup_rows|length }} event{{ 's' if popup_rows|length != 1 }},
-        ${{ '%.2f'|format(popup_sales_total) }}, already counted in Sales above</span>
+        ${{ '%.2f'|format(popup_sales_total) }}, already counted in Sales above{% if adjusted %};
+        <b>{{ adjusted }} adjusted</b>{% endif %}</span>
     </summary>
   <p class="muted" style="margin:.7rem 0 0; font-size:.88rem">
     By default a pop-up earns everything made less {{ '%g'|format(popup_waste * 100) }}%
@@ -229,7 +237,8 @@
                  min="0" step="0.01" placeholder="—"
                  style="width:6.5rem; text-align:right">
         </td>
-        <td style="text-align:right; font-weight:600">${{ '%.2f'|format(p.revenue) }}</td>
+        <td style="text-align:right; font-weight:600">${{ '%.2f'|format(p.revenue) }}
+          {% if p.recorded %}<br><span class="pill pill-adj">adjusted</span>{% endif %}</td>
         <td class="muted" style="font-size:.8rem">{{ p.basis }}</td>
       </tr>
       {% endfor %}
@@ -543,6 +552,7 @@
 .sum-good{border-color:#c3e6cc;background:#f5fbf7}
 .sum-bad{border-color:#f0c2c2;background:#fdf6f6}
 .pill-cons{background:#fff3e0;color:#8a5a00;font-size:.72rem}
+.pill-adj{background:#e8eefc;color:#2f4f9e;font-size:.7rem}
 .pill-rev {background:#e8f5ec;color:#2d6a40;font-size:.72rem}
 .pill-cost{background:#fdecec;color:#a33;font-size:.72rem}
 .pill-warn{background:#fff3cd;color:#8a6d00;font-size:.72rem}

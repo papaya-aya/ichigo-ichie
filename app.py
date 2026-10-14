@@ -2890,6 +2890,7 @@ def monthly_summary():
 
     # ---- pop-ups, one row per event, with optional recorded actuals ----
     popup_rows, popup_rev_by_client = [], {}
+    popup_adjusted = set()
     for p in g.db.execute(
         """SELECT o.id, COALESCE(o.delivery_date, o.date) AS on_date,
                   o.client_id, o.note, c.name AS client_name,
@@ -2934,6 +2935,8 @@ def monthly_summary():
             "revenue":    revenue,
             "basis":      basis,
         })
+        if p["amount"] is not None or p["pcs_sold"] is not None:
+            popup_adjusted.add(p["client_id"])
         popup_rev_by_client[p["client_id"]] = round(
             popup_rev_by_client.get(p["client_id"], 0.0) + revenue, 2)
 
@@ -3016,6 +3019,9 @@ def monthly_summary():
             "other_rate":     other_rate,
             "is_pickup":      is_pickup_client,
             "is_consignment": bool(r["is_consignment"]),
+            "flat_override":  flat_override,
+            "reported":       bool(r["is_consignment"] and flat_amount),
+            "popup_adjusted": r["client_id"] in popup_adjusted,
             "gross":          gross,
             "revenue":        revenue,
             "basis":          basis,
