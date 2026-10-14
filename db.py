@@ -79,6 +79,15 @@ SEPT_2026_AMEX_COSTS = [
     ("2026-09", "Software & fees", "Amazon Prime",         16.60),
 ]
 
+# Gusto's monthly software fee, from the "GUSTO; FEE" rows in the Mercury
+# export. Earlier imports excluded every Gusto outflow as payroll, but only the
+# NET and TAX rows are wages — the FEE is a subscription, and a real cost.
+GUSTO_FEES_2026 = [
+    ("2026-03",  85.00), ("2026-04", 115.00), ("2026-05", 181.00),
+    ("2026-06", 151.00), ("2026-07", 157.00), ("2026-08", 169.00),
+    ("2026-09", 157.00),
+]
+
 NON_LABOUR_COSTS_2026 = [
     ("2026-02", "Software & fees", "Relay Financial", 90.77),
     ("2026-02", "Insurance", "Next Insurance", 36.42),
@@ -357,6 +366,22 @@ def migrate_db():
                  GROUP BY month, kind, category, label, amount, note
               )"""
     )
+    conn.commit()
+
+    # 2026-10-14: Gusto's software fee was excluded along with wages in every
+    # earlier import. Only NET and TAX are payroll — the FEE is a subscription.
+    for month, amount in GUSTO_FEES_2026:
+        conn.execute(
+            """INSERT INTO summary_items
+                 (month, kind, category, label, amount, note, created_at)
+               SELECT ?, 'cost', 'Software & fees', 'Gusto payroll software',
+                      ?, 'imported from Mercury', ?
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM summary_items
+                   WHERE month = ? AND label = 'Gusto payroll software'
+                     AND note = 'imported from Mercury')""",
+            (month, amount, now_iso(), month),
+        )
     conn.commit()
 
     # 2026-10-12: September Amex charges (one-time). Separate from the Mercury
