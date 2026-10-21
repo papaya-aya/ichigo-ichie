@@ -570,6 +570,76 @@ def main():
         if not ok:
             failures.append(label)
 
+    # ---- productivity on approvals ----------------------------------------
+    # Day's pieces ÷ every reported person-hour that day, as written. On
+    # 2026-09-25: a pending report (Yumi 06:30–10:00 with her early start,
+    # plus unassigned Extra 2 h; assigned Saku left out of it), an approved
+    # afternoon report (Saku 2 h) and a rejected one (5 h, ignored).
+    # 100 pieces ÷ 7.5 h = 13.33 → 13.3, 6.8 above the 6.5 target.
+    print("\nproductivity")
+    with harness.flask_app.test_request_context():
+        from flask import g
+        g.db = harness.stub.get_db()
+        sept = harness.appmod._day_productivity("2026-09-02")
+    con.execute("INSERT INTO employees (id,name,pin_hash,active,created_at)"
+                " VALUES (93,'Extra','h',1,'x')")
+    for tid, label in [(91, "Morning"), (92, "Afternoon"), (93, "Evening")]:
+        con.execute("INSERT INTO shift_templates (id,weekday,label,start_time,"
+                    "end_time,quantity,min_people,max_people)"
+                    " VALUES (?,2,?,'06:45','09:30',40,1,3)", (tid, label))
+        con.execute("INSERT INTO shift_instances (id,template_id,date)"
+                    " VALUES (?,?,'2026-09-25')", (tid, tid))
+    con.execute("INSERT INTO assignments (shift_instance_id,employee_id,"
+                "start_time,end_time,is_manager) VALUES (91,1,'06:45','09:30',1)")
+    con.execute("INSERT INTO assignments (shift_instance_id,employee_id,"
+                "start_time,end_time,is_manager) VALUES (91,2,'06:45','09:30',0)")
+    con.execute("INSERT INTO orders (client_id,date,delivery_date,qty_original,"
+                "created_at) VALUES (1,'2026-09-25','2026-09-25',100,'x')")
+    for rid, iid, status in [(91, 91, "pending"), (92, 92, "approved"),
+                             (93, 93, "rejected")]:
+        con.execute("INSERT INTO shift_reports (id,shift_instance_id,"
+                    "submitted_by,status,submitted_at) VALUES (?,?,1,?,'x')",
+                    (rid, iid, status))
+    for rid, eid, start, end in [(91, 1, "06:30", "10:00"),
+                                 (91, 93, "07:00", "09:00"),
+                                 (92, 2, "13:00", "15:00"),
+                                 (93, 2, "10:00", "15:00")]:
+        con.execute("INSERT INTO shift_report_hours (report_id,employee_id,"
+                    "actual_start,actual_end) VALUES (?,?,?,?)",
+                    (rid, eid, start, end))
+    con.commit()
+    with harness.flask_app.test_request_context():
+        from flask import g
+        g.db = harness.stub.get_db()
+        prod = harness.appmod._day_productivity("2026-09-25")
+        none_day = harness.appmod._day_productivity("2026-09-30")
+        pv25 = harness.appmod._shift_report_preview(91, 91, "2026-09-25")
+    body = cl.get("/owner/approvals").get_data(as_text=True)
+    checks = [
+        ("Sept 2 = pieces ÷ 6.25 h",  sept and sept["value"]
+                                      == round(pieces / 6.25, 1)),
+        ("all reports summed",        prod and abs(prod["hours"] - 7.5) < 0.005),
+        ("rounded to 1 decimal",      prod and prod["value"] == 13.3),
+        ("compared to target",        prod and prod["diff"] == 6.8),
+        ("nothing reported -> none",  none_day is None),
+        ("pay preview unchanged",     abs(pv25["person_hours"] - 6.25) < 0.005),
+        ("page shows value",          "<strong>13.3</strong> pcs/person-hour"
+                                      in body),
+        ("page shows above target",   "6.8 above target 6.5" in body),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(label)
+    con.execute("DELETE FROM shift_report_hours WHERE report_id IN (91,92,93)")
+    con.execute("DELETE FROM shift_reports WHERE id IN (91,92,93)")
+    con.execute("DELETE FROM assignments WHERE shift_instance_id IN (91,92,93)")
+    con.execute("DELETE FROM shift_instances WHERE id IN (91,92,93)")
+    con.execute("DELETE FROM shift_templates WHERE id IN (91,92,93)")
+    con.execute("DELETE FROM orders WHERE date='2026-09-25'")
+    con.execute("DELETE FROM employees WHERE id=93")
+    con.commit()
+
     # ---- chief manager ---------------------------------------------------
     # Selectable only on shifts from 2026-10-01. No +5%: instead paid from
     # 15 minutes before the scheduled start.

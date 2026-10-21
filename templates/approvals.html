@@ -216,6 +216,19 @@
             {{ pv.pieces }} pieces made ·
             {% if pv.rate %}${{ '%.2f'|format(pv.rate) }}/h after approval{% else %}no pieces recorded for this day yet, so pay shows $0{% endif %}
           </div>
+          {% set prod = r.productivity %}
+          <div style="font-size:.9em; margin-top:.4rem">
+            <strong>Productivity:</strong>
+            {% if prod %}
+              <strong>{{ '%.1f'|format(prod.value) }}</strong> pcs/person-hour
+              {% if prod.diff > 0 %}<span class="ok">▲ {{ '%.1f'|format(prod.diff) }} above target {{ prod.target }}</span>
+              {% elif prod.diff < 0 %}<span class="warn">▼ {{ '%.1f'|format(-prod.diff) }} below target {{ prod.target }}</span>
+              {% else %}<span class="ok">on target {{ prod.target }}</span>{% endif %}
+              <span class="muted" style="font-size:.88em">({{ prod.pieces }} pieces ÷ {{ '%.2f'|format(prod.hours) }} reported person-hours for the day)</span>
+            {% else %}
+              <span class="muted">— needs pieces and reported hours for the day</span>
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% endif %}

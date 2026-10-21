@@ -3826,6 +3826,7 @@ def approvals():
     for r in pending_shift_reports:
         r["preview"] = (_shift_report_preview(r["id"], r["instance_id"], r["date"])
                         if r["instance_id"] else None)
+        r["productivity"] = _day_productivity(r["date"]) if r["date"] else None
 
     decided_shift_reports = g.db.execute(
         """SELECT sr.id, sr.status, sr.decided_at, sr.strawberry_stock, sr.anko_stock, sr.memo,
@@ -4717,6 +4718,39 @@ def _shift_report_preview(report_id, instance_id, shift_date):
         "pieces":       pieces,
         "rate":         rate,
         "total_pay":    total_pay,
+    }
+
+
+def _day_productivity(shift_date):
+    """Pieces per person-hour for a day, from the times managers reported.
+
+    Display only, for the approvals page. Counts every reported row on the
+    day's non-rejected reports exactly as written (a manager's early start
+    counts if they wrote it in), including people who were not assigned.
+    Assigned people missing from the report are left out. Returns None when
+    nothing has been reported or no pieces were made.
+    """
+    rows = g.db.execute(
+        """SELECT srh.actual_start, srh.actual_end
+             FROM shift_report_hours srh
+             JOIN shift_reports sr   ON sr.id = srh.report_id
+             JOIN shift_instances si ON si.id = sr.shift_instance_id
+            WHERE si.date = ? AND sr.status <> 'rejected'""",
+        (shift_date,),
+    ).fetchall()
+    hours = sum(h for h in (_span_hours(r["actual_start"], r["actual_end"])
+                            for r in rows) if h and h > 0)
+    pieces = production.day_totals(g.db, shift_date)["total"]
+    if hours <= 0 or pieces <= 0:
+        return None
+    value  = round(pieces / hours, 1)
+    target = target_productivity()
+    return {
+        "pieces": pieces,
+        "hours":  hours,
+        "value":  value,
+        "target": target,
+        "diff":   round(value - target, 1),
     }
 
 
