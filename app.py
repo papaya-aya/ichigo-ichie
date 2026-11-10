@@ -4611,7 +4611,19 @@ def shift_report(instance_id):
         if memo:
             lines.append(f"\n📝 Memo: {memo}")
         if strawberry or anko or memo:
-            _send_slack("\n".join(lines))
+            # The report is already saved: a failure here must not lose it.
+            try:
+                lines += _shift_report_slack_lines(report_id, instance_id, inst["date"])
+            except Exception as _e:
+                app.logger.error("shift report Slack summary failed: %s", _e)
+                try:
+                    g.db._conn.rollback()  # Postgres refuses queries after an error
+                except Exception:
+                    pass
+            try:
+                _send_slack("\n".join(lines))
+            except Exception as _e:
+                app.logger.error("shift report Slack send failed: %s", _e)
 
         if is_owner:
             flash("Report saved. You can approve it from the Approvals page.", "success")
@@ -4752,6 +4764,53 @@ def _day_productivity(shift_date):
         "target": target,
         "diff":   round(value - target, 1),
     }
+
+
+def _shift_report_slack_lines(report_id, instance_id, shift_date):
+    """Hours, productivity and expected pay for the shift report Slack message.
+
+    Reuses the approvals page figures — _shift_report_preview for hours and
+    pay, _day_productivity for pieces per person-hour — so the team sees the
+    same numbers the owner will approve. Pay is an estimate until approval.
+    Without pieces for the day there is no rate, so pay shows "—", not $0.
+    """
+    pv   = _shift_report_preview(report_id, instance_id, shift_date)
+    prod = _day_productivity(shift_date)
+
+    def badge(p):
+        return {ROLE_CHIEF: " ⭐", ROLE_MANAGER: " 👑"}.get(p["is_manager"], "")
+
+    lines = ["", "⏱ *Hours*"]
+    for p in pv["people"]:
+        hours = f"{p['hours']:.2f}h" if p["hours"] is not None else "—"
+        note  = "" if p["reported"] else " _not in report_"
+        lines.append(f"• {p['name']}{badge(p)} — {p['window']} ({hours}){note}")
+
+    lines.append("")
+    if prod:
+        if prod["diff"] > 0:
+            vs = f"▲ {prod['diff']:.1f} vs target {prod['target']:g}"
+        elif prod["diff"] < 0:
+            vs = f"▼ {-prod['diff']:.1f} vs target {prod['target']:g}"
+        else:
+            vs = f"on target {prod['target']:g}"
+        lines.append(f"⚡ *Productivity:* {prod['value']:.1f} pcs/person-hour  {vs}")
+        lines.append(f"   ({prod['pieces']} pieces ÷ {prod['hours']:.2f}h"
+                     " reported for the day)")
+    else:
+        lines.append("⚡ *Productivity:* —  _(needs pieces and reported hours for the day)_")
+
+    lines += ["", "💰 *Expected pay — before approval*"]
+    for p in pv["people"]:
+        if not p["paid"]:
+            lines.append(f"• {p['name']} — not assigned, not paid on approval")
+        elif pv["rate"] and p["pay"] is not None:
+            hourly = pv["rate"] * pay_multiplier(p["is_manager"])
+            lines.append(f"• {p['name']} — ${hourly:.2f}/h · ${p['pay']:.2f}")
+        else:
+            lines.append(f"• {p['name']} — —")
+    lines.append("_Estimate only. Final pay is set when the owner approves._")
+    return lines
 
 
 @app.route("/owner/shift-report/<int:report_id>/decide", methods=["POST"])
