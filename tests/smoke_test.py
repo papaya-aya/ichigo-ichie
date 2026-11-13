@@ -1085,6 +1085,81 @@ def main():
         if not ok:
             failures.append(f"zero-piece {label}")
 
+    # ---- an extra shift day takes its weekday from its date ---------------
+    # "Add an extra shift day" copies another day's pattern. A Thursday copied
+    # from the Monday pattern used to read as Mon, picked up Monday's default
+    # manager, and got Monday's recurring orders and standing crew.
+    print("\nextra shift weekday")
+    con.execute("INSERT INTO shift_templates (id,weekday,label,start_time,"
+                "end_time,quantity,min_people,max_people)"
+                " VALUES (40,0,'Mon pattern','06:45','09:30',40,1,4)")
+    con.execute("INSERT OR REPLACE INTO weekday_managers (weekday,employee_id,"
+                "chief_employee_id) VALUES (0,1,NULL)")
+    con.execute("DELETE FROM weekday_managers WHERE weekday=3")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (41,'Mon Regular',1)")
+    con.execute("INSERT INTO clients (id,name,active) VALUES (42,'Thu Regular',1)")
+    con.execute("INSERT INTO recurring_orders (client_id,weekday,qty_original)"
+                " VALUES (41,0,30)")
+    con.execute("INSERT INTO recurring_orders (client_id,weekday,qty_original)"
+                " VALUES (42,3,12)")
+    con.execute("INSERT INTO employees (id,name,pin_hash,active,created_at)"
+                " VALUES (43,'Standing Mon','h',1,'x')")
+    con.execute("INSERT INTO recurring_assignments (employee_id,template_id,"
+                "start_date,is_manager,created_at)"
+                " VALUES (43,40,'2027-01-01',0,'x')")
+    mon_id = con.execute("INSERT INTO shift_instances (template_id,date)"
+                         " VALUES (40,'2027-04-05')").lastrowid
+    con.commit()
+    cl.post("/owner/shift/add", data={"date": "2027-04-08", "template_id": "40",
+                                      "month": "2027-04", "back": "calendar"})
+    thu = con.execute("SELECT id FROM shift_instances WHERE template_id=40"
+                      " AND date='2027-04-08'").fetchone()
+    thu_id = thu["id"] if thu else None
+    if thu_id:
+        for eid in (1, 2):
+            con.execute("INSERT INTO availability (employee_id,shift_instance_id,"
+                        "start_time,end_time,status,submitted_at)"
+                        " VALUES (?,?,'06:45','09:30','approved','x')",
+                        (eid, thu_id))
+        con.commit()
+        # "Add all" puts both on the shift with the weekday's default roles.
+        cl.post(f"/owner/schedule/{thu_id}", data={"action": "add_all"})
+        cl.post("/owner/recurring-orders/apply", data={"month": "2027-04"})
+        cl.post("/owner/recurring-assignments/apply", data={"month": "2027-04"})
+        with harness.flask_app.test_request_context():
+            harness.appmod.apply_weekday_default_roles(harness.stub.get_db())
+        con.commit()
+
+    def ex_roles(iid):
+        return {r["employee_id"]: r["is_manager"] for r in con.execute(
+            "SELECT employee_id, is_manager FROM assignments"
+            " WHERE shift_instance_id=?", (iid,)).fetchall()}
+
+    def ex_orders(d):
+        return {r["client_id"]: r["qty_original"] for r in con.execute(
+            "SELECT client_id, qty_original FROM orders WHERE date=?",
+            (d,)).fetchall()}
+
+    cal = cl.get("/calendar?month=2027-04").get_data(as_text=True)
+    detail = (cl.get(f"/owner/schedule/{thu_id}").get_data(as_text=True)
+              if thu_id else "")
+    checks = [
+        ("extra shift added",          thu_id is not None),
+        ("calendar shows Thu",         re.search(
+            r'shift-dayname">Thu</span>\s*<span class="shift-daynum">08', cal)
+            is not None),
+        ("shift page shows Thu",       "Thu 2027-04-08" in detail),
+        ("no Mon default manager",     thu_id and ex_roles(thu_id) == {1: 0, 2: 0}),
+        ("gets Thu recurring order",   ex_orders("2027-04-08") == {42: 12}),
+        ("no standing Mon crew",       thu_id and 43 not in ex_roles(thu_id)),
+        ("real Mon gets Mon order",    ex_orders("2027-04-05").get(41) == 30),
+        ("real Mon gets standing crew", ex_roles(mon_id) == {43: 0}),
+    ]
+    for label, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {label:<32}")
+        if not ok:
+            failures.append(f"extra shift {label}")
+
     # ---- startup runs clean -----------------------------------------------
     # Regression: the weekday-roles backfill runs at import and called a helper
     # defined further down the file, so it raised NameError and took every

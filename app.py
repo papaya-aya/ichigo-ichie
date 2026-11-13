@@ -23,6 +23,28 @@ from scheduler import (
 )
 import production
 
+
+def date_weekday(iso):
+    """Weekday of a YYYY-MM-DD date, Mon=0 .. Sun=6.
+
+    A shift's weekday comes from its date, never from its template: an extra
+    shift day copies another day's pattern, so the template's weekday can be
+    wrong for it. Defined up here because startup steps reach it."""
+    y, m, d = (int(x) for x in iso.split("-"))
+    return date(y, m, d).weekday()
+
+
+def with_date_weekday(rows):
+    """Rows as dicts with `weekday` taken from each row's date."""
+    out = []
+    for r in rows:
+        d = dict(r)
+        if d.get("date"):
+            d["weekday"] = date_weekday(d["date"])
+        out.append(d)
+    return out
+
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SHIFTO_SECRET", "dev-secret-change-me")
 
@@ -203,6 +225,9 @@ def apply_shift_override(row):
     d["end_is_custom"] = bool(override)
     if override:
         d["end_time"] = override
+    if d.get("date"):
+        d["template_weekday"] = d.get("weekday")
+        d["weekday"] = date_weekday(d["date"])
     return d
 
 
@@ -311,7 +336,7 @@ def apply_weekday_default_roles(conn, instance_ids=None, from_date=None):
 
     changed = 0
     for people in shifts.values():
-        d = defaults.get(people[0]["weekday"])
+        d = defaults.get(date_weekday(people[0]["shift_date"]))
         if not d:
             continue
         date = people[0]["shift_date"]
@@ -716,7 +741,7 @@ def availability():
         ).fetchall()
         if conflicts:
             names = ", ".join(
-                f"{WEEKDAY_NAMES[r['weekday']]} {r['date']} ({r['label']})"
+                f"{WEEKDAY_NAMES[date_weekday(r['date'])]} {r['date']} ({r['label']})"
                 for r in conflicts
             )
             flash(
@@ -822,7 +847,7 @@ def my_shifts():
         window = (r["actual_start"] or r["start_time"]) + "–" + (r["actual_end"] or r["end_time"])
         upcoming.append({
             "date":          r["date"],
-            "weekday":       WEEKDAY_NAMES[r["weekday"]],
+            "weekday":       WEEKDAY_NAMES[date_weekday(r["date"])],
             "label":         r["label"],
             "shift_hours":   f"{r['shift_start']}–{r['shift_end']}",
             "window":        window,
@@ -873,7 +898,7 @@ def my_shifts():
         pay    = hrs * rate * pay_multiplier(r["is_manager"])
         shifts_pay.append({
             "date":        r["date"],
-            "weekday":     WEEKDAY_NAMES[r["weekday"]],
+            "weekday":     WEEKDAY_NAMES[date_weekday(r["date"])],
             "label":       r["label"],
             "time_window": f"{a_start}–{r['a_end']}",
             "confirmed":   bool(r["actual_start"]),
@@ -1944,6 +1969,10 @@ def apply_recurring_assignments():
 
     added = skipped = unavailable = 0
     for inst in instances:
+        # An extra shift day copies another weekday's pattern. Standing
+        # assignments belong to that weekday, so don't put its crew on it.
+        if inst["weekday"] != inst["template_weekday"]:
+            continue
         template_id = inst["id"]
         for ra in by_template.get(template_id, []):
             if ra["start_date"] > inst["date"]:
@@ -2387,7 +2416,7 @@ def _compute_salary(date_from, date_to):
         if iid not in instance_info:
             instance_info[iid] = {
                 "date": r["date"],
-                "weekday": WEEKDAY_NAMES[r["weekday"]],
+                "weekday": WEEKDAY_NAMES[date_weekday(r["date"])],
                 "label": r["label"],
                 "person_hours": 0.0,
                 "pieces": 0,
@@ -3441,11 +3470,6 @@ def orders_day(date):
     )
 
 
-def date_weekday(iso):
-    y, m, d = (int(x) for x in iso.split("-"))
-    return date(y, m, d).weekday()
-
-
 @app.route("/owner/deliveries", methods=["GET", "POST"])
 @require_owner
 def deliveries_month():
@@ -3740,7 +3764,7 @@ def approvals():
             by_emp = {}
             for r in rows:
                 by_emp.setdefault(r["emp_name"], []).append(
-                    f"{WEEKDAY_NAMES[r['weekday']]} {r['date']} ({r['label']})"
+                    f"{WEEKDAY_NAMES[date_weekday(r['date'])]} {r['date']} ({r['label']})"
                 )
             icon = "✅" if decision == "approved" else "❌"
             lines = []
@@ -3788,6 +3812,7 @@ def approvals():
             ORDER BY av.is_update, si.date, t.start_time, e.name""",
         (status,),
     ).fetchall()
+    rows = with_date_weekday(rows)
     counts = {
         r["status"]: r["n"]
         for r in g.db.execute(
@@ -3841,6 +3866,7 @@ def approvals():
             ORDER BY si.date DESC
             LIMIT 60"""
     ).fetchall()
+    decided_shift_reports = with_date_weekday(decided_shift_reports)
 
     # Employees assigned to upcoming shifts they did not mark as available.
     # Condition: has an assignment, submitted availability for that month
@@ -3868,6 +3894,7 @@ def approvals():
             ORDER BY si.date, e.name""",
         (date.today().isoformat(),),
     ).fetchall()
+    assignment_conflicts = with_date_weekday(assignment_conflicts)
 
     return render_template(
         "approvals.html", rows=rows, status=status, counts=counts,
